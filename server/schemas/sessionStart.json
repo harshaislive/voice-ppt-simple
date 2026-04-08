@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Session Start Request",
+  "type": "object",
+  "properties": {
+    "deckId": {
+      "type": "string",
+      "description": "Identifier of the presentation deck to load",
+      "default": "beforest_pitch"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,39 @@
+{
+  "id": "beforest_pitch",
+  "title": "Beforest - Forest Investment Reimagined",
+  "description": "Pitch deck for Beforest, a forest investment company that makes sustainable forestry accessible to everyone.",
+  "slides": [
+    {
+      "title": "Welcome to Beforest",
+      "content": "Welcome to Beforest - where we're reimagining forest investment for the modern investor.\n\nOur mission: Make sustainable forestry accessible to everyone.\n\nWe believe forests are more than just trees - they're the future of sustainable investing.\n\n[Company logo and tagline: 'Invest in the Future, Grow with Nature']",
+      "notes": "Start with energy. Welcome everyone. Emphasize the accessibility angle. Pause after tagline."
+    },
+    {
+      "title": "The Problem",
+      "content": "Traditional forestry investment is:\n\n❌ Reserved for ultra-high-net-worth individuals\n❌ Opaque and inaccessible\n❌ Lacks transparency and reporting\n❌ Requires massive capital (>$1M minimum)\n❌ Long lock-in periods (10-30 years)\n\nResult: Only 0.1% of investors can access this asset class.\n\nMeanwhile, forests need urgent protection and sustainable management.",
+      "notes": "Use hand gestures to emphasize each pain point. Make eye contact. This problem resonates emotionally - speak to that."
+    },
+    {
+      "title": "Our Solution",
+      "content": "Beforest democratizes forest investment through:\n\n✅ Fractional ownership (starting at $500)\n✅ Transparent blockchain-based tracking\n✅ Quarterly sustainability reports\n✅ Professional forest management\n✅ Community-driven investment decisions\n\nTechnology meets tradition:\n- IoT sensors for real-time monitoring\n- AI-powered growth prediction\n- Satellite imagery analysis\n- Sustainable harvesting protocols",
+      "notes": "Contrast with previous slide. Show the technology stack visually. Be ready for technical questions."
+    },
+    {
+      "title": "The Opportunity",
+      "content": "Why invest in forests now?\n\n📈 Growing demand for carbon credits\n🌍 ESG investing is mainstream\n🌲 Real assets provide inflation hedge\n💰 Projected 8-12% annual returns\n🌱 Positive environmental impact\n\nMarket size: $1.2 trillion sustainable forestry market by 2030.\n\nYour investment grows literally and figuratively.",
+      "notes": "This is the investment thesis. Be precise with numbers. Have backup slides with detailed projections if needed."
+    },
+    {
+      "title": "Join Us",
+      "content": "Start your forest investment journey today:\n\n1️⃣ Visit beforest.co\n2️⃣ Choose your forest plot\n3️⃣ Invest from $500\n4️⃣ Watch your forest grow\n\nLimited early investor spots available.\n\nContact: invest@beforest.co\nWeb: beforest.co\n\n'Invest in the Future, Grow with Nature'",
+      "notes": "Clear call to action. Mention limited availability to create urgency. End with the tagline again for reinforcement. Be ready for investment structure questions."
+    }
+  ],
+  "metadata": {
+    "industry": "Sustainable Forestry",
+    "stage": "Seed",
+    "targetInvestor": "Impact investors, tech-savvy individuals",
+    "presentationLength": "15 minutes",
+    "lastUpdated": "2024-01-15"
+  }
+}

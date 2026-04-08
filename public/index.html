@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice-PPT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app" class="app">
+        <!-- START SCREEN -->
+        <div id="start-screen" class="start-screen">
+            <div class="start-bg"></div>
+            <div class="start-content">
+                <div class="start-badge">VOICE-PPT</div>
+                <h1 class="start-title">Presentations<br>that speak.</h1>
+                <p class="start-sub">AI-powered voice narration that brings your slides to life.</p>
+                <div class="start-actions">
+                    <select id="deck-select" class="deck-select">
+                        <option value="ten_percent_club">10% Club Presentation</option>
+                        <option value="beforest_pitch">Beforest Pitch Deck</option>
+                    </select>
+                    <button id="start-presentation" class="btn-start">
+                        <span class="btn-start-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        </span>
+                        <span>Start Presentation</span>
+                    </button>
+                </div>
+                <div class="start-hint">Questions are collected during the presentation and answered at the end.</div>
+            </div>
+        </div>
+
+        <!-- PRESENTATION VIEW -->
+        <div id="present-view" class="present-view hidden">
+            <!-- Slide Background -->
+            <div id="slide-bg" class="slide-bg"></div>
+            <div class="slide-overlay"></div>
+
+            <!-- Top Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <span id="deck-label" class="topbar-label">10% Club</span>
+                </div>
+                <div class="topbar-center">
+                    <div id="status-indicator" class="status-indicator">
+                        <span id="status-dot" class="status-dot"></span>
+                        <span id="status-text">Connecting</span>
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <span id="slide-counter" class="slide-counter">0 / 0</span>
+                </div>
+            </header>
+
+            <!-- Slide Content -->
+            <main class="slide-main">
+                <div id="slide-container" class="slide-container">
+                    <h1 id="slide-title" class="slide-title"></h1>
+                    <p id="slide-subtitle" class="slide-subtitle"></p>
+                </div>
+            </main>
+
+            <!-- Narration Transcript -->
+            <div id="transcript-bar" class="transcript-bar">
+                <div class="transcript-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </div>
+                <p id="transcript-text" class="transcript-text">Waiting to start...</p>
+            </div>
+
+            <!-- Audio Waveform -->
+            <canvas id="waveform" class="waveform"></canvas>
+
+            <!-- Q&A Panel (slides up from bottom) -->
+            <div id="qa-panel" class="qa-panel">
+                <div class="qa-grip" id="qa-grip">
+                    <div class="grip-line"></div>
+                </div>
+                <div class="qa-header">
+                    <div class="qa-header-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        <span>Questions</span>
+                    </div>
+                    <span id="qa-count" class="qa-count">0</span>
+                </div>
+                <div id="qa-list" class="qa-list">
+                    <div class="qa-empty">Ask a question anytime — the presenter will answer at the end.</div>
+                </div>
+                <div class="qa-input-row">
+                    <input id="question-input" type="text" class="qa-input" placeholder="Type your question..." disabled>
+                    <button id="submit-question" class="qa-send" disabled>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Completion Overlay -->
+            <div id="completion-overlay" class="completion-overlay hidden">
+                <div class="completion-content">
+                    <div class="completion-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <h2>Presentation Complete</h2>
+                    <p id="completion-summary"></p>
+                    <button id="restart-btn" class="btn-start">Start Over</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio element -->
+    <audio id="audio-player" style="display:none;"></audio>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="audio-player.js"></script>
+    <script src="socket-client.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
