@@ -16,11 +16,11 @@ router.post('/', async (req, res) => {
         // Verify session exists and is active
         const session = db.get(`
             SELECT id, current_slide_index FROM sessions
-            WHERE id = ? AND status = 'active'
+            WHERE id = ? AND status IN ('active', 'presenting', 'wrapup')
         `, [sessionId]);
         
         if (!session) {
-            return res.status(404).json({ error: 'Session not found or not active' });
+            return res.status(404).json({ error: 'Session not found or not accepting questions' });
         }
         
         const questionId = uuidv4();

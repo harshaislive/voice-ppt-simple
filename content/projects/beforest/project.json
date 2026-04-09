@@ -1,0 +1,9 @@
+{
+  "slug": "beforest",
+  "name": "Beforest",
+  "status": "active",
+  "config_json": {
+    "industry": "Nature experiences and sustainable land stewardship",
+    "defaultPresentation": "ten_percent_club"
+  }
+}

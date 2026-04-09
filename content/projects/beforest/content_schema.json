@@ -1,0 +1,15 @@
+{
+  "presentation": {
+    "required": ["slug", "title", "slides"],
+    "optional": ["description", "status", "metadata"]
+  },
+  "slide": {
+    "required": ["title", "content"],
+    "optional": ["image", "notes", "layout"],
+    "constraints": {
+      "content_max_lines": 2,
+      "preferred_layout": "immersive",
+      "subtitle_mode": "caption_overlay"
+    }
+  }
+}

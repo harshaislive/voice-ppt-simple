@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS slides (
     slide_index INTEGER NOT NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
+    image TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,

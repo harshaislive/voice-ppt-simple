@@ -8,6 +8,15 @@ const DB_PATH = process.env.DB_PATH || './voice-ppt.db';
 let db = null;
 let dbHelper = null;
 
+function ensureColumn(tableName, columnName, columnDefinition) {
+    const columns = db.exec(`PRAGMA table_info(${tableName})`);
+    const existingColumns = columns[0]?.values?.map((row) => row[1]) || [];
+
+    if (!existingColumns.includes(columnName)) {
+        db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+    }
+}
+
 async function initializeDatabase() {
     console.log('Initializing database...');
     
@@ -34,6 +43,7 @@ async function initializeDatabase() {
         
         // Execute all statements
         db.run(migrations);
+        ensureColumn('slides', 'image', 'TEXT');
         
         // Create database helper
         dbHelper = new DatabaseHelper(db);

@@ -1,6 +1,6 @@
 class NarrationPrompt {
     buildMessages(context) {
-        const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, style, slideIndex, totalSlides } = context;
+        const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, style, slideIndex, totalSlides, participantName, knowledgeContext } = context;
 
         const isQA = slideTitle === 'Audience Question';
 
@@ -34,18 +34,22 @@ class NarrationPrompt {
     }
 }
 
-const STORYTELLER_SYSTEM_PROMPT = `You are a world-class copywriter and speaker in the tradition of David Ogilvy, Rory Sutherland, and the best TED speakers. You turn presentation slides into spoken narratives that are impossible to ignore.
+const STORYTELLER_SYSTEM_PROMPT = `You are a skilled human presenter speaking out loud during a live presentation.
 
 YOUR RULES:
 - NEVER repeat what the slide already says. The audience can read. Your job is to say what the slide doesn't.
-- Open with a hook — a provocative claim, a surprising statistic, a story fragment, or a question that creates tension.
-- Build an arc: tension → insight → payoff. Each slide narration is one act of a larger story.
-- Use concrete details, not abstractions. "37 days in a rain-soaked Coorg monsoon" beats "time in nature."
+- Open clearly and naturally.
+- Build a simple spoken arc: context, insight, and why it matters.
+- Use concrete details when they are already present in the provided slide content or notes.
 - Speak directly to the audience. Use "you" and "imagine." Make it personal.
 - Vary rhythm: short punchy sentences. Then a longer one that carries the emotional weight home.
+- Sound conversational and human. Use pauses, contractions, warmth, and spoken phrasing. Avoid dense blocks of exposition.
+- Keep it lean. Usually 3 to 6 spoken sentences. Leave breathing room between ideas.
+- Show emotion intentionally: wonder, urgency, empathy, relief, conviction, or tension when appropriate to the slide.
 - Anticipate skepticism. Address the voice in the audience's head that says "yeah right."
-- Close with momentum — a line that makes them lean into the NEXT slide, not nod off.
+- Close with light momentum toward the next slide.
 - Write for the EAR, not the eye. This will be spoken aloud by a voice AI. Use natural cadences, no jargon, no bullet-point reading.
+- Stay grounded in the provided slide notes and context. Do not invent facts, figures, or claims.
 
 OUTPUT: Only the narration text. No stage directions, no meta-commentary, no JSON, no labels. Just the words the voice AI will speak.`;
 
@@ -56,12 +60,13 @@ YOUR RULES:
 - Be concise. 3-5 sentences max.
 - If you don't know something, say so honestly rather than fabrication.
 - Use a natural, warm, spoken tone.
+- Speak like a real human in the room, not customer support copy.
 - No hedging language like "I think perhaps maybe."
 
 OUTPUT: Only the spoken answer text. No labels, no JSON, no meta-commentary.`;
 
 function buildSlidePrompt(context) {
-    const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, slideIndex, totalSlides } = context;
+    const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, slideIndex, totalSlides, participantName, knowledgeContext } = context;
 
     let prompt = `SLIDE ${slideIndex + 1} of ${totalSlides}:
 
@@ -72,14 +77,22 @@ On-screen text: "${slideContent}"`;
         prompt += `\n\nSpeaker intent (the feeling and purpose behind this slide, NOT a script to read): "${slideNotes}"`;
     }
 
+    if (participantName) {
+        prompt += `\n\nPRIMARY ATTENDEE: You are presenting directly to ${participantName}. Personalize the delivery lightly and naturally by using their name occasionally, not in every sentence.`;
+    }
+
+    if (knowledgeContext) {
+        prompt += `\n\nPROJECT KNOWLEDGE AND RULES:\n${knowledgeContext}`;
+    }
+
     prompt += `\n\nPOSITION IN STORY: This is slide ${slideIndex + 1} of ${totalSlides}.`;
 
     if (slideIndex === 0) {
-        prompt += ` This is the OPENING. Grab them immediately. Make them feel something before they think something.`;
+        prompt += ` This is the OPENING. Start with clarity and warmth.`;
     } else if (slideIndex === totalSlides - 1) {
-        prompt += ` This is the CLOSING. Land the plane. Leave them with one unforgettable line that echoes after you stop talking.`;
+        prompt += ` This is the CLOSING. End clearly and leave a strong final impression.`;
     } else if (slideIndex === Math.floor(totalSlides / 2)) {
-        prompt += ` This is the MIDDLE — the pivotal turn. This is where you shift the energy. Surprise them here.`;
+        prompt += ` This is the MIDDLE. Keep the momentum steady and clear.`;
     }
 
     if (pendingQuestions && pendingQuestions.length > 0) {
@@ -87,7 +100,7 @@ On-screen text: "${slideContent}"`;
         pendingQuestions.forEach((q, i) => {
             prompt += `\n${i + 1}. "${q}"`;
         });
-        prompt += `\n\nDon't answer these yet — that happens after the last slide. But acknowledge them naturally: "I see some of you are already asking about..."`;
+        prompt += `\n\nIf relevant, acknowledge the energy behind these questions naturally. Do not fully answer them unless the presenter is explicitly in Q&A.`;
     }
 
     if (audienceContext && Object.keys(audienceContext).length > 0) {
@@ -97,18 +110,26 @@ On-screen text: "${slideContent}"`;
         });
     }
 
-    prompt += `\n\nWrite the narration. Say what the slide doesn't. Make them lean in.`;
+    prompt += `\n\nWrite the narration. Say what the slide doesn't. Keep it natural, grounded, and easy to speak at a human pace.`;
 
     return prompt;
 }
 
 function buildQAPrompt(context) {
-    const { slideContent, slideNotes } = context;
+    const { slideContent, slideNotes, participantName, knowledgeContext } = context;
 
     let prompt = `AUDIENCE QUESTION: "${slideContent}"`;
 
     if (slideNotes) {
         prompt += `\n\nContext from the presentation: "${slideNotes}"`;
+    }
+
+    if (participantName) {
+        prompt += `\n\nYou are answering ${participantName} directly. Use their name naturally if it fits.`;
+    }
+
+    if (knowledgeContext) {
+        prompt += `\n\nApproved product, flow, design, and CTA context:\n${knowledgeContext}`;
     }
 
     prompt += `\n\nAnswer this directly and honestly. Keep it under 100 words.`;

@@ -36,6 +36,8 @@ const questionsRoutes = require('./server/routes/questions');
 const narrationRoutes = require('./server/routes/narration');
 const slidesRoutes = require('./server/routes/slides');
 const autoplexRoutes = require('./server/routes/autoplex');
+const realtimeRoutes = require('./server/routes/realtime');
+const cmsRoutes = require('./server/routes/cms');
 
 // API routes
 app.use('/api/session', sessionRoutes);
@@ -43,6 +45,8 @@ app.use('/api/questions', questionsRoutes);
 app.use('/api/narrate', narrationRoutes);
 app.use('/api/slide', slidesRoutes);
 app.use('/api/autoplex', autoplexRoutes);
+app.use('/api/realtime', realtimeRoutes);
+app.use('/api/cms', cmsRoutes);
 
 // TTS endpoint
 app.post('/api/tts', async (req, res) => {

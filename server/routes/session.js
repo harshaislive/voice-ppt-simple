@@ -1,59 +1,82 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs').promises;
-const path = require('path');
+const cmsService = require('../services/cms');
 
 // Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
-        const { deckId = 'beforest_pitch' } = req.body;
+        const { deckId = 'beforest_pitch', participantName = '' } = req.body;
         const db = req.app.get('db');
         
         const sessionId = uuidv4();
         const now = new Date().toISOString();
-        
-        // Create session
-        db.run(`
-            INSERT INTO sessions (id, deck_id, current_slide_index, status, created_at, updated_at)
-            VALUES (?, ?, 0, 'active', ?, ?)
-        `, [sessionId, deckId, now, now]);
-        
-        // Load deck slides
-        const deckPath = path.join(__dirname, `../decks/${deckId}.json`);
+        const normalizedParticipantName = String(participantName || '').trim().slice(0, 60);
+        // Load deck slides from CMS or local fallback
         try {
-            const deckData = await fs.readFile(deckPath, 'utf8');
-            const deck = JSON.parse(deckData);
+            const presentation = await cmsService.loadPresentation(deckId);
+            const metadata = JSON.stringify({
+                participantName: normalizedParticipantName,
+                sourceType: presentation.source,
+                presentationTitle: presentation.title,
+                presentationSlug: presentation.presentationSlug,
+                projectSlug: presentation.projectSlug,
+                knowledgeDocs: presentation.knowledgeDocs || {},
+                deckSchema: presentation.deckSchema || null,
+                flowConfig: presentation.flowConfig || null,
+                designConfig: presentation.designConfig || null
+            });
+
+            db.run(`
+                INSERT INTO sessions (id, deck_id, current_slide_index, status, created_at, updated_at, metadata)
+                VALUES (?, ?, 0, 'active', ?, ?, ?)
+            `, [sessionId, presentation.presentationSlug || deckId, now, now, metadata]);
             
             // Insert slides
-            deck.slides.forEach((slide, index) => {
+            presentation.slides.forEach((slide, index) => {
                 db.run(`
-                    INSERT INTO slides (id, session_id, deck_id, slide_index, title, content, notes, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `, [uuidv4(), sessionId, deckId, index, slide.title, slide.content, slide.notes || null, now]);
+                    INSERT INTO slides (id, session_id, deck_id, slide_index, title, content, image, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [uuidv4(), sessionId, presentation.presentationSlug || deckId, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
             });
             
             // Create initial event
             db.run(`
                 INSERT INTO events (session_id, event_type, event_data, created_at)
                 VALUES (?, ?, ?, ?)
-            `, [sessionId, 'session_started', JSON.stringify({ deckId, slideCount: deck.slides.length }), now]);
+            `, [sessionId, 'session_started', JSON.stringify({
+                deckId: presentation.presentationSlug || deckId,
+                slideCount: presentation.slides.length,
+                participantName: normalizedParticipantName,
+                sourceType: presentation.source,
+                projectSlug: presentation.projectSlug
+            }), now]);
             
             res.json({
                 success: true,
                 sessionId,
-                deckId,
-                slideCount: deck.slides.length,
+                deckId: presentation.presentationSlug || deckId,
+                presentationTitle: presentation.title,
+                participantName: normalizedParticipantName,
+                slideCount: presentation.slides.length,
                 status: 'active'
             });
         } catch (error) {
-            // Deck not found, still create session
-            console.warn(`Deck ${deckId} not found, creating empty session`);
+            console.warn(`Presentation ${deckId} not found, creating empty session`);
+            const metadata = JSON.stringify({
+                participantName: normalizedParticipantName
+            });
+
+            db.run(`
+                INSERT INTO sessions (id, deck_id, current_slide_index, status, created_at, updated_at, metadata)
+                VALUES (?, ?, 0, 'active', ?, ?, ?)
+            `, [sessionId, deckId, now, now, metadata]);
             
             res.json({
                 success: true,
                 sessionId,
                 deckId,
+                participantName: normalizedParticipantName,
                 slideCount: 0,
                 status: 'active',
                 warning: 'Deck not found'
@@ -96,11 +119,19 @@ router.get('/:id', (req, res) => {
             ORDER BY priority DESC, created_at ASC
             LIMIT 10
         `, [id]);
+
+        let participantName = '';
+        try {
+            participantName = JSON.parse(session.metadata || '{}').participantName || '';
+        } catch {
+            participantName = '';
+        }
         
         res.json({
             session,
             currentSlide,
-            pendingQuestions
+            pendingQuestions,
+            participantName
         });
     } catch (error) {
         console.error('Error getting session:', error);

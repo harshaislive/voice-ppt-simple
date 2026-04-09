@@ -17,17 +17,19 @@ class SocketClient {
         this.socket.on('connect', () => {
             this.isConnected = true;
             this.socket.emit('join-session', sessionId);
-            this.app.setStatus('Connected', 'live');
+            this.app.setStatus('Connected', 'live', 'Joining presentation room');
         });
 
         this.socket.on('disconnect', () => {
             this.isConnected = false;
-            this.app.setStatus('Disconnected', '');
+            this.app.setStatus('Disconnected', '', 'Socket connection lost');
         });
 
         this.socket.on('presentation-start', (data) => {
-            this.app.setStatus('Presenting', 'live');
-            this.app.slides = new Array(data.totalSlides).fill(null);
+            this.app.isQAPhase = false;
+            if (!this.app.voiceModeEnabled) {
+                this.app.restorePresentationStatus();
+            }
         });
 
         this.socket.on('slide-change', (data) => {
@@ -35,12 +37,11 @@ class SocketClient {
         });
 
         this.socket.on('narration-delta', (data) => {
-            this.app.handleNarrationDelta(data);
+            this.app.handleNarrationDelta({ delta: data.delta, append: true });
         });
 
         this.socket.on('narration-text', (data) => {
-            document.getElementById('transcript-text').textContent = data.text;
-            this.app.showTranscript(true);
+            this.app.finalizeSubtitleText(data.text);
         });
 
         this.socket.on('audio-chunk', (data) => {
@@ -53,40 +54,74 @@ class SocketClient {
 
         this.socket.on('qa-start', (data) => {
             this.app.isQAPhase = true;
-            this.app.setStatus('Q&A', 'paused');
-            this.app.expandQAPanel();
+            if (!this.app.voiceModeEnabled) {
+                this.app.setStatus('Thinking', 'paused', data.inline ? 'Interrupt received. Building answer.' : 'Switching into audience Q&A');
+            }
         });
 
         this.socket.on('answering-question', (data) => {
-            this.app.setStatus(`Q&A ${data.questionIndex}/${data.totalQuestions}`, 'live');
+            this.app.voiceTurnState = 'answering';
+            if (!this.app.voiceModeEnabled) {
+                this.app.setStatus('Answering now', 'live', `Question ${data.questionIndex} of ${data.totalQuestions}`);
+            }
         });
 
         this.socket.on('answer-delta', (data) => {
-            this.app.handleNarrationDelta({ delta: data.delta, full: data.full });
+            this.app.handleNarrationDelta({ delta: data.delta, append: true });
         });
 
         this.socket.on('answer-text', (data) => {
-            this.app.showAnswer(data.questionId, data.answer, data.question);
+            this.app.markQuestionAnswered(data.questionId, data.answer, data.question);
+            this.app.finalizeSubtitleText(data.answer);
         });
 
         this.socket.on('qa-end', (data) => {
-            this.app.setStatus('Q&A Complete', 'paused');
+            this.app.isQAPhase = false;
+            if (!this.app.voiceModeEnabled) {
+                this.app.restorePresentationStatus();
+            }
             this.app.showTranscript(false);
             this.app.stopWaveform();
         });
 
         this.socket.on('question-added', (data) => {
-            this.app.addQuestionToList(data.questionId, data.questionText);
+            this.app.addQuestionToList(data.questionId, data.questionText, data.submittedBy || 'Audience');
+            this.app.voiceTurnState = 'thinking';
+            if (!this.app.voiceModeEnabled) {
+                this.app.setStatus('Thinking', 'paused', 'Question received and being prioritized');
+            }
+        });
+
+        this.socket.on('queue-update', (data) => {
+            this.app.handleQueueUpdate(data);
         });
 
         this.socket.on('presentation-end', (data) => {
-            this.app.setStatus('Complete', '');
+            this.app.setStatus('Complete', '', 'Presentation finished');
             this.app.showCompletion(data);
             this.app.stopWaveform();
         });
 
+        this.socket.on('presentation-wrapup', (data) => {
+            this.app.startWrapUp(data);
+        });
+
+        this.socket.on('presentation-wrapup-ended', () => {
+            this.app.finishWrapUp();
+        });
+
+        this.socket.on('presentation-paused', () => {
+            if (!this.app.voiceModeEnabled) {
+                this.app.setStatus('Paused', 'paused', 'Presentation is paused');
+            }
+        });
+
+        this.socket.on('presentation-resumed', () => {
+            this.app.restorePresentationStatus();
+        });
+
         this.socket.on('presentation-error', (data) => {
-            this.app.setStatus('Error', '');
+            this.app.setStatus('Error', '', data.error || 'Presentation failed');
             console.error('Presentation error:', data.error);
         });
     }

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "art_of_return_hero",
+    "title": "The Art of Return Hero",
+    "path": "https://10percent.beforest.co/_next/image?url=%2Fhero-5.webp&w=1920&q=80",
+    "context": "Opening and closing imagery for 10% Club framing slides.",
+    "tags": ["hero", "wilderness", "beforest", "10_percent_club"],
+    "tone": "calm, expansive, reflective",
+    "best_for": ["opening", "closing", "identity"],
+    "avoid_for": ["dense informational slides"]
+  },
+  {
+    "id": "poomaale_collective",
+    "title": "Poomaale Collective Image",
+    "path": "https://10percent.beforest.co/_next/image?url=https%3A%2F%2Fisdbyvwocudnlwzghphw.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2F10cent_hero_images%2Fcolective_images%2Fpomaale_2.jpg&w=1920&q=55",
+    "context": "Use for sanctuary, belonging, and landscape slides.",
+    "tags": ["landscape", "sanctuary", "nature", "coorg"],
+    "tone": "grounded, natural, atmospheric",
+    "best_for": ["place", "belonging", "sanctuaries"],
+    "avoid_for": ["abstract product slides"]
+  },
+  {
+    "id": "beforest_pitch_generic",
+    "title": "Beforest Pitch Fallback",
+    "path": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=80",
+    "context": "Fallback visual for generic Beforest pitch slides when deck-specific imagery is missing.",
+    "tags": ["forest", "investment", "nature", "fallback"],
+    "tone": "credible, modern, natural",
+    "best_for": ["pitch", "fallback"],
+    "avoid_for": ["slides requiring sanctuary-specific visuals"]
+  }
+]

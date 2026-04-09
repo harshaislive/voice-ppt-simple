@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "db:init": "node server/db/init.js",
+    "cms:seed": "node scripts/seed-supabase.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["presentation", "voice", "ai", "tts"],
