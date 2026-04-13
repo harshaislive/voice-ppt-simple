@@ -18,9 +18,6 @@ router.get('/config', (req, res) => {
 });
 
 // Start a new presentation session
-} = require('../middleware/security');
-
-// Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
         const { deckId = 'beforest_pitch', participantName = '', passcode = '' } = req.body;
