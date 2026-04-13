@@ -133,6 +133,15 @@ function requireAdminApiKey(req, res, next) {
 function createRateLimiter({ windowMs, max, keyGenerator, label }) {
     const store = new Map();
 
+    setInterval(() => {
+        const now = Date.now();
+        for (const [key, entry] of store.entries()) {
+            if (entry.resetAt <= now) {
+                store.delete(key);
+            }
+        }
+    }, windowMs);
+
     return (req, res, next) => {
         const now = Date.now();
         const key = typeof keyGenerator === 'function' ? keyGenerator(req) : req.ip;

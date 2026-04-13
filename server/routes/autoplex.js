@@ -14,6 +14,25 @@ const interruptFlags = new Map();
 const pauseFlags = new Map();
 const playbackWaiters = new Map();
 const continueWaiters = new Map();
+const presentationStartTimes = new Map();
+
+const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, startTime] of presentationStartTimes.entries()) {
+        if (now - startTime > PRESENTATION_TIMEOUT_MS) {
+            const io = global.autoplexIo;
+            if (io) {
+                io.to(sessionId).emit('presentation-error', { error: 'Presentation timed out after 2 hours' });
+                io.to(sessionId).emit('presentation-end', { totalSlides: 0, totalQuestionsAnswered: 0 });
+            }
+            presentationStartTimes.delete(sessionId);
+            interruptFlags.delete(sessionId);
+            pauseFlags.delete(sessionId);
+        }
+    }
+}, 5 * 60 * 1000);
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -174,6 +193,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
     clearInterrupt(sessionId);
     res.json({ success: true, message: 'Auto-presentation started' });
 
+    global.autoplexIo = io;
     try {
         await runPresentation(db, io, sessionId);
     } catch (err) {
@@ -181,6 +201,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
         io.to(sessionId).emit('presentation-error', { error: err.message });
     } finally {
         clearInterrupt(sessionId);
+        presentationStartTimes.delete(sessionId);
     }
 });
 
@@ -230,6 +251,7 @@ async function runPresentation(db, io, sessionId) {
         io.to(sessionId).emit('presentation-error', { error: 'Session not found' });
         return;
     }
+    presentationStartTimes.set(sessionId, Date.now());
     const participantName = getParticipantName(db, sessionId);
 
     const slides = db.all('SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC', [sessionId]);
@@ -446,7 +468,7 @@ async function runPresentation(db, io, sessionId) {
 
     io.to(sessionId).emit('presentation-end', {
         totalSlides: slides.length,
-        totalQuestionsAnswered: answeredQuestions.length
+        totalQuestionsAnswered: allQuestions.length
     });
 }
 

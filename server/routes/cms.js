@@ -19,6 +19,16 @@ router.get('/presentations', async (req, res) => {
 
 router.post('/presentations', async (req, res) => {
     try {
+        const { title, id, slides, projectSlug } = req.body;
+        if (!title || typeof title !== 'string' || title.length > 255) {
+            return res.status(400).json({ error: 'Invalid title' });
+        }
+        if (slides && !Array.isArray(slides)) {
+            return res.status(400).json({ error: 'Slides must be an array' });
+        }
+        if (slides && slides.length > 500) {
+            return res.status(400).json({ error: 'Too many slides (max 500)' });
+        }
         const presentation = await cmsService.createPresentation(req.body);
         res.status(201).json({ presentation });
     } catch (error) {
@@ -42,6 +52,16 @@ router.get('/presentations/:id', async (req, res) => {
 
 router.put('/presentations/:id', async (req, res) => {
     try {
+        const { title, slides } = req.body;
+        if (title && (typeof title !== 'string' || title.length > 255)) {
+            return res.status(400).json({ error: 'Invalid title' });
+        }
+        if (slides && !Array.isArray(slides)) {
+            return res.status(400).json({ error: 'Slides must be an array' });
+        }
+        if (slides && slides.length > 500) {
+            return res.status(400).json({ error: 'Too many slides (max 500)' });
+        }
         const presentation = await cmsService.updatePresentation(req.params.id, req.body);
         res.json({ presentation });
     } catch (error) {
@@ -62,11 +82,22 @@ router.delete('/presentations/:id', async (req, res) => {
 
 router.put('/presentations/:id/slides/:slideIndex', async (req, res) => {
     try {
+        const slideIndex = parseInt(req.params.slideIndex, 10);
+        if (isNaN(slideIndex) || slideIndex < 0) {
+            return res.status(400).json({ error: 'Invalid slide index' });
+        }
+        const { title, content, notes, image } = req.body;
+        if (title && typeof title !== 'string') {
+            return res.status(400).json({ error: 'Invalid title' });
+        }
+        if (content && typeof content !== 'string') {
+            return res.status(400).json({ error: 'Invalid content' });
+        }
         const slides = await cmsService.updateSlide(req.params.id, req.params.slideIndex, req.body);
         res.json({ slides });
     } catch (error) {
         console.error('Error updating CMS slide:', error);
-        res.status(500).json({ error: 'Failed to update slide' });
+        res.status(500).json({ error: 'Failed to update CMS slide' });
     }
 });
 

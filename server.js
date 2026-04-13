@@ -64,6 +64,21 @@ app.use('/api/realtime', realtimeRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+// Health check
+app.get('/api/health', (req, res) => {
+    const db = req.app.get('db');
+    const hasDb = !!(db && db.get);
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        services: {
+            database: hasDb ? 'connected' : 'disconnected',
+            azureOpenAI: !!(process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY),
+            supabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+        }
+    });
+});
+
 // TTS endpoint
 app.post('/api/tts', requireAdminApiKey, async (req, res) => {
     try {
