@@ -109,9 +109,12 @@ function getSessionMetadata(db, sessionId) {
 }
 
 function buildKnowledgeContext(metadata = {}) {
-    const knowledgeDocs = metadata.knowledgeDocs || {};
     const sections = [];
+    const knowledgeDocs = metadata.knowledgeDocs || {};
 
+    if (knowledgeDocs.soul) {
+        sections.push(`SOUL/PERSONA: ${stringifyDoc(knowledgeDocs.soul)}`);
+    }
     if (knowledgeDocs.agents) {
         sections.push(`AGENT RULES: ${stringifyDoc(knowledgeDocs.agents)}`);
     }

@@ -131,15 +131,16 @@ async function upsertImage(projectId, image) {
 
     await request('images', 'POST', [payload], 'project_id,storage_path');
 }
-
 async function readKnowledgeDocs(projectDir) {
-    return {
+    const docs = {
         agents: await readOptionalText(path.join(projectDir, 'AGENTS.md')),
         product: await readOptionalText(path.join(projectDir, 'product.md')),
         flow: await readOptionalText(path.join(projectDir, 'flow.md')),
         design: await readOptionalText(path.join(projectDir, 'design.md')),
+        soul: await readOptionalText(path.join(projectDir, 'soul.md')),
         cta: await readOptionalText(path.join(projectDir, 'cta', 'contact.md')),
-        images: await readOptionalJson(path.join(projectDir, 'images.json')) || []
+        images: await readOptionalJson(path.join(projectDir, 'images.json'))
+    };
     };
 }
 

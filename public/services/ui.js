@@ -22,16 +22,11 @@ export class UIManager {
     }
 
     showTranscript(speaking) {
-        const bar = document.getElementById('transcript-bar');
-        if (bar) bar.classList.toggle('visible', speaking);
+        // Removed transcript bar
     }
 
     renderSubtitle(text, ready) {
-        const transcriptText = document.getElementById('transcript-text');
-        if (transcriptText) {
-            transcriptText.textContent = text;
-            this.showTranscript(Boolean(text) && ready);
-        }
+        // Subtitle rendering moved to read-along accordion
     }
 
     updateFullTranscriptionDisplay(transcript) {

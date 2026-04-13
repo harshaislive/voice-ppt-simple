@@ -251,6 +251,7 @@ function parseMetadata(rawMetadata) {
 function buildKnowledgeContext(metadata = {}) {
     const knowledgeDocs = metadata.knowledgeDocs || {};
     return [
+        knowledgeDocs.soul ? `SOUL/PERSONA: ${stringifyDoc(knowledgeDocs.soul)}` : '',
         knowledgeDocs.agents ? `AGENT RULES: ${stringifyDoc(knowledgeDocs.agents)}` : '',
         knowledgeDocs.product ? `PRODUCT: ${stringifyDoc(knowledgeDocs.product)}` : '',
         knowledgeDocs.flow ? `FLOW: ${stringifyDoc(knowledgeDocs.flow)}` : '',

@@ -1,50 +1,39 @@
-# AGENTS.md
+# Voice-PPT: Agent Framework & Context Constitution
 
-## Project
+This document serves as the foundational rulebook for all AI presentation agents in the Voice-PPT system. It defines how the agent should interpret the modular context documents loaded dynamically from the Supabase CMS for any given presentation.
 
-Voice-first presentation engine. Node.js/Express + Socket.IO backend, vanilla JS frontend. Uses Azure OpenAI for narration/question classification and TTS (via gpt-realtime-mini WebSocket or audio/speech REST API). SQLite via sql.js (in-memory with file persistence).
+The presentation agent acts as an autonomous, real-time narrator and conversational partner. It does not hardcode product knowledge; instead, it relies entirely on the contextual `.md` and `.json` documents attached to the current presentation project.
 
-## Commands
+## Context Document Hierarchy
 
-```bash
-npm install          # install deps
-npm run db:init      # initialize sqlite database (required before first run)
-npm start            # production server (node server.js)
-npm run dev          # dev server with nodemon auto-restart
-```
+The AI receives a compiled context string built from the following modular documents (if provided by the CMS). The agent must respect these constraints in the following order of precedence:
 
-TTS server (KittenTTS) is optional — only needed if `TTS_PROVIDER=kittentts`:
+### 1. `soul.md` (Persona & Voice)
+*   **Purpose:** Defines *how* the agent speaks. 
+*   **Agent Rule:** Adopt this persona completely. If `soul.md` dictates a casual, witty tone, never speak like a corporate manual. If it dictates urgency, pace the narration accordingly.
 
-```bash
-./setup-kittentts.sh                # one-time: install KittenTTS + Python venv (needs sudo)
-source .venv-tts/bin/activate && python .venv-tts/kittentts_server.py   # start TTS on :8080
-```
+### 2. `AGENTS.md` (Project-Specific Overrides)
+*   **Purpose:** Project-level hard rules and safety guardrails.
+*   **Agent Rule:** This acts as the project's absolute constitution. If a rule here contradicts general AI knowledge, the rule here wins. Used for "never say X" or "always route questions about Y to Z."
 
-**Startup order**: `npm run db:init` (first time) → `npm start`. No separate TTS server needed when using Azure TTS (default).
+### 3. `flow.md` (Pacing & Interaction)
+*   **Purpose:** Dictates how the presentation unfolds.
+*   **Agent Rule:** Follow the behavioral instructions for slide transitions, when to pause, how to handle interruptions, and how to structure the final Q&A.
 
-## No Tests / No Lint
+### 4. `product.md` (Domain Knowledge)
+*   **Purpose:** The source of truth for facts, features, and pricing.
+*   **Agent Rule:** You may answer audience questions using this information. *Never hallucinate product features.* If an audience question asks about a feature not found in this document or the current slide, politely state that you don't have that information.
 
-No test framework is configured (`npm test` exits with error). No linter or formatter is set up.
+### 5. `design.md` (Aesthetic Context)
+*   **Purpose:** Provides context about the visual layout if the AI needs to reference on-screen elements.
+*   **Agent Rule:** Use this to understand what the audience is looking at (e.g., "As you can see in the diagram on the right...").
 
-## Architecture
+### 6. `cta/contact.md` (Call to Action)
+*   **Purpose:** Defines the ultimate goal of the presentation.
+*   **Agent Rule:** When wrapping up the presentation or answering questions about "next steps," aggressively route the audience toward the actions defined here.
 
-- `server.js` — Express + Socket.IO entrypoint, inlined TTS/retrieval endpoints
-- `server/routes/` — API route handlers (session, narration, questions, slides)
-- `server/services/tts.js` — TTS service with three backends: `azure-realtime` (WebSocket, for gpt-realtime-mini), `azure-speech` (REST, for tts-1/tts-1-hd), `kittentts` (legacy HTTP)
-- `server/services/` — Business logic: `model.js` (Azure OpenAI), `slideEngine.js`, `questionClassifier.js`, `retrieval.js`, `stateStore.js`, `dbHelper.js`
-- `server/prompts/` — AI prompt templates (each exports `buildMessages()`)
-- `server/decks/` — Built-in presentation JSON files: `ten_percent_club.json`, `beforest_pitch.json`
-- `server/db/` — `init.js` (sql.js bootstrap) + `migrations.sql`
-- `public/` — Vanilla JS frontend (no build step)
+## General Operating Principles
 
-## Key Gotchas
-
-- **CommonJS only** — `"type": "commonjs"` in package.json. Use `require()`/`module.exports`, not ESM.
-- **TTS provider auto-detection** — `tts.js` defaults to `azure-realtime` when `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` are set. Override with `TTS_PROVIDER` env var (`azure-realtime`, `azure-speech`, `kittentts`). Falls back to silent WAV placeholders when no provider is available or all fail.
-- **Azure Realtime TTS** — Uses WebSocket to Azure OpenAI Realtime API (`gpt-realtime-mini`). Returns PCM16 at 24kHz mono, converted to WAV. Each `synthesize()` call opens a fresh WebSocket; expect ~1-2s connection latency per call.
-- **Azure Speech TTS** — Simpler REST API via `client.audio.speech.create()`. Works with `tts-1`/`tts-1-hd`/`gpt-4o-mini-tts` deployments. Set `AZURE_OPENAI_TTS_DEPLOYMENT` to the TTS deployment name and `TTS_PROVIDER=azure-speech`.
-- **sql.js persistence** — Database lives in memory, exported to `voice-ppt.db` on write/shutdown. Not a standard SQLite binding; migrations run on every startup (uses `CREATE TABLE IF NOT EXISTS`).
-- **Mock mode** — App runs without Azure OpenAI credentials; `model.js` falls back to hardcoded mock narration/classification. TTS falls back to silent WAV placeholders if all providers fail.
-- **Session IDs** — Deck IDs are string literals (`"ten_percent_club"` or `"beforest_pitch"`), passed in `POST /api/session/start`.
-- **Socket.IO rooms** — Clients join by session ID via `join-session` event; server emits `narration-start/chunk/end`, `audio-stream`, `slide-change`, `question-added`, `queue-update`.
-- **`.env` required** — Copy `.env.example` to `.env` and fill in Azure OpenAI credentials. App warns on missing creds but does not crash.
+1.  **Slide Context is King:** The agent always receives the `title`, `subtitle`, and `notes` of the *current slide*. The agent must anchor its current narration strictly to the slide `notes`. The external `.md` docs are strictly for answering interruptions, setting the tone, or adhering to safety rules.
+2.  **Brevity:** Spoken audio takes time. Favor short, punchy sentences.
+3.  **Graceful Degradation:** If a specific document (like `soul.md`) is missing from the CMS, fall back to a helpful, professional, and clear default voice.

@@ -337,6 +337,7 @@ class CMSService {
         const flow = await this.readOptionalText(path.join(projectDir, 'flow.md'));
         const design = await this.readOptionalText(path.join(projectDir, 'design.md'));
         const contact = await this.readOptionalText(path.join(projectDir, 'cta', 'contact.md'));
+        const soul = await this.readOptionalText(path.join(projectDir, 'soul.md'));
         const images = await this.readOptionalJson(path.join(projectDir, 'images.json'));
 
         return {
@@ -344,6 +345,7 @@ class CMSService {
             product,
             flow,
             design,
+            soul,
             cta: contact,
             images: images || []
         };
@@ -370,26 +372,39 @@ class CMSService {
         }
     }
 
-    async request(table, params = {}) {
+    async request(table, params = {}, options = {}) {
         const query = new URLSearchParams(params);
         const url = `${this.supabaseUrl}/rest/v1/${table}?${query.toString()}`;
-        const response = await fetch(url, {
-            headers: {
-                apikey: this.supabaseServiceRoleKey,
-                Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                Prefer: 'return=representation',
-                'Accept-Profile': this.supabaseSchema
-            }
-        });
+        
+        const method = options.method || 'GET';
+        const headers = {
+            apikey: this.supabaseServiceRoleKey,
+            Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Prefer: options.prefer || 'return=representation',
+            'Accept-Profile': this.supabaseSchema
+        };
+        
+        const fetchOptions = { method, headers };
+        if (options.body) {
+            fetchOptions.body = JSON.stringify(options.body);
+        }
+
+        const response = await fetch(url, fetchOptions);
 
         if (!response.ok) {
             const text = await response.text();
             throw new Error(`Supabase ${table} request failed: ${response.status} ${text}`);
         }
 
-        return response.json();
+        if (response.status === 204) return null;
+        
+        try {
+            return await response.json();
+        } catch {
+            return null;
+        }
     }
 
     humanize(value) {
@@ -427,6 +442,15 @@ class CMSService {
         };
 
         await fs.writeFile(filePath, JSON.stringify(presentationData, null, 2), 'utf8');
+
+        if (this.isSupabaseConfigured()) {
+            try {
+                await this.savePresentationToSupabase(presentationData);
+            } catch (err) {
+                console.error('Failed to sync created presentation to Supabase:', err.message);
+            }
+        }
+
         return presentationData;
     }
 
@@ -464,6 +488,15 @@ class CMSService {
         
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, JSON.stringify(presentationData, null, 2), 'utf8');
+
+        if (this.isSupabaseConfigured()) {
+            try {
+                await this.savePresentationToSupabase(presentationData);
+            } catch (err) {
+                console.error('Failed to sync updated presentation to Supabase:', err.message);
+            }
+        }
+
         return presentationData;
     }
 
@@ -492,6 +525,15 @@ class CMSService {
 
         if (exists) {
             await fs.unlink(filePath);
+            
+            if (this.isSupabaseConfigured()) {
+                try {
+                    await this.deletePresentationFromSupabase(identifier);
+                } catch (err) {
+                    console.error('Failed to delete presentation from Supabase:', err.message);
+                }
+            }
+            
             return { success: true };
         }
         throw new Error('Presentation not found');
@@ -563,6 +605,46 @@ class CMSService {
         } catch {
             throw new Error('Document not found');
         }
+    }
+
+    // --- Supabase Hybrid Helpers ---
+    async savePresentationToSupabase(data) {
+        let projectId;
+        const projectSlug = data.projectSlug || 'default';
+        const existing = await this.request('projects', { select: 'id', slug: `eq.${projectSlug}`, limit: '1' });
+        
+        if (existing && existing.length > 0) {
+            projectId = existing[0].id;
+        } else {
+            const rows = await this.request('projects', { on_conflict: 'slug' }, { method: 'POST', body: [{ slug: projectSlug, name: this.humanize(projectSlug) }], prefer: 'resolution=merge-duplicates,return=representation' });
+            projectId = rows[0].id;
+        }
+        
+        const presentationPayload = {
+            project_id: projectId,
+            slug: data.id,
+            title: data.title,
+            status: 'published'
+        };
+        const presentationRows = await this.request('presentations', { on_conflict: 'slug' }, { method: 'POST', body: [presentationPayload], prefer: 'resolution=merge-duplicates,return=representation' });
+        const presentationId = presentationRows[0].id;
+        
+        await this.request('slides', { presentation_id: `eq.${presentationId}` }, { method: 'DELETE' });
+        
+        if (data.slides && data.slides.length > 0) {
+            const slidePayloads = data.slides.map((slide, index) => ({
+                presentation_id: presentationId,
+                slide_index: index,
+                layout_type: slide.layout || 'immersive',
+                content_json: { title: slide.title, content: slide.content, image: slide.image, customPrompt: slide.customPrompt },
+                notes: slide.notes
+            }));
+            await this.request('slides', {}, { method: 'POST', body: slidePayloads });
+        }
+    }
+
+    async deletePresentationFromSupabase(identifier) {
+        await this.request('presentations', { or: `(slug.eq.${this.escapeFilter(identifier)},id.eq.${this.escapeFilter(identifier)})` }, { method: 'DELETE' });
     }
 }
 
