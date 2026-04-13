@@ -1,4 +1,4 @@
-class SocketClient {
+export class SocketClient {
     constructor(app) {
         this.app = app;
         this.socket = null;
@@ -7,6 +7,12 @@ class SocketClient {
 
     connect(sessionId, controlToken) {
         if (this.socket) this.disconnect();
+
+        // Expecting io to be globally available via <script src="/socket.io/socket.io.js"></script>
+        if (typeof io === 'undefined') {
+            console.error('Socket.IO (io) is not defined. Ensure /socket.io/socket.io.js is loaded.');
+            return;
+        }
 
         this.socket = io({
             transports: ['websocket', 'polling'],

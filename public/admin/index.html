@@ -9,14 +9,17 @@
 <body>
     <div id="app">
         <header>
-            <h1>Voice PPT Admin Dashboard</h1>
+            <h1>Voice PPT Admin</h1>
+            <div class="header-actions">
+                <input type="password" id="admin-key" placeholder="Admin API Key" style="width: 200px; padding: 8px 12px; font-size: 0.8rem; border: 1px solid var(--border-color);">
+            </div>
         </header>
         
         <main>
             <section id="presentations-list">
                 <div class="section-header">
                     <h2>Presentations</h2>
-                    <button id="btn-create-presentation">Create New</button>
+                    <button id="btn-create-presentation" class="primary">Create New</button>
                 </div>
                 <ul id="list-container">
                     <!-- Presentations will be listed here -->
@@ -26,9 +29,9 @@
             <section id="editor" class="hidden">
                 <div class="section-header">
                     <h2 id="editor-title">Edit Presentation</h2>
-                    <div>
-                        <button id="btn-back">Back to List</button>
-                        <button id="btn-save">Save</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button id="btn-back">Back</button>
+                        <button id="btn-save" class="primary">Save Changes</button>
                     </div>
                 </div>
                 

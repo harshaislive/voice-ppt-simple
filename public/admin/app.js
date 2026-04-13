@@ -13,8 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load presentations
     async function loadPresentations() {
+        const adminKey = document.getElementById('admin-key').value;
+        const headers = adminKey ? { 'X-Admin-API-Key': adminKey } : {};
+
         try {
-            const res = await fetch('/api/cms/presentations');
+            const res = await fetch('/api/cms/presentations', { headers });
             if (!res.ok) throw new Error('Failed to load presentations');
             const data = await res.json();
             renderList(data.presentations);
@@ -26,16 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderList(presentations) {
         listContainer.innerHTML = '';
-        presentations.forEach(p => {
+        (presentations || []).forEach(p => {
             const li = document.createElement('li');
             li.innerHTML = `
-                <div>
-                    <strong>${p.title}</strong>
-                    <div style="font-size: 0.85em; color: #666;">ID: ${p.id} ${p.projectSlug ? `| Project: ${p.projectSlug}` : ''}</div>
+                <div class="presentation-info">
+                    <div class="presentation-title">${p.title}</div>
+                    <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 4px;">ID: ${p.id} ${p.projectSlug ? `| Project: ${p.projectSlug}` : ''}</div>
                 </div>
-                <div>
-                    <button class="btn-edit" data-id="${p.id}">Edit</button>
-                    <button class="btn-delete danger" data-id="${p.id}">Delete</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-edit" data-id="${p.id}" style="padding: 8px 16px;">Edit</button>
+                    <button class="btn-delete danger" data-id="${p.id}" style="padding: 8px 16px;">Delete</button>
                 </div>
             `;
             listContainer.appendChild(li);
@@ -48,8 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-delete').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 if(confirm('Are you sure?')) {
+                    const adminKey = document.getElementById('admin-key').value;
                     try {
-                        await fetch(`/api/cms/presentations/${e.target.dataset.id}`, { method: 'DELETE' });
+                        const res = await fetch(`/api/cms/presentations/${e.target.dataset.id}`, { 
+                            method: 'DELETE',
+                            headers: adminKey ? { 'X-Admin-API-Key': adminKey } : {}
+                        });
+                        if (!res.ok) throw new Error('Failed to delete');
                         loadPresentations();
                     } catch (err) {
                         alert('Failed to delete presentation');
@@ -60,9 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function openEditor(id) {
+        const adminKey = document.getElementById('admin-key').value;
+        const headers = adminKey ? { 'X-Admin-API-Key': adminKey } : {};
+
         if (id) {
             try {
-                const res = await fetch(`/api/cms/presentations/${id}`);
+                const res = await fetch(`/api/cms/presentations/${id}`, { headers });
                 const data = await res.json();
                 currentPresentation = data.presentation;
                 document.getElementById('pres-id').value = currentPresentation.id;
@@ -96,30 +107,34 @@ document.addEventListener('DOMContentLoaded', () => {
             div.innerHTML = `
                 <div class="slide-header">
                     <span>Slide ${index + 1}</span>
-                    <div>
-                        <button class="btn-preview-narration" data-index="${index}">Preview Narration</button>
-                        <button class="danger btn-remove-slide" data-index="${index}">Remove</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-preview-narration" data-index="${index}" style="font-size: 0.7rem; padding: 8px 16px;">Preview Narration</button>
+                        <button class="danger btn-remove-slide" data-index="${index}" style="font-size: 0.7rem; padding: 8px 16px;">Remove</button>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Layout</label>
-                    <input type="text" class="slide-layout" data-index="${index}" value="${slide.layout || 'immersive'}">
+                    <select class="slide-layout" data-index="${index}">
+                        <option value="immersive" ${slide.layout === 'immersive' ? 'selected' : ''}>Immersive</option>
+                        <option value="split" ${slide.layout === 'split' ? 'selected' : ''}>Split (Text/Visual)</option>
+                        <option value="content" ${slide.layout === 'content' ? 'selected' : ''}>Content Only</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Title</label>
                     <input type="text" class="slide-title" data-index="${index}" value="${slide.title || ''}">
                 </div>
                 <div class="form-group">
-                    <label>Content</label>
+                    <label>Content (Visible on slide)</label>
                     <textarea class="slide-content" data-index="${index}" rows="3">${slide.content || ''}</textarea>
                 </div>
                 <div class="form-group">
-                    <label>Notes (for TTS)</label>
+                    <label>Speaker Notes (Narration source)</label>
                     <textarea class="slide-notes" data-index="${index}" rows="3">${slide.notes || ''}</textarea>
                 </div>
                 <div class="form-group">
-                    <label>Custom Prompt Override (Advanced)</label>
-                    <textarea class="slide-customPrompt" data-index="${index}" rows="2" placeholder="Force the agent to narrate this slide with a specific persona or goal...">${slide.customPrompt || ''}</textarea>
+                    <label>Custom AI Instruction (Override)</label>
+                    <textarea class="slide-customPrompt" data-index="${index}" rows="2" placeholder="e.g. Speak with a more excited tone here...">${slide.customPrompt || ''}</textarea>
                 </div>
             `;
             slidesContainer.appendChild(div);
@@ -148,10 +163,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const originalText = btn.textContent;
                 btn.textContent = 'Generating...';
 
+                const adminKey = document.getElementById('admin-key').value;
+
                 try {
-                    const res = await fetch('/api/cms/preview-narration', {
+                    const res = await fetch('/api/tts', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Admin-API-Key': adminKey
+                        },
                         body: JSON.stringify({ text: textToPreview })
                     });
                     
@@ -195,6 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnSave.addEventListener('click', async () => {
+        const adminKey = document.getElementById('admin-key').value;
+        if (!adminKey) {
+            alert('Please enter Admin API Key in the header');
+            return;
+        }
+
         const id = document.getElementById('pres-id').value;
         const title = document.getElementById('pres-title').value;
         const projectSlug = document.getElementById('pres-project').value;
@@ -213,7 +239,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(url, {
                 method: method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Admin-API-Key': adminKey
+                },
                 body: JSON.stringify(currentPresentation)
             });
             

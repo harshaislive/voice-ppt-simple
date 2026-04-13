@@ -897,6 +897,16 @@ h1, h2, h3, h4 {
     z-index: 300;
     padding: 20px;
     backdrop-filter: blur(8px);
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.slide-turn-overlay.hidden {
+    display: flex !important;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .slide-turn-card {
@@ -910,6 +920,12 @@ h1, h2, h3, h4 {
     flex-direction: column;
     gap: 48px;
     box-shadow: 0 30px 100px rgba(0,0,0,0.1);
+    transform: translateY(0) scale(1);
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-turn-overlay.hidden .slide-turn-card {
+    transform: translateY(40px) scale(0.95);
 }
 
 .slide-turn-copy {
@@ -1158,8 +1174,10 @@ h1, h2, h3, h4 {
 
     .slide-visual-shell {
         flex: none;
-        height: 40vh;
-        min-height: 0;
+        height: auto;
+        min-height: 250px;
+        max-height: 50vh;
+        aspect-ratio: 16/9;
         border-bottom: 2px solid var(--border-color);
     }
 
