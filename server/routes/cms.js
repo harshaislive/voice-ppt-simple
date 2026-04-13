@@ -154,6 +154,16 @@ router.delete('/projects/:slug/docs/:docType', async (req, res) => {
     }
 });
 
+router.delete('/knowledge-docs/:id', async (req, res) => {
+    try {
+        await cmsService.deleteKnowledgeDocById(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting CMS knowledge doc by ID:', error);
+        res.status(500).json({ error: 'Failed to delete knowledge doc' });
+    }
+});
+
 router.post('/preview-narration', async (req, res) => {
     try {
         const { text, voice = 'default' } = req.body;

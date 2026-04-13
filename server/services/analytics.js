@@ -8,7 +8,7 @@ class AnalyticsService {
     async logSessionStart(sessionId, projectSlug, presentationSlug, participantName, totalSlides) {
         if (!this.isConfigured()) return;
         try {
-            await cmsService.request('analytics_sessions', { on_conflict: 'session_id' }, {
+            const result = await cmsService.request('analytics_sessions', { on_conflict: 'session_id' }, {
                 method: 'POST',
                 body: [{
                     session_id: sessionId,
@@ -17,8 +17,9 @@ class AnalyticsService {
                     participant_name: participantName,
                     total_slides: totalSlides
                 }],
-                prefer: 'resolution=merge-duplicates,return=minimal'
+                prefer: 'resolution=merge-duplicates,return=representation'
             });
+            console.log(`[Analytics] logSessionStart: sessionId=${sessionId}, projectSlug=${projectSlug}, result=`, result);
         } catch (err) {
             console.error('Analytics logSessionStart failed:', err.message);
         }
@@ -27,13 +28,14 @@ class AnalyticsService {
     async logSessionEnd(sessionId, questionsAsked) {
         if (!this.isConfigured()) return;
         try {
-            await cmsService.request(`analytics_sessions`, { session_id: `eq.${sessionId}` }, {
+            const result = await cmsService.request(`analytics_sessions`, { session_id: `eq.${sessionId}` }, {
                 method: 'PATCH',
                 body: {
                     ended_at: new Date().toISOString(),
                     questions_asked: questionsAsked
                 }
             });
+            console.log(`[Analytics] logSessionEnd: sessionId=${sessionId}, questionsAsked=${questionsAsked}, result=`, result);
         } catch (err) {
             console.error('Analytics logSessionEnd failed:', err.message);
         }

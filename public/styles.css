@@ -783,6 +783,31 @@ h1, h2, h3, h4 {
     font-weight: bold;
 }
 
+.footer-continue-btn {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--accent-green);
+    color: #fff;
+    border: 2px solid var(--accent-green);
+    font-size: 0.8rem;
+    font-family: var(--font-serif);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+}
+
+.footer-continue-btn.visible {
+    display: flex;
+}
+
+.footer-continue-btn:hover {
+    background: #2a3a2b;
+    border-color: #2a3a2b;
+    transform: none;
+}
+
 /* Immersive Dock */
 .immersive-dock {
     display: flex;
@@ -1372,7 +1397,8 @@ h1, h2, h3, h4 {
 
     .help-fab {
         bottom: 24px;
-        right: 24px;
+        left: 24px;
+        right: auto;
         width: 44px;
         height: 44px;
     }

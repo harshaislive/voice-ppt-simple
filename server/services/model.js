@@ -137,7 +137,7 @@ class ModelService {
                 model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
                 messages,
                 temperature: 0.3,
-                max_completion_tokens: 500,
+                max_completion_tokens: 2000,
                 response_format: { type: 'json_object' }
             });
             

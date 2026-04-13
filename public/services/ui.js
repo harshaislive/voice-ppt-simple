@@ -96,15 +96,17 @@ export class UIManager {
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         const statusDetail = document.getElementById('status-detail');
-        if (statusDot) {
-            statusDot.className = 'status-dot your-turn';
-        }
+        const continueBtn = document.getElementById('footer-continue-btn');
+        if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
         if (statusDetail) statusDetail.textContent = 'Tap mic or continue';
+        if (continueBtn) continueBtn.classList.add('visible');
     }
 
     closeSlideTurnOverlay() {
         const overlay = document.getElementById('slide-turn-overlay');
+        const continueBtn = document.getElementById('footer-continue-btn');
         if (overlay) overlay.classList.add('hidden');
+        if (continueBtn) continueBtn.classList.remove('visible');
     }
 }

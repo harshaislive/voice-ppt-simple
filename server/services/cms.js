@@ -724,6 +724,10 @@ class CMSService {
     async deletePresentationFromSupabase(identifier) {
         await this.request('presentations', { slug: `eq.${this.escapeFilter(identifier)}` }, { method: 'DELETE' });
     }
+
+    async deleteKnowledgeDocById(id) {
+        await this.request('knowledge_docs', { id: `eq.${id}` }, { method: 'DELETE' });
+    }
 }
 
 module.exports = new CMSService();
