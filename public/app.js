@@ -413,6 +413,7 @@ class VoicePPTApp {
         this.wrapUpIndex = 0;
         this.subtitleBuffer = '';
         this.subtitleReady = false;
+        this.fullNarrationTranscript = '';
         this.presentationCatalog = [];
         this.awaitingPlaybackComplete = false;
         this.awaitingSlideContinue = false;
@@ -478,6 +479,14 @@ class VoicePPTApp {
         });
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+
+        const accordionToggle = document.getElementById('accordion-toggle');
+        if (accordionToggle) {
+            accordionToggle.addEventListener('click', () => {
+                const accordion = document.getElementById('read-along-accordion');
+                accordion.classList.toggle('is-open');
+            });
+        }
 
         // Mic permission modal events
         document.getElementById('mic-retry-btn').addEventListener('click', () => {
@@ -739,6 +748,8 @@ class VoicePPTApp {
         this.currentSlide = data.slide || null;
         this.closeSlideTurnOverlay();
         this.resetSubtitleState();
+        this.fullNarrationTranscript = '';
+        this.updateFullTranscriptionDisplay();
         document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || '?'}`;
         document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
@@ -787,10 +798,13 @@ class VoicePPTApp {
     handleNarrationDelta(data) {
         if (data.append) {
             this.subtitleBuffer = `${this.subtitleBuffer} ${data.delta || ''}`.trim();
+            this.fullNarrationTranscript = `${this.fullNarrationTranscript}${data.delta || ''}`;
         } else {
             this.subtitleBuffer = String(data.full || data.delta || '').trim();
+            this.fullNarrationTranscript = String(data.full || data.delta || '');
         }
         this.renderSubtitle();
+        this.updateFullTranscriptionDisplay();
     }
 
     handleAudioChunk(data) {
@@ -845,6 +859,13 @@ class VoicePPTApp {
         const text = this.compactSubtitle(this.subtitleBuffer);
         document.getElementById('transcript-text').textContent = text;
         this.showTranscript(Boolean(text) && this.subtitleReady);
+    }
+
+    updateFullTranscriptionDisplay() {
+        const el = document.getElementById('full-transcription');
+        if (el) {
+            el.textContent = this.fullNarrationTranscript.trim() || 'No transcription yet...';
+        }
     }
 
     setSubtitleText(text, ready = false) {

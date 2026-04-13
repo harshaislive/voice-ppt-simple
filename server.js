@@ -248,7 +248,7 @@ initializeDatabase()
         app.set('rawDb', db);
         
         const PORT = process.env.PORT || 3000;
-        const HOST = process.env.HOST || '0.0.0.0';
+        const HOST = process.env.HOST || '100.87.97.48';
         server.listen(PORT, HOST, () => {
             console.log(`Voice-PPT server running on http://${HOST}:${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

@@ -84,6 +84,17 @@
                                 <div id="slide-content-flow" class="slide-content-flow">
                                     <p id="slide-subtitle" class="slide-subtitle"></p>
                                     <div id="slide-notes" class="slide-notes"></div>
+                                    
+                                    <!-- Read-along Accordion -->
+                                    <div id="read-along-accordion" class="read-along-accordion">
+                                        <button id="accordion-toggle" class="accordion-toggle">
+                                            <span>Read narration</span>
+                                            <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </button>
+                                        <div id="accordion-content" class="accordion-content">
+                                            <p id="full-transcription" class="full-transcription">No transcription yet...</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -155,7 +166,9 @@
                             <div class="slide-turn-qa">
                                 <div class="slide-turn-input-row">
                                     <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question...">
-                                    <button id="slide-question-send" class="slide-turn-send">Save</button>
+                                    <button id="slide-question-send" class="slide-turn-send" aria-label="Save question">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    </button>
                                 </div>
                             </div>
                         </div>
