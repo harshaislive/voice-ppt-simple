@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const cmsService = require('../services/cms');
+const analyticsService = require('../services/analytics');
 const {
     generateSessionControlToken,
     hashToken,
@@ -47,6 +48,15 @@ router.post('/start', async (req, res) => {
                 `, [uuidv4(), sessionId, presentation.presentationSlug || deckId, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
             });
             
+            // Analytics log session start
+            analyticsService.logSessionStart(
+                sessionId,
+                presentation.projectSlug,
+                presentation.presentationSlug || deckId,
+                normalizedParticipantName,
+                presentation.slides.length
+            );
+
             // Create initial event
             db.run(`
                 INSERT INTO events (session_id, event_type, event_data, created_at)

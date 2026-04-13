@@ -1,10 +1,13 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const ttsService = require('../services/tts');
 const modelService = require('../services/model');
 const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
 const realtimePresenter = require('../services/realtimePresenter');
+const analyticsService = require('../services/analytics');
 const { requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
@@ -112,11 +115,22 @@ function buildKnowledgeContext(metadata = {}) {
     const sections = [];
     const knowledgeDocs = metadata.knowledgeDocs || {};
 
+    // 1. Load the global Agent Framework (Constitution) from root
+    try {
+        const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
+        if (fs.existsSync(frameworkPath)) {
+            const framework = fs.readFileSync(frameworkPath, 'utf8');
+            sections.push(`AGENT FRAMEWORK / CONSTITUTION:\n${framework}`);
+        }
+    } catch (err) {
+        console.error('Failed to read global AGENTS.md:', err.message);
+    }
+
     if (knowledgeDocs.soul) {
-        sections.push(`SOUL/PERSONA: ${stringifyDoc(knowledgeDocs.soul)}`);
+        sections.push(`PROJECT SOUL: ${stringifyDoc(knowledgeDocs.soul)}`);
     }
     if (knowledgeDocs.agents) {
-        sections.push(`AGENT RULES: ${stringifyDoc(knowledgeDocs.agents)}`);
+        sections.push(`PROJECT RULES: ${stringifyDoc(knowledgeDocs.agents)}`);
     }
     if (knowledgeDocs.product) {
         sections.push(`PRODUCT: ${stringifyDoc(knowledgeDocs.product)}`);
@@ -276,6 +290,8 @@ async function runPresentation(db, io, sessionId) {
             await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
         }
 
+        analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationText);
+
         db.run(
             'INSERT INTO events (session_id, event_type, event_data, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
             [sessionId, 'narration_generated', JSON.stringify({ slideIndex: currentSlideIndex, narrationLength: narrationText.length })]
@@ -401,6 +417,8 @@ async function runPresentation(db, io, sessionId) {
                 totalQuestions: allQuestions.length
             });
 
+            analyticsService.logEvent(sessionId, 'ai_answer', slides.length + q, answer, { questionId: question.id, questionText: question.question_text });
+
             if (!realtimePresenter.isConfigured()) {
                 await streamAudio(io, sessionId, answer, slides.length + q, {
                     isQA: true,
@@ -423,9 +441,12 @@ async function runPresentation(db, io, sessionId) {
     db.run('UPDATE sessions SET status = \'completed\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
     setPaused(sessionId, false);
 
+    const questionsAsked = db.get('SELECT COUNT(*) as c FROM questions WHERE session_id = ?', [sessionId])?.c || 0;
+    analyticsService.logSessionEnd(sessionId, questionsAsked);
+
     io.to(sessionId).emit('presentation-end', {
         totalSlides: slides.length,
-        totalQuestionsAnswered: allQuestions.length
+        totalQuestionsAnswered: answeredQuestions.length
     });
 }
 
@@ -826,6 +847,8 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
             questionIndex: q + 1,
             totalQuestions: questions.length
         });
+
+        analyticsService.logEvent(sessionId, 'ai_answer', slides.length + q, answer, { questionId: question.id, questionText: question.question_text, isInterrupt: true });
 
         if (!realtimePresenter.isConfigured()) {
             await streamAudio(io, sessionId, answer, slides.length + q, {

@@ -52,6 +52,7 @@ const slidesRoutes = require('./server/routes/slides');
 const autoplexRoutes = require('./server/routes/autoplex');
 const realtimeRoutes = require('./server/routes/realtime');
 const cmsRoutes = require('./server/routes/cms');
+const analyticsRoutes = require('./server/routes/analytics');
 
 // API routes
 app.use('/api/session', sessionRoutes);
@@ -61,6 +62,7 @@ app.use('/api/slide', slidesRoutes);
 app.use('/api/autoplex', autoplexRoutes);
 app.use('/api/realtime', realtimeRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // TTS endpoint
 app.post('/api/tts', requireAdminApiKey, async (req, res) => {

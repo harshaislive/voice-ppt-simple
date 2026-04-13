@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const analyticsService = require('../services/analytics');
 const {
     extractSessionControlToken,
     hasValidSessionControl,
@@ -37,6 +38,9 @@ router.post('/', async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?)
         `, [questionId, sessionId, questionText, submittedBy || 'anonymous', session.current_slide_index, now]);
         
+        // Analytics
+        analyticsService.logEvent(sessionId, 'user_question', session.current_slide_index, questionText, { submittedBy: submittedBy || 'anonymous', questionId });
+
         // Create event
         db.run(`
             INSERT INTO events (session_id, event_type, event_data, created_at)

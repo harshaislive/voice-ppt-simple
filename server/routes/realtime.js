@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { requireSessionControl } = require('../middleware/security');
 
 const router = express.Router();
@@ -249,15 +251,40 @@ function parseMetadata(rawMetadata) {
 }
 
 function buildKnowledgeContext(metadata = {}) {
+    const sections = [];
     const knowledgeDocs = metadata.knowledgeDocs || {};
-    return [
-        knowledgeDocs.soul ? `SOUL/PERSONA: ${stringifyDoc(knowledgeDocs.soul)}` : '',
-        knowledgeDocs.agents ? `AGENT RULES: ${stringifyDoc(knowledgeDocs.agents)}` : '',
-        knowledgeDocs.product ? `PRODUCT: ${stringifyDoc(knowledgeDocs.product)}` : '',
-        knowledgeDocs.flow ? `FLOW: ${stringifyDoc(knowledgeDocs.flow)}` : '',
-        knowledgeDocs.design ? `DESIGN: ${stringifyDoc(knowledgeDocs.design)}` : '',
-        knowledgeDocs.cta ? `CTA: ${stringifyDoc(knowledgeDocs.cta)}` : ''
-    ].filter(Boolean).join('\n\n').slice(0, 4000);
+
+    // 1. Load the global Agent Framework (Constitution) from root
+    try {
+        const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
+        if (fs.existsSync(frameworkPath)) {
+            const framework = fs.readFileSync(frameworkPath, 'utf8');
+            sections.push(`AGENT FRAMEWORK / CONSTITUTION:\n${framework}`);
+        }
+    } catch (err) {
+        console.error('Failed to read global AGENTS.md:', err.message);
+    }
+
+    if (knowledgeDocs.soul) {
+        sections.push(`PROJECT SOUL: ${stringifyDoc(knowledgeDocs.soul)}`);
+    }
+    if (knowledgeDocs.agents) {
+        sections.push(`PROJECT RULES: ${stringifyDoc(knowledgeDocs.agents)}`);
+    }
+    if (knowledgeDocs.product) {
+        sections.push(`PRODUCT: ${stringifyDoc(knowledgeDocs.product)}`);
+    }
+    if (knowledgeDocs.flow) {
+        sections.push(`FLOW: ${stringifyDoc(knowledgeDocs.flow)}`);
+    }
+    if (knowledgeDocs.design) {
+        sections.push(`DESIGN: ${stringifyDoc(knowledgeDocs.design)}`);
+    }
+    if (knowledgeDocs.cta) {
+        sections.push(`CTA: ${stringifyDoc(knowledgeDocs.cta)}`);
+    }
+
+    return sections.join('\n\n').slice(0, 4000);
 }
 
 function stringifyDoc(value) {

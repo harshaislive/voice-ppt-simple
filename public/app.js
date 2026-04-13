@@ -65,6 +65,20 @@ class VoicePPTApp {
         return fetch(url, nextOptions);
     }
 
+    logEvent(eventType, content, metadata = {}) {
+        if (!this.sessionId) return;
+        this.apiFetch('/api/analytics/event', {
+            method: 'POST',
+            body: JSON.stringify({
+                sessionId: this.sessionId,
+                eventType,
+                slideIndex: this.currentSlideIndex,
+                content,
+                metadata
+            })
+        }).catch(err => console.error('Analytics error:', err));
+    }
+
     bindEvents() {
         document.getElementById('start-presentation').addEventListener('click', () => this.startSession());
         document.getElementById('participant-name').addEventListener('keypress', (e) => {
@@ -112,6 +126,7 @@ class VoicePPTApp {
                 this.socketClient.sendReaction(emoji);
                 this.spawnReaction(emoji);
                 this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
+                this.logEvent('reaction', emoji);
             });
         });
 
