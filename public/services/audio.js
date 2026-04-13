@@ -4,7 +4,7 @@ export class StreamAudioPlayer {
         this.nextStartTime = 0;
         this.isPlaying = false;
         this.sampleRate = 24000;
-        this.playbackRate = 0.9;
+        this.playbackRate = 1.0;
         this.gainNode = null;
         this.analyserNode = null;
         this.activeSources = [];
@@ -17,12 +17,20 @@ export class StreamAudioPlayer {
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: this.sampleRate });
             this.gainNode = this.audioContext.createGain();
-            this.gainNode.gain.value = 1.0;
+            this.gainNode.gain.value = 1.5;
+            
+            const compressor = this.audioContext.createDynamicsCompressor();
+            compressor.threshold.value = -24;
+            compressor.knee.value = 30;
+            compressor.ratio.value = 12;
+            compressor.attack.value = 0.003;
+            compressor.release.value = 0.25;
             
             this.analyserNode = this.audioContext.createAnalyser();
             this.analyserNode.fftSize = 256;
             
-            this.gainNode.connect(this.analyserNode);
+            this.gainNode.connect(compressor);
+            compressor.connect(this.analyserNode);
             this.analyserNode.connect(this.audioContext.destination);
         }
         if (this.audioContext.state === 'suspended') {

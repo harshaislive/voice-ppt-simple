@@ -164,7 +164,7 @@ function buildKnowledgeContext(metadata = {}) {
         sections.push(`CTA: ${stringifyDoc(knowledgeDocs.cta)}`);
     }
 
-    return sections.join('\n\n').slice(0, 4000);
+    return sections.join('\n\n').slice(0, 8000);
 }
 
 function stringifyDoc(value) {
@@ -564,8 +564,61 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
         await sleep(250);
     }
 
+    const sessionMetadata = getSessionMetadata(db, sessionId);
+    const ctaContent = sessionMetadata?.knowledgeDocs?.cta || null;
+
     io.to(sessionId).emit('presentation-wrapup-ended', {
         endedAt: Date.now()
+    });
+
+    await sleep(300);
+
+    if (ctaContent) {
+        const closingLines = [
+            `That's our story. Thank you for your time and attention, ${participantName || 'everyone'}.`,
+            ctaContent.trim()
+        ].join(' ');
+        io.to(sessionId).emit('narration-text', { text: closingLines, slideIndex: -1, isWrapUp: true });
+
+        if (realtimePresenter.isConfigured()) {
+            try {
+                const result = await realtimePresenter.generateNarrationAudio({
+                    slideTitle: 'Closing',
+                    slideContent: closingLines,
+                    slideNotes: 'Speak this closing with warmth and gratitude. Then clearly state the CTA.',
+                    pendingQuestions: [],
+                    audienceContext: {},
+                    participantName,
+                    slideIndex: 0,
+                    totalSlides: 1,
+                    style: 'closer'
+                }, {
+                    onTranscriptDelta: (delta, full) => {
+                        io.to(sessionId).emit('narration-delta', { delta, full, slideIndex: -1, isWrapUp: true });
+                    },
+                    onAudioChunk: (chunk) => {
+                        io.to(sessionId).emit('audio-chunk', {
+                            chunk: chunk.toString('base64'),
+                            slideIndex: -1,
+                            sampleRate: 24000,
+                            channels: 1,
+                            bitsPerSample: 16,
+                            isWrapUp: true
+                        });
+                    }
+                });
+                if (hasRenderableAudio(result)) {
+                    io.to(sessionId).emit('audio-end', { slideIndex: -1, format: 'wav', isWrapUp: true });
+                }
+            } catch {}
+        } else {
+            await streamAudio(io, sessionId, closingLines, -1, { isWrapUp: true });
+        }
+    }
+
+    io.to(sessionId).emit('presentation-end', {
+        totalSlides: slides.length,
+        totalQuestionsAnswered: allQuestions.length
     });
 }
 
