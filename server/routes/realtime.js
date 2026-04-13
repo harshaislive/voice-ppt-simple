@@ -155,11 +155,11 @@ function getGroundedSlideContext(db, sessionId, fallback = {}) {
 
     const session = db.get(`
         SELECT s.id, s.deck_id, s.current_slide_index, s.metadata,
-               sl.title, sl.content, sl.notes,
+               sl.title, sl.content, sl.notes, sl.custom_prompt,
                (SELECT COUNT(*) FROM slides WHERE session_id = s.id) AS total_slides
-        FROM sessions s
-        LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
-        WHERE s.id = ?
+    FROM sessions s
+    LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
+    WHERE s.id = ?
     `, [sessionId]);
 
     if (!session) {
@@ -189,6 +189,7 @@ function getGroundedSlideContext(db, sessionId, fallback = {}) {
         title: session.title || fallback.title,
         subtitle: session.content || fallback.subtitle,
         notes: session.notes || fallback.notes,
+        customPrompt: session.custom_prompt || fallback.customPrompt,
         slideIndex: typeof session.current_slide_index === 'number' ? session.current_slide_index : fallback.slideIndex,
         totalSlides: session.total_slides || fallback.totalSlides,
         nextSlideTitle: nextSlide?.title || '',
@@ -198,7 +199,11 @@ function getGroundedSlideContext(db, sessionId, fallback = {}) {
 }
 
 function buildRealtimeInstructions(slideContext = {}) {
-    const { deckLabel, participantName, knowledgeContext, title, subtitle, notes, slideIndex, totalSlides, nextSlideTitle, nextSlideContent, recentMemory } = slideContext;
+    const { deckLabel, participantName, knowledgeContext, title, subtitle, notes, customPrompt, slideIndex, totalSlides, nextSlideTitle, nextSlideContent, recentMemory } = slideContext;
+
+    if (customPrompt) {
+        return customPrompt;
+    }
 
     const slideLabel = title ? `Current slide ${slideIndex + 1 || '?'}/${totalSlides || '?'}, "${title}".` : 'The presentation is live.';
     const subtitleText = subtitle ? `Visible text: ${subtitle}` : '';

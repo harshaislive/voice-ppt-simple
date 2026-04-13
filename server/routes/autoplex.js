@@ -437,6 +437,14 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
         'You can also answer the quick prompts on screen while you think about your questions.'
     ].join(' ');
 
+    const audienceMemory = db.all(
+        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
+        [sessionId]
+    ).reduce((acc, item) => {
+        acc[item.key] = item.value;
+        return acc;
+    }, {});
+
     db.run('UPDATE sessions SET status = \'wrapup\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
 
     io.to(sessionId).emit('presentation-wrapup', {
@@ -459,7 +467,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
                 slideContent: promptText,
                 slideNotes: 'Invite the attendee to ask questions using the mic icon. Sound calm, warm, and clearly indicate they have one minute.',
                 pendingQuestions: [],
-                audienceContext: {},
+                audienceContext: audienceMemory,
                 participantName,
                 slideIndex: 0,
                 totalSlides: 1,
@@ -700,16 +708,17 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
     const participantName = getParticipantName(db, sessionId);
     const knowledgeContext = buildKnowledgeContext(sessionMetadata);
 
+    const audienceMemory = db.all(
+        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
+        [sessionId]
+    ).reduce((acc, item) => {
+        acc[item.key] = item.value;
+        return acc;
+    }, {});
+
     for (let q = 0; q < questions.length; q++) {
         const question = questions[q];
         const currentSlide = slides[currentSlideIndex];
-        const audienceMemory = db.all(
-            'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 6',
-            [sessionId]
-        ).reduce((acc, item) => {
-            acc[item.key] = item.value;
-            return acc;
-        }, {});
 
         io.to(sessionId).emit('answering-question', {
             questionIndex: q + 1,

@@ -134,6 +134,18 @@ class SocketClient {
             }
         });
 
+        this.socket.on('significant-reactions', (data) => {
+            this.app.handleSignificantReactions(data);
+        });
+
+        this.socket.on('votes-sync', (data) => {
+            this.app.handleVotesSync(data);
+        });
+
+        this.socket.on('vote-update', (data) => {
+            this.app.handleVoteUpdate(data);
+        });
+
         this.socket.on('presentation-error', (data) => {
             this.app.setStatus('Error', '', data.error || 'Presentation failed');
             console.error('Presentation error:', data.error);
@@ -151,10 +163,31 @@ class SocketClient {
         }
     }
 
+    submitVote(mcqId, option) {
+        if (this.socket && this.isConnected) {
+            this.socket.emit('submit-vote', { sessionId: this.app.sessionId, mcqId, option });
+        }
+    }
+
     notifyPlaybackComplete(sessionId) {
         if (!this.socket || !this.isConnected || !sessionId) {
             return;
         }
         this.socket.emit('presentation-audio-complete', { sessionId });
+    }
+
+    async goToSlide(index) {
+        if (!this.app.sessionId) return;
+        try {
+            await this.app.apiFetch('/api/slide/advance', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.app.sessionId,
+                    targetSlide: index
+                })
+            });
+        } catch (err) {
+            console.error('Failed to go to slide:', err);
+        }
     }
 }

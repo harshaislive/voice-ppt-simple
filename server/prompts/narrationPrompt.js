@@ -66,7 +66,11 @@ YOUR RULES:
 OUTPUT: Only the spoken answer text. No labels, no JSON, no meta-commentary.`;
 
 function buildSlidePrompt(context) {
-    const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, slideIndex, totalSlides, participantName, knowledgeContext } = context;
+    const { slideTitle, slideContent, slideNotes, customPrompt, pendingQuestions, audienceContext, slideIndex, totalSlides, participantName, knowledgeContext } = context;
+
+    if (customPrompt) {
+        return customPrompt;
+    }
 
     let prompt = `SLIDE ${slideIndex + 1} of ${totalSlides}:
 
@@ -110,7 +114,7 @@ On-screen text: "${slideContent}"`;
         });
     }
 
-    prompt += `\n\nWrite the narration. Say what the slide doesn't. Keep it natural, grounded, and easy to speak at a human pace.`;
+    prompt += `\n\nTRANSITION RULE: Briefly re-summarize the key takeaway from the previous slide if it was significant, then transition smoothly into this one. Say what the slide doesn't. Keep it natural, grounded, and easy to speak at a human pace.`;
 
     return prompt;
 }

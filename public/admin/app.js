@@ -96,7 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
             div.innerHTML = `
                 <div class="slide-header">
                     <span>Slide ${index + 1}</span>
-                    <button class="danger btn-remove-slide" data-index="${index}">Remove</button>
+                    <div>
+                        <button class="btn-preview-narration" data-index="${index}">Preview Narration</button>
+                        <button class="danger btn-remove-slide" data-index="${index}">Remove</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Layout</label>
@@ -114,6 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Notes (for TTS)</label>
                     <textarea class="slide-notes" data-index="${index}" rows="3">${slide.notes || ''}</textarea>
                 </div>
+                <div class="form-group">
+                    <label>Custom Prompt Override (Advanced)</label>
+                    <textarea class="slide-customPrompt" data-index="${index}" rows="2" placeholder="Force the agent to narrate this slide with a specific persona or goal...">${slide.customPrompt || ''}</textarea>
+                </div>
             `;
             slidesContainer.appendChild(div);
         });
@@ -126,8 +133,45 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        document.querySelectorAll('.btn-preview-narration').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                const slide = currentPresentation.slides[idx];
+                const textToPreview = slide.notes || slide.content || slide.title;
+                
+                if (!textToPreview) {
+                    alert('No text to preview (fill in notes, content, or title)');
+                    return;
+                }
+
+                btn.disabled = true;
+                const originalText = btn.textContent;
+                btn.textContent = 'Generating...';
+
+                try {
+                    const res = await fetch('/api/cms/preview-narration', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: textToPreview })
+                    });
+                    
+                    if (!res.ok) throw new Error('Failed to generate preview');
+                    
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    audio.play();
+                } catch (err) {
+                    alert(err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            });
+        });
+
         // Add change listeners
-        document.querySelectorAll('.slide-title, .slide-content, .slide-notes, .slide-layout').forEach(input => {
+        document.querySelectorAll('.slide-title, .slide-content, .slide-notes, .slide-layout, .slide-customPrompt').forEach(input => {
             input.addEventListener('change', (e) => {
                 const idx = parseInt(e.target.dataset.index);
                 const field = e.target.className.replace('slide-', '');
@@ -146,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnAddSlide.addEventListener('click', () => {
         if (!currentPresentation.slides) currentPresentation.slides = [];
-        currentPresentation.slides.push({ layout: 'immersive', title: '', content: '', notes: '' });
+        currentPresentation.slides.push({ layout: 'immersive', title: '', content: '', notes: '', customPrompt: '' });
         renderSlides();
     });
 

@@ -19,7 +19,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
         
         // Get session and current slide
         const session = db.get(`
-            SELECT s.*, sl.title as slide_title, sl.content as slide_content, sl.notes as slide_notes
+            SELECT s.*, sl.title as slide_title, sl.content as slide_content, sl.notes as slide_notes, sl.custom_prompt as slide_custom_prompt
             FROM sessions s
             LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
             WHERE s.id = ? AND s.status = 'active'
@@ -54,6 +54,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
             slideTitle: session.slide_title,
             slideContent: session.slide_content,
             slideNotes: session.slide_notes,
+            customPrompt: session.slide_custom_prompt,
             pendingQuestions: pendingQuestions.map(q => q.question_text),
             audienceContext: audienceMemory.reduce((acc, item) => {
                 acc[item.key] = item.value;

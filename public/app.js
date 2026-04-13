@@ -7,6 +7,9 @@ class StreamAudioPlayer {
         this.playbackRate = 0.9;
         this.gainNode = null;
         this.activeSources = [];
+        this.chunkQueue = [];
+        this.bufferTimer = null;
+        this.isBuffering = false;
     }
 
     _ensureContext() {
@@ -23,6 +26,33 @@ class StreamAudioPlayer {
 
     playChunk(pcmBase64, sampleRate, channels) {
         this._ensureContext();
+        
+        if (!this.isPlaying && !this.isBuffering) {
+            this.isBuffering = true;
+            this.chunkQueue = [];
+            if (this.bufferTimer) clearTimeout(this.bufferTimer);
+            this.bufferTimer = setTimeout(() => {
+                this.isBuffering = false;
+                this.bufferTimer = null;
+                this._flushQueue();
+            }, 250);
+        }
+
+        if (this.isBuffering) {
+            this.chunkQueue.push({ pcmBase64, sampleRate, channels });
+        } else {
+            this._processChunk(pcmBase64, sampleRate, channels);
+        }
+    }
+
+    _flushQueue() {
+        while (this.chunkQueue.length > 0) {
+            const chunk = this.chunkQueue.shift();
+            this._processChunk(chunk.pcmBase64, chunk.sampleRate, chunk.channels);
+        }
+    }
+
+    _processChunk(pcmBase64, sampleRate, channels) {
         const pcm = this._base64ToArrayBuffer(pcmBase64);
         const float32 = this._pcm16ToFloat32(pcm);
         const source = this.audioContext.createBufferSource();
@@ -48,6 +78,12 @@ class StreamAudioPlayer {
     }
 
     reset() {
+        if (this.bufferTimer) {
+            clearTimeout(this.bufferTimer);
+            this.bufferTimer = null;
+        }
+        this.isBuffering = false;
+        this.chunkQueue = [];
         this.activeSources.forEach((source) => {
             try { source.stop(); } catch {}
         });
@@ -360,6 +396,9 @@ class VoicePPTApp {
         this.voiceTurnState = 'idle';
         this.currentStatus = { text: 'Connecting', state: '', detail: 'Preparing voice session' };
         this.azureVoice = new AzureVoiceSession(this);
+        this.votes = new Map();
+        this.userReactions = [];
+        this.userQuestions = [];
         this.wrapUpTimer = null;
         this.wrapUpEndsAt = 0;
         this.wrapUpSelections = {};
@@ -440,6 +479,7 @@ class VoicePPTApp {
                 this.socketClient?.sendReaction(emoji);
                 // Local feedback
                 this.spawnReaction(emoji);
+                this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             });
         });
 
@@ -490,6 +530,31 @@ class VoicePPTApp {
             // Cleanup
             setTimeout(() => el.remove(), (duration + delay) * 1000);
         }
+    }
+
+    handleSignificantReactions(data) {
+        const { counts, total } = data;
+        const topEmoji = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        if (topEmoji && topEmoji[1] > 0) {
+            this.setStatus('Vibe check', 'paused', `High engagement! ${topEmoji[1]} people just reacted with ${topEmoji[0]}`);
+            setTimeout(() => this.restorePresentationStatus(), 4000);
+        }
+    }
+
+    handleVotesSync(data) {
+        const { votes } = data;
+        if (votes) {
+            Object.entries(votes).forEach(([mcqId, mcqVotes]) => {
+                this.votes.set(mcqId, mcqVotes);
+            });
+            this.renderWrapUpMcqs();
+        }
+    }
+
+    handleVoteUpdate(data) {
+        const { mcqId, allVotes } = data;
+        this.votes.set(mcqId, allVotes);
+        this.renderWrapUpMcqs();
     }
 
     async loadPresentationCatalog() {
@@ -663,8 +728,23 @@ class VoicePPTApp {
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
 
         const stage = document.querySelector('.slide-visual-shell');
-        const image = data.slide && data.slide.image ? `url(${data.slide.image})` : 'none';
-        stage.style.backgroundImage = image;
+        const imageUrl = data.slide && data.slide.image ? data.slide.image : null;
+        
+        if (stage) {
+            if (imageUrl) {
+                stage.classList.add('blur-up');
+                const img = new Image();
+                img.onload = () => {
+                    stage.style.backgroundImage = `url(${imageUrl})`;
+                    stage.classList.remove('blur-up');
+                    this.analyzeImageBrightness(imageUrl);
+                };
+                img.src = imageUrl;
+            } else {
+                stage.style.backgroundImage = 'none';
+                stage.classList.remove('blur-up');
+            }
+        }
 
         if (!this.voiceModeEnabled) {
             this.streamPlayer.reset();
@@ -674,6 +754,7 @@ class VoicePPTApp {
         if (this.azureVoice.connected) {
             this.azureVoice.syncSlideContext();
         }
+        this.updateFolio();
     }
 
     handleNarrationDelta(data) {
@@ -772,6 +853,57 @@ class VoicePPTApp {
         return compact.length > 180 ? compact.slice(-180).trimStart() : compact;
     }
 
+    async analyzeImageBrightness(imageUrl) {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = imageUrl;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 10; 
+            canvas.height = 10;
+            ctx.drawImage(img, 0, 0, 10, 10);
+            const imageData = ctx.getImageData(0, 0, 10, 10).data;
+            let totalBrightness = 0;
+            for (let i = 0; i < imageData.length; i += 4) {
+                totalBrightness += (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
+            }
+            const avgBrightness = totalBrightness / (imageData.length / 4);
+            const copy = document.querySelector('.slide-copy');
+            if (avgBrightness > 128) {
+                copy.classList.remove('theme-dark');
+                copy.classList.add('theme-light');
+            } else {
+                copy.classList.remove('theme-light');
+                copy.classList.add('theme-dark');
+            }
+        };
+    }
+
+    updateFolio() {
+        const dateEl = document.getElementById('folio-date');
+        const deckEl = document.getElementById('folio-deck');
+        const pageEl = document.getElementById('folio-page');
+        
+        if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        if (deckEl) deckEl.textContent = document.getElementById('deck-label').textContent;
+        if (pageEl) pageEl.textContent = `PAGE ${this.currentSlideIndex + 1} OF ${this.totalSlides || '?'}`;
+    }
+
+    toggleReadMore() {
+        const copy = document.querySelector('.slide-copy');
+        const article = document.getElementById('article-view');
+        const btn = document.getElementById('read-more-btn');
+        const isExpanded = copy.classList.toggle('expanded');
+        
+        article.classList.toggle('hidden', !isExpanded);
+        btn.textContent = isExpanded ? 'Close View' : 'Article View';
+        
+        if (isExpanded && this.currentSlide) {
+            article.innerHTML = `<p>${(this.currentSlide.notes || this.currentSlide.content || '').replace(/\n/g, '<br>')}</p>`;
+        }
+    }
+
     async submitQuestion(forcedText, options = {}) {
         const input = options.source === 'slide-turn'
             ? document.getElementById('slide-question-input')
@@ -811,6 +943,7 @@ class VoicePPTApp {
             } else {
                 this.setStatus('Question queued', 'paused', 'Presenter will answer shortly');
             }
+            this.userQuestions.push({ text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.toggleQuestionDrawer(true);
         } catch (error) {
             console.error('Question submit error:', error);
@@ -1334,6 +1467,28 @@ class VoicePPTApp {
         if (!this.wrapUpEndsAt || this.wrapUpEndsAt <= Date.now()) {
             document.getElementById('wrapup-panel').classList.add('hidden');
         }
+        
+        // Store activity for digest
+        const activity = {
+            participantName: this.participantName,
+            deckTitle: document.getElementById('deck-label').textContent,
+            totalSlides: data.totalSlides,
+            questionsAnswered: data.totalQuestionsAnswered,
+            userQuestions: this.userQuestions,
+            userReactions: this.userReactions,
+            timestamp: new Date().toISOString()
+        };
+        localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
+        
+        const storyBtn = document.createElement('button');
+        storyBtn.className = 'btn-primary story-btn';
+        storyBtn.innerHTML = '<span>📖</span> <span>View Your Session Story</span>';
+        storyBtn.style.marginTop = '20px';
+        storyBtn.onclick = () => window.location.href = `digest.html?sessionId=${this.sessionId}`;
+        
+        const summaryCont = document.getElementById('completion-summary');
+        summaryCont.parentNode.insertBefore(storyBtn, summaryCont.nextSibling);
+
         document.getElementById('completion-overlay').classList.remove('hidden');
         this.stopWaveform();
     }
@@ -1376,18 +1531,38 @@ class VoicePPTApp {
         const options = document.createElement('div');
         options.className = 'wrapup-options';
 
-        (mcq.options || []).forEach((option) => {
+        const votes = this.votes.get(mcq.id) || {};
+        const totalVotes = Object.values(votes).reduce((sum, v) => sum + v, 0);
+
+        (mcq.options || []).forEach((option, idx) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'wrapup-option';
-            button.textContent = option;
+            
+            const voteCount = votes[option] || 0;
+            const percentage = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0;
+            
+            // Brand colors for bars
+            const colors = ['#344736', '#86312b', '#ffc083', '#002140'];
+            const color = colors[idx % colors.length];
+
+            button.innerHTML = `
+                <span class="option-text">${option}</span>
+                <div class="option-bar-bg">
+                    <div class="option-bar" style="width: ${percentage}%; background-color: ${color}"></div>
+                </div>
+                <span class="option-count">${voteCount}</span>
+            `;
+
             if (this.wrapUpSelections[mcq.id] === option) {
                 button.classList.add('is-selected');
             }
+
             button.addEventListener('click', () => {
+                if (this.wrapUpSelections[mcq.id] === option) return;
                 this.wrapUpSelections[mcq.id] = option;
-                Array.from(options.children).forEach((node) => node.classList.remove('is-selected'));
-                button.classList.add('is-selected');
+                this.socketClient?.submitVote(mcq.id, option);
+                this.renderWrapUpMcqs();
             });
             options.appendChild(button);
         });

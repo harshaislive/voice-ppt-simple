@@ -125,6 +125,36 @@ app.post('/api/retrieve', requireAdminApiKey, async (req, res) => {
 });
 
 // Socket.IO connection handling
+const sessionReactions = new Map();
+const sessionVotes = new Map();
+
+// Periodic check for significant reactions (every 10s)
+setInterval(() => {
+    for (const [sessionId, counts] of sessionReactions.entries()) {
+        const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+        if (total > 0) {
+            io.to(sessionId).emit('significant-reactions', { counts, total });
+            
+            // Store in audience_memory for AI awareness
+            const dbHelper = app.get('db');
+            if (dbHelper) {
+                const summary = Object.entries(counts)
+                    .filter(([_, count]) => count > 0)
+                    .map(([emoji, count]) => `${count}x ${emoji}`)
+                    .join(', ');
+                
+                dbHelper.run(
+                    'INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+                    [sessionId, 'latest_reaction_summary', `Audience just reacted with: ${summary}`, 0.9]
+                );
+            }
+
+            // Reset after reporting
+            sessionReactions.set(sessionId, { '👏': 0, '❤️': 0, '💡': 0 });
+        }
+    }
+}, 10000);
+
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
@@ -140,6 +170,11 @@ io.on('connection', (socket) => {
 
         socket.join(sessionId);
         console.log(`Client ${socket.id} joined session ${sessionId}`);
+
+        // Send current votes if any
+        if (sessionVotes.has(sessionId)) {
+            socket.emit('votes-sync', { votes: sessionVotes.get(sessionId) });
+        }
     });
 
     socket.on('presentation-audio-complete', (payload) => {
@@ -154,7 +189,32 @@ io.on('connection', (socket) => {
         const sessionId = payload?.sessionId;
         const emoji = payload?.emoji;
         if (sessionId && emoji) {
+            // Track for AI awareness
+            if (!sessionReactions.has(sessionId)) {
+                sessionReactions.set(sessionId, { '👏': 0, '❤️': 0, '💡': 0 });
+            }
+            const counts = sessionReactions.get(sessionId);
+            if (counts[emoji] !== undefined) {
+                counts[emoji]++;
+            }
+
             io.to(sessionId).emit('receive-reaction', { emoji });
+        }
+    });
+
+    socket.on('submit-vote', (payload) => {
+        const { sessionId, mcqId, option } = payload;
+        if (sessionId && mcqId && option) {
+            if (!sessionVotes.has(sessionId)) {
+                sessionVotes.set(sessionId, {});
+            }
+            const votes = sessionVotes.get(sessionId);
+            if (!votes[mcqId]) {
+                votes[mcqId] = {};
+            }
+            votes[mcqId][option] = (votes[mcqId][option] || 0) + 1;
+
+            io.to(sessionId).emit('vote-update', { mcqId, option, count: votes[mcqId][option], allVotes: votes[mcqId] });
         }
     });
     

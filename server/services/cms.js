@@ -319,7 +319,8 @@ class CMSService {
             content: content.content || content.subtitle || '',
             image: content.image || content.image_url || null,
             notes: slide.notes || content.notes || '',
-            layout: slide.layout_type || content.layout || 'immersive'
+            layout: slide.layout_type || content.layout || 'immersive',
+            customPrompt: content.customPrompt || slide.customPrompt || null
         };
     }
 

@@ -113,4 +113,25 @@ router.delete('/projects/:slug/docs/:docType', async (req, res) => {
     }
 });
 
+router.post('/preview-narration', async (req, res) => {
+    try {
+        const { text, voice = 'default' } = req.body;
+        if (!text) {
+            return res.status(400).json({ error: 'Text is required for preview' });
+        }
+
+        const ttsService = require('../services/tts');
+        const audioBuffer = await ttsService.synthesize(text, voice);
+        
+        res.set({
+            'Content-Type': 'audio/wav',
+            'Content-Length': audioBuffer.length
+        });
+        res.send(audioBuffer);
+    } catch (error) {
+        console.error('Error generating preview narration:', error);
+        res.status(500).json({ error: 'Failed to generate preview audio' });
+    }
+});
+
 module.exports = router;
