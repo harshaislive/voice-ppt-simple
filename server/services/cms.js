@@ -226,10 +226,6 @@ class CMSService {
             const base = url.split('?')[0];
             return `${base}?auto=format&fit=crop&w=1200&q=75`;
         }
-        if (url.includes('supabase.co/storage')) {
-            const base = url.split('?')[0];
-            return `${base}?width=1200`;
-        }
         return url;
     }
 

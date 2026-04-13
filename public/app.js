@@ -350,6 +350,9 @@ class VoicePPTApp {
             const heroEl = document.getElementById('start-hero');
             if (heroEl && p.startImage) {
                 heroEl.style.backgroundImage = `url(${p.startImage})`;
+                console.log('Hero image set:', p.startImage);
+            } else {
+                console.warn('No hero image available, using gradient fallback');
             }
 
         } catch (err) { console.error('Catalog load failed:', err); }
