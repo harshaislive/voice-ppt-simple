@@ -901,6 +901,7 @@ class VoicePPTApp {
         
         if (isExpanded && this.currentSlide) {
             article.innerHTML = `<p>${(this.currentSlide.notes || this.currentSlide.content || '').replace(/\n/g, '<br>')}</p>`;
+            copy.scrollTop = 0;
         }
     }
 

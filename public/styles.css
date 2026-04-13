@@ -1006,67 +1006,80 @@ h1, h2, h3, h4 {
         line-height: 1.05;
         font-weight: bold;
         margin-bottom: 24px;
-        color: var(--text);
+        color: inherit; /* Use inherited theme color */
     }
 
     .slide-subtitle {
         font-size: 1.25rem;
         line-height: 1.6;
         padding-bottom: 40px;
-        color: var(--text);
+        color: inherit; /* Use inherited theme color */
         opacity: 0.9;
     }
 
     .presentation-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        z-index: 10;
+        border-top: 2px solid var(--border-color);
         min-height: 100px;
         padding: 20px 24px;
+        display: flex;
         flex-direction: row;
         justify-content: space-between;
         align-items: flex-end;
         gap: 12px;
     }
 
-    .footer-block {
-        flex: 1;
+    /* Scrubber Fix (Mobile) */
+    .scrubber-container {
+        display: none !important;
     }
 
-    /* Pop-up: breatheable and editorial */
-    .slide-turn-overlay {
-        z-index: 300;
-    }
-
-    .slide-turn-card {
-        padding: 48px 32px;
-        gap: 32px;
+    /* Poll Visibility Fix (Mobile) */
+    .poll-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 400px;
+        z-index: 3000; /* Above EVERYTHING including Article View */
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         background: #fff;
+        padding: 32px;
     }
 
-    .slide-turn-title {
-        font-size: 2.4rem;
-        line-height: 1.1;
+    .slide-copy {
+        padding-bottom: 140px !important; /* Extra breathing room for fixed footer */
     }
 
-    .slide-turn-actions {
+    /* Article View (Mobile) */
+    .slide-copy.expanded {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 2000; 
+        padding: 80px 32px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
-        width: 100%;
+        background: inherit;
     }
 
-    .slide-turn-mic, .slide-turn-continue {
-        width: 100%;
-        height: 64px;
-        justify-content: center;
-    }
-
-    .slide-turn-input-row {
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .slide-turn-input, .slide-turn-send {
-        width: 100%;
-        height: 56px;
+    .slide-copy.expanded .read-more-btn {
+        position: sticky;
+        top: 0;
+        align-self: flex-end;
+        margin-top: 0;
+        margin-bottom: 20px;
+        z-index: 2010;
+        background: var(--text);
+        color: var(--bg);
     }
 }
 
