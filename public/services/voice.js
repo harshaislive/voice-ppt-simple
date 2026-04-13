@@ -68,8 +68,10 @@ export class AzureVoiceSession {
             this.dataChannel = this.peer.createDataChannel('realtime-events');
             this.dataChannel.onopen = () => {
                 this.syncSlideContext();
+                const ctx = this.app.getCurrentSlideContext();
+                const slideInfo = ctx.title ? ` We're on slide about "${ctx.title}".` : '';
                 this.requestResponse({
-                    instructions: 'Greet the attendee right away in one short sentence, mention that you can answer questions or move between slides, then pause for their reply.'
+                    instructions: `Greet the attendee by name in one short sentence.${slideInfo} Say you can answer questions or move slides. Then pause.`
                 });
                 this.app.setStatus('Mic is live', 'paused', 'The presenter is opening the conversation');
             };
@@ -144,8 +146,8 @@ export class AzureVoiceSession {
                             type: 'server_vad',
                             threshold: 0.45,
                             prefix_padding_ms: 250,
-                            silence_duration_ms: 500,
-                            create_response: false,
+                            silence_duration_ms: 600,
+                            create_response: true,
                             interrupt_response: true
                         }
                     }
@@ -174,7 +176,6 @@ export class AzureVoiceSession {
                 break;
             case 'conversation.item.input_audio_transcription.completed':
                 this.app.showVoiceTranscript(event.transcript || '');
-                this.requestResponse();
                 break;
             case 'response.function_call_arguments.done':
                 this.handleFunctionCall(event);
