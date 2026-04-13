@@ -10,6 +10,16 @@ const {
     requireSessionControl
 } = require('../middleware/security');
 
+// Public config - no auth required
+router.get('/config', (req, res) => {
+    res.json({
+        passcodeRequired: !!process.env.DEFAULT_PASSCODE
+    });
+});
+
+// Start a new presentation session
+} = require('../middleware/security');
+
 // Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
@@ -17,8 +27,14 @@ router.post('/start', async (req, res) => {
         const db = req.app.get('db');
         
         const configuredPasscode = process.env.DEFAULT_PASSCODE;
-        if (configuredPasscode && passcode !== configuredPasscode) {
-            return res.status(403).json({ success: false, error: 'Invalid passcode' });
+        const passcodeRequired = !!configuredPasscode;
+        
+        if (passcodeRequired && !passcode) {
+            return res.status(403).json({ success: false, error: 'Passcode required', passcodeRequired: true });
+        }
+        
+        if (passcodeRequired && passcode !== configuredPasscode) {
+            return res.status(403).json({ success: false, error: 'Wrong passcode', passcodeRequired: true });
         }
         
         const sessionId = uuidv4();
@@ -82,7 +98,8 @@ router.post('/start', async (req, res) => {
                 presentationTitle: presentation.title,
                 participantName: normalizedParticipantName,
                 slideCount: presentation.slides.length,
-                status: 'active'
+                status: 'active',
+                passcodeRequired
             });
         } catch (error) {
             console.warn(`Presentation ${deckId} not found, creating empty session`);
@@ -103,7 +120,8 @@ router.post('/start', async (req, res) => {
                 participantName: normalizedParticipantName,
                 slideCount: 0,
                 status: 'active',
-                warning: 'Deck not found'
+                warning: 'Deck not found',
+                passcodeRequired
             });
         }
     } catch (error) {

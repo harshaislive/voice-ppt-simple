@@ -48,9 +48,26 @@ class VoicePPTApp {
         this.waveformAnimFrame = null;
 
         this.bindEvents();
+        this.loadSessionConfig();
         this.loadPresentationCatalog();
         this.setupSpeechRecognitionFallback();
         this.resizeWaveform();
+    }
+
+    async loadSessionConfig() {
+        try {
+            const res = await this.apiFetch('/api/session/config');
+            const data = await res.json();
+            const passcodeEl = document.getElementById('session-passcode');
+            if (passcodeEl) {
+                passcodeEl.style.display = data.passcodeRequired ? 'block' : 'none';
+                if (!data.passcodeRequired) {
+                    passcodeEl.placeholder = '';
+                }
+            }
+        } catch (err) {
+            console.warn('Could not load session config:', err);
+        }
     }
 
     buildApiHeaders(extraHeaders = {}) {
@@ -243,17 +260,26 @@ class VoicePPTApp {
     async startSession() {
         const deckId = document.getElementById('deck-select').value;
         const participantName = (document.getElementById('participant-name').value || '').trim();
-        const passcode = (document.getElementById('session-passcode').value || '').trim();
+        const passcodeEl = document.getElementById('session-passcode');
+        const passcode = passcodeEl ? (passcodeEl.value || '').trim() : '';
         if (!participantName) { document.getElementById('participant-name').focus(); this.setStatus('Add your name', 'paused', 'Presenter uses it to personalize'); return; }
+        if (passcodeEl && passcodeEl.offsetParent !== null && !passcode) { passcodeEl.focus(); this.setStatus('Enter passcode', 'paused', 'A passcode is required for this presentation'); return; }
         const btn = document.getElementById('start-presentation');
         btn.disabled = true; btn.querySelector('span:last-child').textContent = 'Starting...';
         try {
             const res = await this.apiFetch('/api/session/start', { method: 'POST', body: JSON.stringify({ deckId, participantName, passcode }) });
             const data = await res.json();
             if (!data.success) {
-                if (data.error === 'Invalid passcode') {
-                    document.getElementById('session-passcode').focus();
-                    this.setStatus('Invalid passcode', 'paused', 'Please try again');
+                if (data.error === 'Wrong passcode') {
+                    passcodeEl.value = '';
+                    passcodeEl.focus();
+                    this.setStatus('Wrong passcode', 'paused', 'Check with the presenter for the correct code');
+                    btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation';
+                    return;
+                }
+                if (data.error === 'Passcode required') {
+                    passcodeEl.focus();
+                    this.setStatus('Passcode required', 'paused', 'Enter the passcode to join');
                     btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation';
                     return;
                 }
