@@ -141,7 +141,7 @@ async function readKnowledgeDocs(projectDir) {
         cta: await readOptionalText(path.join(projectDir, 'cta', 'contact.md')),
         images: await readOptionalJson(path.join(projectDir, 'images.json'))
     };
-    };
+    return docs;
 }
 
 async function request(target, method, body, onConflict) {
