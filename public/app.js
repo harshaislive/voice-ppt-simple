@@ -232,6 +232,44 @@ class VoicePPTApp {
             btn.addEventListener('click', () => {
                 const emoji = btn.getAttribute('data-emoji');
                 this.socketClient.sendReaction(emoji);
+            });
+        });
+
+        document.getElementById('help-fab').addEventListener('click', () => {
+            document.getElementById('help-modal-overlay').classList.add('open');
+        });
+        document.getElementById('help-modal-close').addEventListener('click', () => {
+            document.getElementById('help-modal-overlay').classList.remove('open');
+        });
+        document.getElementById('help-modal-overlay').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('help-modal-overlay')) {
+                document.getElementById('help-modal-overlay').classList.remove('open');
+            }
+        });
+    }
+        });
+        document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
+        document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+
+        const accordionToggle = document.getElementById('accordion-toggle');
+        if (accordionToggle) {
+            accordionToggle.addEventListener('click', () => {
+                document.getElementById('read-along-accordion').classList.toggle('is-open');
+            });
+        }
+
+        document.getElementById('mic-retry-btn').addEventListener('click', () => {
+            document.getElementById('mic-permission-modal').classList.add('hidden');
+            this.handleInterruptMic();
+        });
+        document.getElementById('mic-close-btn').addEventListener('click', () => {
+            document.getElementById('mic-permission-modal').classList.add('hidden');
+        });
+        
+        document.querySelectorAll('.reaction-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const emoji = btn.getAttribute('data-emoji');
+                this.socketClient.sendReaction(emoji);
                 this.spawnReaction(emoji);
                 this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
                 this.logEvent('reaction', emoji);
@@ -302,33 +340,17 @@ class VoicePPTApp {
             const data = await res.json();
             if (!Array.isArray(data.presentations) || data.presentations.length === 0) return;
             this.presentationCatalog = data.presentations;
-            const select = document.getElementById('deck-select');
-            const previous = select.value;
-            select.innerHTML = '';
-            
-            data.presentations.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id; opt.textContent = p.title;
-                select.appendChild(opt);
-            });
 
-            const updateHomeHeaders = () => {
-                const selectedId = select.value;
-                const p = this.presentationCatalog.find(pres => pres.id === selectedId);
-                if (p) {
-                    const titleEl = document.getElementById('home-start-title');
-                    const subEl = document.getElementById('home-start-sub');
-                    if (titleEl) titleEl.innerHTML = p.startTitle || 'Presentations<br>that speak.';
-                    if (subEl) subEl.innerHTML = p.startSubtitle || 'AI-powered voice narration that brings your slides to life.';
-                }
-            };
+            const p = data.presentations[0];
+            const titleEl = document.getElementById('home-start-title');
+            const subEl = document.getElementById('home-start-sub');
+            if (titleEl) titleEl.innerHTML = p.startTitle ? p.startTitle.replace(/\n/g, '<br>') : 'THE 10% LIFE';
+            if (subEl) subEl.textContent = p.startSubtitle || '';
 
-            select.addEventListener('change', updateHomeHeaders);
-
-            if (data.presentations.some(p => p.id === previous)) {
-                select.value = previous;
+            const heroEl = document.getElementById('start-hero');
+            if (heroEl && p.startImage) {
+                heroEl.style.backgroundImage = `url(${p.startImage})`;
             }
-            updateHomeHeaders();
 
         } catch (err) { console.error('Catalog load failed:', err); }
     }
@@ -349,14 +371,14 @@ class VoicePPTApp {
     }
 
     async startSession() {
-        const deckId = document.getElementById('deck-select').value;
+        const deckId = this.presentationCatalog[0]?.id || '10_percent_lifestyle';
         const participantName = (document.getElementById('participant-name').value || '').trim();
         const passcodeEl = document.getElementById('session-passcode');
         const passcode = passcodeEl ? (passcodeEl.value || '').trim() : '';
         if (!participantName) { document.getElementById('participant-name').focus(); this.setStatus('Add your name', 'paused', 'Presenter uses it to personalize'); return; }
         if (passcodeEl && passcodeEl.offsetParent !== null && !passcode) { passcodeEl.focus(); this.setStatus('Enter passcode', 'paused', 'A passcode is required for this presentation'); return; }
         const btn = document.getElementById('start-presentation');
-        btn.disabled = true; btn.querySelector('span:last-child').textContent = 'Starting...';
+        btn.disabled = true; btn.querySelector('span').textContent = 'Starting...';
         try {
             const res = await this.apiFetch('/api/session/start', { method: 'POST', body: JSON.stringify({ deckId, participantName, passcode }) });
             const data = await res.json();
@@ -365,13 +387,13 @@ class VoicePPTApp {
                     passcodeEl.value = '';
                     passcodeEl.focus();
                     this.setStatus('Wrong passcode', 'paused', 'Check with the presenter for the correct code');
-                    btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation';
+                    btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience';
                     return;
                 }
                 if (data.error === 'Passcode required') {
                     passcodeEl.focus();
                     this.setStatus('Passcode required', 'paused', 'Enter the passcode to join');
-                    btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation';
+                    btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience';
                     return;
                 }
                 throw new Error(data.error || 'Failed to start');
@@ -398,7 +420,7 @@ class VoicePPTApp {
             this.setStatus('Ready', 'live', 'Ask anytime');
             this.syncQuestionCount();
             setTimeout(() => this.triggerAutoPlex(), 250);
-        } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation'; }
+        } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience'; }
     }
 
     async primeInitialSlide() {

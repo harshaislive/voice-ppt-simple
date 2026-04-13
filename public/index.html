@@ -13,26 +13,18 @@
     <div id="app" class="app">
         <!-- START SCREEN -->
         <div id="start-screen" class="start-screen">
-            <div class="start-bg"></div>
+            <div id="start-hero" class="start-hero"></div>
             <div class="start-content">
-                <div class="start-badge">VOICE-PPT</div>
-                <h1 id="home-start-title" class="start-title">Presentations<br>that speak.</h1>
+                <h1 id="home-start-title" class="start-title">THE 10% LIFE</h1>
                 <p id="home-start-sub" class="start-sub">AI-powered voice narration that brings your slides to life.</p>
                 <div class="start-actions">
                     <input id="participant-name" class="name-input" type="text" placeholder="Your name" autocomplete="name" maxlength="60">
-                    <input id="session-passcode" class="name-input" type="password" placeholder="Passcode (if required)" autocomplete="off" maxlength="20">
-                    <select id="deck-select" class="deck-select">
-                        <option value="ten_percent_club">10% Club Presentation</option>
-                        <option value="beforest_pitch">Beforest Pitch Deck</option>
-                    </select>
+                    <input id="session-passcode" class="session-passcode" type="password" placeholder="Passcode (if required)" autocomplete="off" maxlength="20">
                     <button id="start-presentation" class="btn-start">
-                        <span class="btn-start-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                        </span>
-                        <span>Start Presentation</span>
+                        <span>Begin Experience</span>
                     </button>
                 </div>
-                <div class="start-hint">Questions are collected during the presentation and answered at the end.</div>
+                <div class="start-hint">The presenter will speak to you. Questions are answered live at the end.</div>
             </div>
         </div>
 
@@ -242,6 +234,58 @@
 
     <!-- Audio element -->
     <audio id="audio-player" style="display:none;"></audio>
+
+    <!-- Help FAB -->
+    <button id="help-fab" class="help-fab" type="button" aria-label="Help">?</button>
+
+    <!-- Help Modal -->
+    <div id="help-modal-overlay" class="help-modal-overlay" role="dialog" aria-modal="true">
+        <div class="help-modal">
+            <button id="help-modal-close" class="help-modal-close" type="button" aria-label="Close">✕</button>
+            <h2>How it works</h2>
+            <p class="help-modal-subtitle">You're in a live conversation with a presenter. Here's how to participate.</p>
+
+            <div class="guideline-item">
+                <div class="guideline-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                </div>
+                <div class="guideline-text">
+                    <h4>Interrupt anytime</h4>
+                    <p>Tap the mic icon to speak directly to the presenter. Ask anything — the presenter will respond live.</p>
+                </div>
+            </div>
+
+            <div class="guideline-item">
+                <div class="guideline-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="guideline-text">
+                    <h4>Type your question</h4>
+                    <p>Open the chat panel and type a question. The presenter will address it after the current slide.</p>
+                </div>
+            </div>
+
+            <div class="guideline-item">
+                <div class="guideline-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                </div>
+                <div class="guideline-text">
+                    <h4>React with emojis</h4>
+                    <p>Tap the emoji buttons at the bottom to react. The presenter sees your reactions in real time.</p>
+                </div>
+            </div>
+
+            <div class="guideline-item">
+                <div class="guideline-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="guideline-text">
+                    <h4>Live presentation</h4>
+                    <p>The presenter moves through the deck automatically. Sit back, listen, and engage when it feels right.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>

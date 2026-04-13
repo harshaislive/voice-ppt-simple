@@ -227,15 +227,31 @@ class CMSService {
             order: 'title.asc'
         });
 
-        return rows.map((row) => ({
-            id: row.slug || row.id,
-            title: row.title || this.humanize(row.slug || row.id),
-            source: 'supabase',
-            projectSlug: row.project_id || null,
-            presentationSlug: row.slug || row.id,
-            startTitle: row.design_json?.startTitle || null,
-            startSubtitle: row.design_json?.startSubtitle || null
+        const results = await Promise.all(rows.map(async (row) => {
+            const slides = await this.request('slides', {
+                select: 'content_json',
+                presentation_id: `eq.${row.id}`,
+                order: 'slide_index.asc',
+                limit: '1'
+            });
+            const firstSlide = slides[0];
+            let startImage = null;
+            if (firstSlide?.content_json?.image) {
+                startImage = firstSlide.content_json.image;
+            }
+            return {
+                id: row.slug || row.id,
+                title: row.title || this.humanize(row.slug || row.id),
+                source: 'supabase',
+                projectSlug: row.project_id || null,
+                presentationSlug: row.slug || row.id,
+                startTitle: row.design_json?.startTitle || null,
+                startSubtitle: row.design_json?.startSubtitle || null,
+                startImage
+            };
         }));
+
+        return results;
     }
 
     async loadPresentationFromSupabase(identifier) {

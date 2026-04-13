@@ -93,13 +93,14 @@ export class UIManager {
     }
 
     openSlideTurnOverlay(data = {}) {
-        const overlay = document.getElementById('slide-turn-overlay');
-        const detail = document.getElementById('slide-turn-detail');
-        const input = document.getElementById('slide-question-input');
-
-        if (overlay) overlay.classList.remove('hidden');
-        if (detail) detail.textContent = 'Ask the presenter a question, or continue to the next slide.';
-        if (input) input.value = '';
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const statusDetail = document.getElementById('status-detail');
+        if (statusDot) {
+            statusDot.className = 'status-dot your-turn';
+        }
+        if (statusText) statusText.textContent = 'Your Turn';
+        if (statusDetail) statusDetail.textContent = 'Tap mic or continue';
     }
 
     closeSlideTurnOverlay() {
