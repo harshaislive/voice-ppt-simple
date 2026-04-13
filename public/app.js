@@ -144,13 +144,20 @@ class AzureVoiceSession {
                 throw new Error('Azure realtime voice is not configured');
             }
 
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
+            try {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+            } catch (err) {
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    this.app.handleMicPermissionError();
                 }
-            });
+                throw err;
+            }
 
             this.peer = new RTCPeerConnection();
             this.localStream.getTracks().forEach((track) => this.peer.addTrack(track, this.localStream));
@@ -471,6 +478,15 @@ class VoicePPTApp {
         });
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+
+        // Mic permission modal events
+        document.getElementById('mic-retry-btn').addEventListener('click', () => {
+            document.getElementById('mic-permission-modal').classList.add('hidden');
+            this.handleInterruptMic();
+        });
+        document.getElementById('mic-close-btn').addEventListener('click', () => {
+            document.getElementById('mic-permission-modal').classList.add('hidden');
+        });
         
         // Reaction Buttons
         document.querySelectorAll('.reaction-btn').forEach(btn => {
@@ -726,6 +742,13 @@ class VoicePPTApp {
         document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || '?'}`;
         document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
+        
+        const notesEl = document.getElementById('slide-notes');
+        if (notesEl) {
+            notesEl.innerHTML = data.slide && data.slide.notes 
+                ? `<p>${data.slide.notes.replace(/\n/g, '<br>')}</p>`
+                : '';
+        }
 
         const stage = document.querySelector('.slide-visual-shell');
         const imageUrl = data.slide && data.slide.image ? data.slide.image : null;
@@ -745,6 +768,10 @@ class VoicePPTApp {
                 stage.classList.remove('blur-up');
             }
         }
+
+        // Reset scroll position
+        const main = document.querySelector('.slide-main');
+        if (main) main.scrollTop = 0;
 
         if (!this.voiceModeEnabled) {
             this.streamPlayer.reset();
@@ -890,19 +917,8 @@ class VoicePPTApp {
         if (pageEl) pageEl.textContent = `PAGE ${this.currentSlideIndex + 1} OF ${this.totalSlides || '?'}`;
     }
 
-    toggleReadMore() {
-        const copy = document.querySelector('.slide-copy');
-        const article = document.getElementById('article-view');
-        const btn = document.getElementById('read-more-btn');
-        const isExpanded = copy.classList.toggle('expanded');
-        
-        article.classList.toggle('hidden', !isExpanded);
-        btn.textContent = isExpanded ? 'Close View' : 'Article View';
-        
-        if (isExpanded && this.currentSlide) {
-            article.innerHTML = `<p>${(this.currentSlide.notes || this.currentSlide.content || '').replace(/\n/g, '<br>')}</p>`;
-            copy.scrollTop = 0;
-        }
+    handleMicPermissionError() {
+        document.getElementById('mic-permission-modal').classList.remove('hidden');
     }
 
     async submitQuestion(forcedText, options = {}) {
@@ -1142,10 +1158,7 @@ class VoicePPTApp {
     openSlideTurnOverlay(data = {}) {
         this.awaitingSlideContinue = true;
         document.getElementById('slide-turn-overlay').classList.remove('hidden');
-        document.getElementById('slide-turn-detail').textContent = data.pendingQuestionCount > 0
-            ? `${data.pendingQuestionCount} question${data.pendingQuestionCount === 1 ? '' : 's'} queued for the final Q&A. Ask now, save another, or continue.`
-            : 'Talk to the presenter now, save a typed question for the final Q&A, or continue to the next slide.';
-        document.getElementById('slide-turn-note').textContent = 'Typed questions are saved and answered after the last slide.';
+        document.getElementById('slide-turn-detail').textContent = 'Ask the presenter a question, or continue to the next slide.';
         document.getElementById('slide-question-input').value = '';
         this.updateMicState();
     }

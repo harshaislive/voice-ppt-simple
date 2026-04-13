@@ -81,9 +81,10 @@
                                     <span id="folio-page" class="folio-page"></span>
                                 </div>
                                 <h1 id="slide-title" class="slide-title"></h1>
-                                <p id="slide-subtitle" class="slide-subtitle"></p>
-                                <div id="article-view" class="article-view hidden"></div>
-                                <button id="read-more-btn" class="read-more-btn">Article View</button>
+                                <div id="slide-content-flow" class="slide-content-flow">
+                                    <p id="slide-subtitle" class="slide-subtitle"></p>
+                                    <div id="slide-notes" class="slide-notes"></div>
+                                </div>
                             </div>
                         </div>
 
@@ -95,7 +96,7 @@
                         <!-- Poll Container -->
                         <div id="poll-container" class="poll-container hidden">
                             <h3 id="poll-question"></h3>
-                            <div id="poll-options"></div>
+                            <div id="poll-options" class="poll-options"></div>
                         </div>
                     </main>
 
@@ -119,13 +120,13 @@
                             <span class="footer-hint">React here</span>
                             <div id="reaction-bar" class="reaction-bar">
                                 <button class="reaction-btn reaction-clap" data-emoji="👏" aria-label="Clap">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M11 20.355a2 2 0 0 1-2-2v-5l-1.37-1.37a2.12 2.12 0 0 1 3-3l1.37 1.37a1 1 0 0 0 1.41 0l3-3a2.12 2.12 0 1 1 3 3l-3 3a1 1 0 0 0 0 1.41l1.37 1.37a2.12 2.12 0 0 1-3 3l-1.37-1.37a1 1 0 0 0-1.41 0l-1 1a1.99 1.99 0 0 1-1 1.59z"/></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11 20.355a2 2 0 0 1-2-2v-5l-1.37-1.37a2.12 2.12 0 0 1 3-3l1.37 1.37a1 1 0 0 0 1.41 0l3-3a2.12 2.12 0 1 1 3 3l-3 3a1 1 0 0 0 0 1.41l1.37 1.37a2.12 2.12 0 0 1-3 3l-1.37-1.37a1 1 0 0 0-1.41 0l-1 1a1.99 1.99 0 0 1-1 1.59z"/></svg>
                                 </button>
                                 <button class="reaction-btn reaction-heart" data-emoji="❤️" aria-label="Heart">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                                 </button>
                                 <button class="reaction-btn reaction-idea" data-emoji="💡" aria-label="Idea">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6C7.8 12.16 7 10.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6C7.8 12.16 7 10.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/></svg>
                                 </button>
                             </div>
                         </div>
@@ -136,27 +137,40 @@
                         <div class="slide-turn-card">
                             <div class="slide-turn-copy">
                                 <span class="slide-turn-eyebrow">Pause</span>
-                                <h2 class="slide-turn-title">Talk to the Presenter?</h2>
-                                <p id="slide-turn-detail" class="slide-turn-detail">Interrupt now by voice, or save a typed question for later.</p>
+                                <h2 class="slide-turn-title">Next Step?</h2>
+                                <p id="slide-turn-detail" class="slide-turn-detail">Ask the presenter a question or continue the story.</p>
                             </div>
                             
                             <div class="slide-turn-actions">
-                                <button id="slide-turn-mic" class="slide-turn-mic" type="button">
+                                <button id="slide-turn-mic" class="slide-turn-mic btn-primary" type="button">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                                    <span id="slide-turn-mic-label">Talk To Presenter</span>
+                                    <span id="slide-turn-mic-label">Ask a Question</span>
                                 </button>
-                                <button id="slide-turn-continue" class="slide-turn-continue" type="button">
-                                    <span>Continue Presentation</span>
+                                <button id="slide-turn-continue" class="slide-turn-continue btn-secondary" type="button">
+                                    <span>Continue</span>
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                                 </button>
                             </div>
 
                             <div class="slide-turn-qa">
                                 <div class="slide-turn-input-row">
-                                    <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question for the end...">
+                                    <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question...">
                                     <button id="slide-question-send" class="slide-turn-send">Save</button>
                                 </div>
-                                <p id="slide-turn-note" class="slide-turn-note">Questions saved here are queued for the final Q&A.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="mic-permission-modal" class="modal-overlay hidden">
+                        <div class="modal-card">
+                            <div class="modal-icon alert">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            </div>
+                            <h2>Microphone Access Denied</h2>
+                            <p>We need your mic to let you talk to the presenter. Please enable it in your browser settings and try again.</p>
+                            <div class="modal-actions">
+                                <button id="mic-retry-btn" class="btn-primary">Try Again</button>
+                                <button id="mic-close-btn" class="btn-text">Dismiss</button>
                             </div>
                         </div>
                     </div>
