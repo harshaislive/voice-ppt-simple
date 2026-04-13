@@ -232,6 +232,9 @@ class VoicePPTApp {
             btn.addEventListener('click', () => {
                 const emoji = btn.getAttribute('data-emoji');
                 this.socketClient.sendReaction(emoji);
+                this.spawnReaction(emoji);
+                this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
+                this.logEvent('reaction', emoji);
             });
         });
 
@@ -245,35 +248,6 @@ class VoicePPTApp {
             if (e.target === document.getElementById('help-modal-overlay')) {
                 document.getElementById('help-modal-overlay').classList.remove('open');
             }
-        });
-    }
-        });
-        document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
-        document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
-
-        const accordionToggle = document.getElementById('accordion-toggle');
-        if (accordionToggle) {
-            accordionToggle.addEventListener('click', () => {
-                document.getElementById('read-along-accordion').classList.toggle('is-open');
-            });
-        }
-
-        document.getElementById('mic-retry-btn').addEventListener('click', () => {
-            document.getElementById('mic-permission-modal').classList.add('hidden');
-            this.handleInterruptMic();
-        });
-        document.getElementById('mic-close-btn').addEventListener('click', () => {
-            document.getElementById('mic-permission-modal').classList.add('hidden');
-        });
-        
-        document.querySelectorAll('.reaction-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const emoji = btn.getAttribute('data-emoji');
-                this.socketClient.sendReaction(emoji);
-                this.spawnReaction(emoji);
-                this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
-                this.logEvent('reaction', emoji);
-            });
         });
 
         window.addEventListener('resize', () => this.resizeWaveform());
