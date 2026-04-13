@@ -315,7 +315,7 @@ class VoicePPTApp {
             if (!Array.isArray(data.presentations) || data.presentations.length === 0) return;
             this.presentationCatalog = data.presentations;
 
-            const p = data.presentations[0];
+            const p = data.presentations.find(pres => pres.source === 'supabase') || data.presentations[0];
             const titleEl = document.getElementById('home-start-title');
             const subEl = document.getElementById('home-start-sub');
             if (titleEl) titleEl.innerHTML = p.startTitle ? p.startTitle.replace(/\n/g, '<br>') : 'THE 10% LIFE';
@@ -348,7 +348,8 @@ class VoicePPTApp {
     }
 
     async startSession() {
-        const deckId = this.presentationCatalog[0]?.id || '10_percent_lifestyle';
+        const supabasePres = this.presentationCatalog.find(p => p.source === 'supabase');
+        const deckId = supabasePres?.id || this.presentationCatalog[0]?.id || '10_percent_lifestyle';
         const participantName = (document.getElementById('participant-name').value || '').trim();
         const passcodeEl = document.getElementById('session-passcode');
         const passcode = passcodeEl ? (passcodeEl.value || '').trim() : '';

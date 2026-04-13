@@ -28,11 +28,13 @@ class CMSService {
         try {
             const remote = await this.listSupabasePresentations();
             const merged = new Map();
-            [...local, ...remote].forEach((item) => {
-                merged.set(item.id, item);
+            remote.forEach((item) => merged.set(item.id, item));
+            local.forEach((item) => {
+                if (!merged.has(item.id)) merged.set(item.id, item);
             });
-            console.log(`[CMS] listPresentations: ${remote.length} remote + ${local.length} local = ${merged.size} total`);
-            return Array.from(merged.values());
+            const result = Array.from(merged.values());
+            console.log(`[CMS] listPresentations: ${remote.length} remote + ${local.length} local = ${result.length} total`);
+            return result;
         } catch (error) {
             console.error('CMS listPresentations failed, using local fallback:', error.message);
             return local;
