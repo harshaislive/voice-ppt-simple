@@ -54,16 +54,107 @@ class VoicePPTApp {
         this.resizeWaveform();
     }
 
+    static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+    static STORAGE_KEYS = {
+        SESSION: 'vpp_session',
+        PASSCODE_REQUIRED: 'vpp_passcode_required'
+    };
+
+    persistSession(data) {
+        const payload = {
+            sessionId: data.sessionId,
+            controlToken: data.controlToken,
+            participantName: data.participantName,
+            deckId: data.deckId,
+            presentationTitle: data.presentationTitle,
+            slideCount: data.slideCount,
+            passcodeRequired: data.passcodeRequired,
+            storedAt: Date.now()
+        };
+        try {
+            localStorage.setItem(VoicePPTApp.STORAGE_KEYS.SESSION, JSON.stringify(payload));
+            localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, String(!!data.passcodeRequired));
+        } catch (err) {
+            console.warn('Failed to persist session:', err);
+        }
+    }
+
+    clearPersistedSession() {
+        try {
+            localStorage.removeItem(VoicePPTApp.STORAGE_KEYS.SESSION);
+        } catch (err) {
+            console.warn('Failed to clear session:', err);
+        }
+    }
+
+    getPersistedSession() {
+        try {
+            const raw = localStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION);
+            if (!raw) return null;
+            const session = JSON.parse(raw);
+            const age = Date.now() - (session.storedAt || 0);
+            if (age > VoicePPTApp.SESSION_TTL_MS) {
+                this.clearPersistedSession();
+                return null;
+            }
+            return session;
+        } catch {
+            return null;
+        }
+    }
+
+    async restorePersistedSession(session) {
+        try {
+            const res = await this.apiFetch(`/api/session/${session.sessionId}`);
+            if (!res.ok) {
+                this.clearPersistedSession();
+                return false;
+            }
+            const data = await res.json();
+            if (!data.session || !['active', 'presenting', 'wrapup'].includes(data.session.status)) {
+                this.clearPersistedSession();
+                return false;
+            }
+            this.sessionId = session.sessionId;
+            this.controlToken = session.controlToken || '';
+            this.participantName = session.participantName || '';
+            this.totalSlides = data.session.slide_count || session.slideCount || 0;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('present-view').classList.remove('hidden');
+            document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
+            await this.primeInitialSlide();
+            this.socketClient.connect(this.sessionId, this.controlToken);
+            document.getElementById('question-input').disabled = false;
+            document.getElementById('submit-question').disabled = false;
+            this.setStatus('Resumed', 'live', 'Session restored');
+            this.syncQuestionCount();
+            return true;
+        } catch (err) {
+            console.error('Session restore failed:', err);
+            this.clearPersistedSession();
+            return false;
+        }
+    }
+
     async loadSessionConfig() {
         try {
-            const res = await this.apiFetch('/api/session/config');
-            const data = await res.json();
+            const [configRes, persistedSession] = await Promise.all([
+                this.apiFetch('/api/session/config'),
+                Promise.resolve(this.getPersistedSession())
+            ]);
+            const data = await configRes.json();
             const passcodeEl = document.getElementById('session-passcode');
             if (passcodeEl) {
                 passcodeEl.style.display = data.passcodeRequired ? 'block' : 'none';
                 if (!data.passcodeRequired) {
                     passcodeEl.placeholder = '';
                 }
+            }
+            localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, String(!!data.passcodeRequired));
+            if (persistedSession) {
+                const restored = await this.restorePersistedSession(persistedSession);
+                if (restored) return;
             }
         } catch (err) {
             console.warn('Could not load session config:', err);
@@ -287,6 +378,15 @@ class VoicePPTApp {
             }
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
+            this.persistSession({
+                sessionId: this.sessionId,
+                controlToken: this.controlToken,
+                participantName: this.participantName,
+                deckId: data.deckId || deckId,
+                presentationTitle: data.presentationTitle || deckId.replace(/_/g, ' '),
+                slideCount: this.totalSlides,
+                passcodeRequired: data.passcodeRequired
+            });
             this.awaitingSlideContinue = false;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
