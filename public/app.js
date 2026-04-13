@@ -271,7 +271,8 @@ class VoicePPTApp {
         try {
             const res = await this.apiFetch(`/api/session/${this.sessionId}`);
             const data = await res.json();
-            const meta = this.parseSessionMetadata(data?.session?.metadata);
+            let meta = {};
+            try { meta = JSON.parse(data?.session?.metadata || '{}'); } catch {}
             this.participantName = data?.participantName || meta.participantName || this.participantName;
             if (data?.currentSlide) this.updateSlide({ slideIndex: data.session?.current_slide_index || 0, totalSlides: data.session?.slide_count || this.totalSlides, slide: data.currentSlide });
         } catch (err) { console.error('Initial slide fetch failed:', err); }
