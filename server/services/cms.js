@@ -202,6 +202,8 @@ class CMSService {
                         source: 'local',
                         projectSlug: projectConfig.slug || projectDirName,
                         presentationSlug: slug,
+                        startTitle: presentation.startTitle || null,
+                        startSubtitle: presentation.startSubtitle || null,
                         slides: Array.isArray(presentation.slides) ? presentation.slides : [],
                         knowledgeDocs,
                         deckSchema: await this.readOptionalJson(path.join(projectDir, 'content_schema.json')),
@@ -220,7 +222,7 @@ class CMSService {
 
     async listSupabasePresentations() {
         const rows = await this.request('presentations', {
-            select: 'id,slug,title,project_id,status',
+            select: 'id,slug,title,project_id,status,design_json',
             status: 'eq.published',
             order: 'title.asc'
         });
@@ -230,7 +232,9 @@ class CMSService {
             title: row.title || this.humanize(row.slug || row.id),
             source: 'supabase',
             projectSlug: row.project_id || null,
-            presentationSlug: row.slug || row.id
+            presentationSlug: row.slug || row.id,
+            startTitle: row.design_json?.startTitle || null,
+            startSubtitle: row.design_json?.startSubtitle || null
         }));
     }
 
@@ -268,7 +272,9 @@ class CMSService {
             knowledgeDocs: this.normalizeKnowledgeDocs(docs),
             deckSchema: presentation.deck_schema_json || null,
             flowConfig: presentation.flow_json || null,
-            designConfig: presentation.design_json || null
+            designConfig: presentation.design_json || null,
+            startTitle: presentation.design_json?.startTitle || null,
+            startSubtitle: presentation.design_json?.startSubtitle || null
         };
     }
 
@@ -624,7 +630,8 @@ class CMSService {
             project_id: projectId,
             slug: data.id,
             title: data.title,
-            status: 'published'
+            status: 'published',
+            design_json: { startTitle: data.startTitle, startSubtitle: data.startSubtitle }
         };
         const presentationRows = await this.request('presentations', { on_conflict: 'slug' }, { method: 'POST', body: [presentationPayload], prefer: 'resolution=merge-duplicates,return=representation' });
         const presentationId = presentationRows[0].id;

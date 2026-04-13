@@ -182,12 +182,31 @@ class VoicePPTApp {
             const select = document.getElementById('deck-select');
             const previous = select.value;
             select.innerHTML = '';
+            
             data.presentations.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id; opt.textContent = p.title;
                 select.appendChild(opt);
             });
-            if (data.presentations.some(p => p.id === previous)) select.value = previous;
+
+            const updateHomeHeaders = () => {
+                const selectedId = select.value;
+                const p = this.presentationCatalog.find(pres => pres.id === selectedId);
+                if (p) {
+                    const titleEl = document.getElementById('home-start-title');
+                    const subEl = document.getElementById('home-start-sub');
+                    if (titleEl) titleEl.innerHTML = p.startTitle || 'Presentations<br>that speak.';
+                    if (subEl) subEl.innerHTML = p.startSubtitle || 'AI-powered voice narration that brings your slides to life.';
+                }
+            };
+
+            select.addEventListener('change', updateHomeHeaders);
+
+            if (data.presentations.some(p => p.id === previous)) {
+                select.value = previous;
+            }
+            updateHomeHeaders();
+
         } catch (err) { console.error('Catalog load failed:', err); }
     }
 

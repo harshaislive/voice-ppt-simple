@@ -91,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pres-title').value = currentPresentation.title || '';
         document.getElementById('pres-project').value = currentPresentation.projectSlug || '';
         
+        document.getElementById('pres-start-title').value = currentPresentation.startTitle || '';
+        document.getElementById('pres-start-sub').value = currentPresentation.startSubtitle || '';
+        
         renderSlides();
         
         listSection.classList.add('hidden');
@@ -224,13 +227,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = document.getElementById('pres-id').value;
         const title = document.getElementById('pres-title').value;
         const projectSlug = document.getElementById('pres-project').value;
-        
+        const startTitle = document.getElementById('pres-start-title').value;
+        const startSubtitle = document.getElementById('pres-start-sub').value;
+
         const method = currentPresentation.id === id && document.getElementById('pres-id').disabled ? 'PUT' : 'POST';
         const url = method === 'PUT' ? `/api/cms/presentations/${id}` : `/api/cms/presentations`;
-        
+
         currentPresentation.id = id;
         currentPresentation.title = title;
-        if (projectSlug) {
+        currentPresentation.startTitle = startTitle;
+        currentPresentation.startSubtitle = startSubtitle;        if (projectSlug) {
             currentPresentation.projectSlug = projectSlug;
         } else {
             delete currentPresentation.projectSlug;
