@@ -43,6 +43,7 @@ async function initializeDatabase() {
         
         // Execute all statements
         db.run(migrations);
+        ensureColumn('sessions', 'control_token_hash', 'TEXT');
         ensureColumn('slides', 'image', 'TEXT');
         
         // Create database helper

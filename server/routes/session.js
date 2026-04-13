@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const cmsService = require('../services/cms');
+const {
+    generateSessionControlToken,
+    hashToken,
+    requireAdminApiKey,
+    requireSessionControl
+} = require('../middleware/security');
 
 // Start a new presentation session
 router.post('/start', async (req, res) => {
@@ -10,6 +16,7 @@ router.post('/start', async (req, res) => {
         const db = req.app.get('db');
         
         const sessionId = uuidv4();
+        const controlToken = generateSessionControlToken();
         const now = new Date().toISOString();
         const normalizedParticipantName = String(participantName || '').trim().slice(0, 60);
         // Load deck slides from CMS or local fallback
@@ -28,9 +35,9 @@ router.post('/start', async (req, res) => {
             });
 
             db.run(`
-                INSERT INTO sessions (id, deck_id, current_slide_index, status, created_at, updated_at, metadata)
-                VALUES (?, ?, 0, 'active', ?, ?, ?)
-            `, [sessionId, presentation.presentationSlug || deckId, now, now, metadata]);
+                INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
+                VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
+            `, [sessionId, presentation.presentationSlug || deckId, hashToken(controlToken), now, now, metadata]);
             
             // Insert slides
             presentation.slides.forEach((slide, index) => {
@@ -55,6 +62,7 @@ router.post('/start', async (req, res) => {
             res.json({
                 success: true,
                 sessionId,
+                controlToken,
                 deckId: presentation.presentationSlug || deckId,
                 presentationTitle: presentation.title,
                 participantName: normalizedParticipantName,
@@ -68,13 +76,14 @@ router.post('/start', async (req, res) => {
             });
 
             db.run(`
-                INSERT INTO sessions (id, deck_id, current_slide_index, status, created_at, updated_at, metadata)
-                VALUES (?, ?, 0, 'active', ?, ?, ?)
-            `, [sessionId, deckId, now, now, metadata]);
+                INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
+                VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
+            `, [sessionId, deckId, hashToken(controlToken), now, now, metadata]);
             
             res.json({
                 success: true,
                 sessionId,
+                controlToken,
                 deckId,
                 participantName: normalizedParticipantName,
                 slideCount: 0,
@@ -89,7 +98,7 @@ router.post('/start', async (req, res) => {
 });
 
 // Get session state
-router.get('/:id', (req, res) => {
+router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.get('db');
@@ -140,7 +149,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Update session state
-router.patch('/:id', (req, res) => {
+router.patch('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
@@ -184,7 +193,7 @@ router.patch('/:id', (req, res) => {
 });
 
 // Get all sessions
-router.get('/', (req, res) => {
+router.get('/', requireAdminApiKey, (req, res) => {
     try {
         const db = req.app.get('db');
         const sessions = db.all(`

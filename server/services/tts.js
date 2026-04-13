@@ -52,6 +52,7 @@ function pcm16ToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSampl
 
 class TTSService {
   constructor() {
+    this.failClosed = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
     this.provider = this._detectProvider();
     this.ttsEndpoint = (process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/$/, '');
     this.ttsApiKey = process.env.AZURE_OPENAI_TTS_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
@@ -91,7 +92,10 @@ class TTSService {
   _buildRealtimeWsUrl() {
     const base = this.ttsEndpoint.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     const protocol = this.ttsEndpoint.startsWith('https') ? 'wss' : 'ws';
-    return `${protocol}://${base}/openai/realtime?api-version=2024-10-01-preview&deployment=${this.ttsDeployment}`;
+    if (base.includes('.services.ai.azure.com')) {
+      return `${protocol}://${base}/openai/v1/realtime?model=${encodeURIComponent(this.ttsDeployment)}&api-key=${encodeURIComponent(this.ttsApiKey)}`;
+    }
+    return `${protocol}://${base}/openai/realtime?api-version=2024-10-01-preview&deployment=${encodeURIComponent(this.ttsDeployment)}&api-key=${encodeURIComponent(this.ttsApiKey)}`;
   }
 
   _mapVoice(voice, provider) {
@@ -113,11 +117,17 @@ class TTSService {
         case TTS_PROVIDERS.KITTENTTS:
           return await this._synthesizeViaKittenTTS(text, voice);
         default:
+          if (this.failClosed) {
+            throw new Error('No TTS provider configured');
+          }
           console.warn('No TTS provider configured, generating placeholder audio');
           return this.generatePlaceholderWav(text);
       }
     } catch (error) {
       console.error('TTS synthesis error:', error.message);
+      if (this.failClosed) {
+        throw error;
+      }
       return this.generatePlaceholderWav(text);
     }
   }
@@ -155,12 +165,18 @@ class TTSService {
             ws.send(JSON.stringify({
               type: 'session.update',
               session: {
-                modalities: ['text', 'audio'],
+                type: 'realtime',
+                output_modalities: ['audio'],
                 instructions: 'Read the provided text aloud in a natural, professional voice. Do not add any commentary, introduction, or extra words. Only read the text exactly as given.',
-                voice: mappedVoice,
-                input_audio_format: 'pcm16',
-                output_audio_format: 'pcm16',
-                turn_detection: null
+                audio: {
+                  output: {
+                    voice: mappedVoice,
+                    format: {
+                      type: 'audio/pcm',
+                      rate: 24000
+                    }
+                  }
+                }
               }
             }));
             break;
@@ -176,7 +192,7 @@ class TTSService {
             }));
             ws.send(JSON.stringify({
               type: 'response.create',
-              response: { modalities: ['text', 'audio'] }
+              response: { output_modalities: ['audio'] }
             }));
             break;
 
@@ -334,12 +350,18 @@ class TTSService {
             ws.send(JSON.stringify({
               type: 'session.update',
               session: {
-                modalities: ['text', 'audio'],
+                type: 'realtime',
+                output_modalities: ['audio'],
                 instructions: 'Read the provided text aloud in a natural, professional voice. Do not add any commentary, introduction, or extra words. Only read the text exactly as given.',
-                voice: mappedVoice,
-                input_audio_format: 'pcm16',
-                output_audio_format: 'pcm16',
-                turn_detection: null
+                audio: {
+                  output: {
+                    voice: mappedVoice,
+                    format: {
+                      type: 'audio/pcm',
+                      rate: 24000
+                    }
+                  }
+                }
               }
             }));
             break;
@@ -351,7 +373,7 @@ class TTSService {
             }));
             ws.send(JSON.stringify({
               type: 'response.create',
-              response: { modalities: ['text', 'audio'] }
+              response: { output_modalities: ['audio'] }
             }));
             break;
 

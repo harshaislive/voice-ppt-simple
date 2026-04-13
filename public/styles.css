@@ -461,6 +461,177 @@ body::before {
     opacity: 1;
 }
 
+.slide-turn-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+}
+
+.slide-turn-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 10, 12, 0.28);
+    backdrop-filter: blur(18px);
+}
+
+.slide-turn-card {
+    position: relative;
+    width: min(720px, calc(100vw - 36px));
+    display: grid;
+    gap: 18px;
+    padding: 28px;
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(8, 16, 20, 0.82) 0%, rgba(7, 14, 18, 0.96) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 26px 90px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(24px);
+}
+
+.slide-turn-copy {
+    display: grid;
+    gap: 8px;
+}
+
+.slide-turn-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+}
+
+.slide-turn-title {
+    font-size: clamp(1.5rem, 2vw, 2rem);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+}
+
+.slide-turn-detail {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.65;
+}
+
+.slide-turn-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.slide-turn-mic,
+.slide-turn-continue,
+.slide-turn-send {
+    font-family: var(--font);
+}
+
+.slide-turn-mic {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(8, 18, 22, 0.92);
+    color: var(--text);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.slide-turn-mic:hover,
+.slide-turn-continue:hover,
+.slide-turn-send:hover {
+    transform: translateY(-1px);
+}
+
+.slide-turn-mic-core {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slide-turn-mic-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(241, 194, 125, 0.22), rgba(159, 216, 209, 0.26));
+}
+
+.slide-turn-mic-icon,
+.slide-turn-mic-label {
+    position: relative;
+    z-index: 1;
+}
+
+.slide-turn-mic-label {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.slide-turn-mic.is-live {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--qa-accent) 100%);
+    color: #111;
+}
+
+.slide-turn-mic.is-live .slide-turn-mic-ring {
+    background: rgba(255, 255, 255, 0.44);
+    animation: listen-pulse 1.2s infinite;
+}
+
+.slide-turn-continue {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    padding: 13px 20px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent) 0%, #e4a85d 100%);
+    color: #111;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.slide-turn-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+}
+
+.slide-turn-input {
+    width: 100%;
+    padding: 15px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font-family: var(--font);
+}
+
+.slide-turn-send {
+    padding: 0 18px;
+    border: none;
+    border-radius: 16px;
+    background: rgba(159, 216, 209, 0.18);
+    color: var(--qa-accent);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.slide-turn-note {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
 .immersive-dock {
     position: relative;
     z-index: 2;
@@ -1130,6 +1301,23 @@ body::before {
         height: 28px;
     }
 
+    .slide-turn-card {
+        padding: 22px 18px;
+    }
+
+    .slide-turn-actions,
+    .slide-turn-input-row {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .slide-turn-continue,
+    .slide-turn-send,
+    .slide-turn-mic {
+        width: 100%;
+        justify-content: center;
+    }
+
     .chat-fab-top {
         width: 40px;
         height: 40px;
@@ -1168,6 +1356,16 @@ body::before {
 }
 
 @media (max-width: 420px) {
+    .slide-turn-overlay {
+        padding: 16px;
+        align-items: end;
+    }
+
+    .slide-turn-card {
+        padding: 18px 16px;
+        border-radius: 24px;
+    }
+
     .topbar {
         padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 6px;
     }

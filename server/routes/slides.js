@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
+const { requireSessionControl, requireSlideSessionControl } = require('../middleware/security');
 
 // Advance slide
-router.post('/advance', async (req, res) => {
+router.post('/advance', requireSessionControl(), async (req, res) => {
     try {
         const { sessionId, direction = 'next', targetSlide = null } = req.body;
         
@@ -20,7 +21,7 @@ router.post('/advance', async (req, res) => {
             SELECT s.*, sl.title as current_slide_title, sl.content as slide_content, sl.notes as slide_notes
             FROM sessions s
             LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
-            WHERE s.id = ? AND s.status = 'active'
+            WHERE s.id = ? AND s.status IN ('active', 'presenting', 'wrapup')
         `, [sessionId]);
         
         if (!session) {
@@ -103,7 +104,7 @@ router.post('/advance', async (req, res) => {
             
             if (direction === 'next' && session.current_slide_index < totalSlides - 1) {
                 newSlideIndex = session.current_slide_index + 1;
-            } else if (direction === 'prev' && session.current_slide_index > 0) {
+            } else if ((direction === 'prev' || direction === 'previous') && session.current_slide_index > 0) {
                 newSlideIndex = session.current_slide_index - 1;
             } else if (targetSlide !== null && targetSlide >= 0 && targetSlide < totalSlides) {
                 newSlideIndex = targetSlide;
@@ -172,7 +173,7 @@ router.post('/advance', async (req, res) => {
 });
 
 // Get slides for a session
-router.get('/:sessionId', (req, res) => {
+router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), (req, res) => {
     try {
         const { sessionId } = req.params;
         const db = req.app.get('db');
@@ -191,7 +192,7 @@ router.get('/:sessionId', (req, res) => {
 });
 
 // Update slide content
-router.patch('/:slideId', (req, res) => {
+router.patch('/:slideId', requireSlideSessionControl(), (req, res) => {
     try {
         const { slideId } = req.params;
         const updates = req.body;

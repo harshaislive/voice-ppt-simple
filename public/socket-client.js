@@ -5,7 +5,7 @@ class SocketClient {
         this.isConnected = false;
     }
 
-    connect(sessionId) {
+    connect(sessionId, controlToken) {
         if (this.socket) this.disconnect();
 
         this.socket = io({
@@ -16,13 +16,17 @@ class SocketClient {
 
         this.socket.on('connect', () => {
             this.isConnected = true;
-            this.socket.emit('join-session', sessionId);
+            this.socket.emit('join-session', { sessionId, controlToken });
             this.app.setStatus('Connected', 'live', 'Joining presentation room');
         });
 
         this.socket.on('disconnect', () => {
             this.isConnected = false;
             this.app.setStatus('Disconnected', '', 'Socket connection lost');
+        });
+
+        this.socket.on('session-join-error', (data) => {
+            this.app.setStatus('Access denied', '', data?.error || 'Could not join presentation room');
         });
 
         this.socket.on('presentation-start', (data) => {
@@ -34,6 +38,10 @@ class SocketClient {
 
         this.socket.on('slide-change', (data) => {
             this.app.updateSlide(data);
+        });
+
+        this.socket.on('slide-turn-ready', (data) => {
+            this.app.openSlideTurnOverlay(data);
         });
 
         this.socket.on('narration-delta', (data) => {
@@ -129,5 +137,12 @@ class SocketClient {
     disconnect() {
         if (this.socket) { this.socket.disconnect(); this.socket = null; }
         this.isConnected = false;
+    }
+
+    notifyPlaybackComplete(sessionId) {
+        if (!this.socket || !this.isConnected || !sessionId) {
+            return;
+        }
+        this.socket.emit('presentation-audio-complete', { sessionId });
     }
 }

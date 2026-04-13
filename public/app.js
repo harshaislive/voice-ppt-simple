@@ -85,6 +85,7 @@ class AzureVoiceSession {
         this.remoteAudio = document.getElementById('audio-player');
         this.connected = false;
         this.connecting = false;
+        this.pendingToolCalls = new Set();
         this.supported = Boolean(window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
         if (this.remoteAudio) {
             this.remoteAudio.autoplay = true;
@@ -101,7 +102,7 @@ class AzureVoiceSession {
         this.app.setStatus('Connecting voice', 'paused', 'Opening Azure realtime session');
 
         try {
-            const configRes = await fetch('/api/realtime/config');
+            const configRes = await this.app.apiFetch('/api/realtime/config');
             const config = await configRes.json();
             if (!config.enabled) {
                 throw new Error('Azure realtime voice is not configured');
@@ -138,16 +139,18 @@ class AzureVoiceSession {
             this.dataChannel = this.peer.createDataChannel('realtime-events');
             this.dataChannel.onopen = () => {
                 this.syncSlideContext();
-                this.app.setStatus('Mic is live', 'paused', 'Ask a question, or tap the mic again to return to the presentation.');
+                this.requestResponse({
+                    instructions: 'Greet the attendee right away in one short sentence, mention that you can answer questions or move between slides, then pause for their reply.'
+                });
+                this.app.setStatus('Mic is live', 'paused', 'The presenter is opening the conversation');
             };
             this.dataChannel.onmessage = (event) => this.handleEvent(event.data);
 
             const offer = await this.peer.createOffer();
             await this.peer.setLocalDescription(offer);
 
-            const connectRes = await fetch('/api/realtime/connect', {
+            const connectRes = await this.app.apiFetch('/api/realtime/connect', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: this.app.sessionId,
                     sdp: offer.sdp,
@@ -202,6 +205,8 @@ class AzureVoiceSession {
             type: 'session.update',
             session: {
                 instructions: this.app.buildVoiceInstructions(context),
+                tool_choice: 'auto',
+                tools: this.app.getRealtimeTools(),
                 output_modalities: ['audio'],
                 audio: {
                     input: {
@@ -233,7 +238,6 @@ class AzureVoiceSession {
                 this.app.onVoiceTurnState('Listening', 'paused', 'Ask your question now. Tap the mic again to return to the presentation.');
                 break;
             case 'input_audio_buffer.speech_stopped':
-                this.requestResponse();
                 this.app.onVoiceTurnState('Thinking', 'paused', 'Azure is preparing a spoken response');
                 break;
             case 'response.output_audio_transcript.delta':
@@ -241,6 +245,19 @@ class AzureVoiceSession {
                 break;
             case 'conversation.item.input_audio_transcription.completed':
                 this.app.showVoiceTranscript(event.transcript || '');
+                this.requestResponse();
+                break;
+            case 'response.function_call_arguments.done':
+                this.handleFunctionCall(event);
+                break;
+            case 'response.output_item.done':
+                if (event.item?.type === 'function_call') {
+                    this.handleFunctionCall({
+                        call_id: event.item.call_id,
+                        name: event.item.name,
+                        arguments: event.item.arguments
+                    });
+                }
                 break;
             case 'response.created':
                 this.app.onVoiceTurnState('Answering now', 'live', 'Azure realtime voice is responding');
@@ -258,10 +275,62 @@ class AzureVoiceSession {
         }
     }
 
-    requestResponse() {
+    requestResponse(options = {}) {
         if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
             return;
         }
+
+        this.dataChannel.send(JSON.stringify({
+            type: 'response.create',
+            response: {
+                output_modalities: ['audio'],
+                instructions: options.instructions || undefined
+            }
+        }));
+    }
+
+    async handleFunctionCall(event) {
+        const callId = event.call_id;
+        const name = event.name;
+        if (!callId || !name || this.pendingToolCalls.has(callId)) {
+            return;
+        }
+
+        this.pendingToolCalls.add(callId);
+
+        let args = {};
+        try {
+            args = event.arguments ? JSON.parse(event.arguments) : {};
+        } catch {
+            args = {};
+        }
+
+        try {
+            const output = await this.app.executeRealtimeTool(name, args);
+            this.sendToolResult(callId, output);
+        } catch (error) {
+            this.sendToolResult(callId, {
+                ok: false,
+                error: error.message || 'Tool execution failed'
+            });
+        } finally {
+            this.pendingToolCalls.delete(callId);
+        }
+    }
+
+    sendToolResult(callId, output) {
+        if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
+            return;
+        }
+
+        this.dataChannel.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+                type: 'function_call_output',
+                call_id: callId,
+                output: JSON.stringify(output)
+            }
+        }));
 
         this.dataChannel.send(JSON.stringify({
             type: 'response.create',
@@ -275,6 +344,7 @@ class AzureVoiceSession {
 class VoicePPTApp {
     constructor() {
         this.sessionId = null;
+        this.controlToken = '';
         this.currentSlideIndex = 0;
         this.currentSlide = null;
         this.totalSlides = 0;
@@ -298,6 +368,8 @@ class VoicePPTApp {
         this.subtitleBuffer = '';
         this.subtitleReady = false;
         this.presentationCatalog = [];
+        this.awaitingPlaybackComplete = false;
+        this.awaitingSlideContinue = false;
 
         this.waveformCanvas = document.getElementById('waveform');
         this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
@@ -308,6 +380,25 @@ class VoicePPTApp {
         this.loadPresentationCatalog();
         this.setupSpeechRecognitionFallback();
         this.resizeWaveform();
+    }
+
+    buildApiHeaders(extraHeaders = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...extraHeaders
+        };
+
+        if (this.controlToken) {
+            headers['X-Session-Control-Token'] = this.controlToken;
+        }
+
+        return headers;
+    }
+
+    apiFetch(url, options = {}) {
+        const nextOptions = { ...options };
+        nextOptions.headers = this.buildApiHeaders(options.headers || {});
+        return fetch(url, nextOptions);
     }
 
     bindEvents() {
@@ -330,6 +421,15 @@ class VoicePPTApp {
         document.getElementById('qa-scrim').addEventListener('click', () => this.toggleQuestionDrawer(false));
         document.getElementById('restart-btn').addEventListener('click', () => location.reload());
         document.getElementById('interrupt-mic').addEventListener('click', () => this.handleInterruptMic());
+        document.getElementById('slide-turn-mic').addEventListener('click', () => this.handleInterruptMic());
+        document.getElementById('slide-turn-continue').addEventListener('click', () => this.continuePresentationFlow());
+        document.getElementById('slide-question-send').addEventListener('click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
+        document.getElementById('slide-question-input').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
+            }
+        });
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
         window.addEventListener('resize', () => this.resizeWaveform());
@@ -421,9 +521,8 @@ class VoicePPTApp {
         btn.querySelector('span:last-child').textContent = 'Starting...';
 
         try {
-            const res = await fetch('/api/session/start', {
+            const res = await this.apiFetch('/api/session/start', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deckId, participantName })
             });
             const data = await res.json();
@@ -432,8 +531,10 @@ class VoicePPTApp {
             }
 
             this.sessionId = data.sessionId;
+            this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0;
             this.participantName = data.participantName || participantName;
+            this.awaitingSlideContinue = false;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
@@ -451,7 +552,7 @@ class VoicePPTApp {
 
     connectSocket() {
         this.socketClient = new SocketClient(this);
-        this.socketClient.connect(this.sessionId);
+        this.socketClient.connect(this.sessionId, this.controlToken);
     }
 
     async primeInitialSlide() {
@@ -460,7 +561,7 @@ class VoicePPTApp {
         }
 
         try {
-            const res = await fetch(`/api/session/${this.sessionId}`);
+            const res = await this.apiFetch(`/api/session/${this.sessionId}`);
             const data = await res.json();
             const metadata = this.parseSessionMetadata(data?.session?.metadata);
             this.participantName = data?.participantName || metadata.participantName || this.participantName;
@@ -478,9 +579,8 @@ class VoicePPTApp {
 
     async triggerAutoPlex() {
         try {
-            await fetch('/api/autoplex', {
+            await this.apiFetch('/api/autoplex', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId: this.sessionId })
             });
         } catch (error) {
@@ -499,6 +599,7 @@ class VoicePPTApp {
         this.currentSlideIndex = data.slideIndex;
         this.totalSlides = data.totalSlides || this.totalSlides;
         this.currentSlide = data.slide || null;
+        this.closeSlideTurnOverlay();
         this.resetSubtitleState();
         document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || '?'}`;
         document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
@@ -531,6 +632,7 @@ class VoicePPTApp {
         if (this.voiceModeEnabled && this.azureVoice.connected) {
             return;
         }
+        this.awaitingPlaybackComplete = true;
         this.subtitleReady = true;
         this.renderSubtitle();
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
@@ -540,11 +642,24 @@ class VoicePPTApp {
     handleAudioEnd() {
         this.showTranscript(false);
         this.subtitleReady = false;
-        setTimeout(() => {
-            if (!this.streamPlayer.isPlaying) {
-                this.stopWaveform();
+        this.waitForPlaybackFinish();
+    }
+
+    waitForPlaybackFinish() {
+        const poll = () => {
+            if (this.streamPlayer.isPlaying) {
+                setTimeout(poll, 120);
+                return;
             }
-        }, 400);
+
+            this.stopWaveform();
+            if (this.awaitingPlaybackComplete) {
+                this.awaitingPlaybackComplete = false;
+                this.socketClient?.notifyPlaybackComplete(this.sessionId);
+            }
+        };
+
+        setTimeout(poll, 120);
     }
 
     showTranscript(speaking) {
@@ -601,7 +716,9 @@ class VoicePPTApp {
     }
 
     async submitQuestion(forcedText, options = {}) {
-        const input = document.getElementById('question-input');
+        const input = options.source === 'slide-turn'
+            ? document.getElementById('slide-question-input')
+            : document.getElementById('question-input');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) {
             return;
@@ -631,7 +748,12 @@ class VoicePPTApp {
 
             input.value = '';
             this.pendingQuestionText = null;
-            this.setStatus('Question queued', 'paused', 'Presenter will answer shortly');
+            if (options.queueForEnd) {
+                this.setStatus('Saved for final Q&A', 'paused', 'The presenter will answer this after the last slide');
+                document.getElementById('slide-turn-note').textContent = 'Saved. This question is now queued for the final Q&A.';
+            } else {
+                this.setStatus('Question queued', 'paused', 'Presenter will answer shortly');
+            }
             this.toggleQuestionDrawer(true);
         } catch (error) {
             console.error('Question submit error:', error);
@@ -764,6 +886,23 @@ class VoicePPTApp {
         this.restorePresentationStatus();
     }
 
+    async continuePresentationFlow() {
+        if (!this.sessionId) {
+            return;
+        }
+
+        try {
+            await this.apiFetch('/api/autoplex/continue', {
+                method: 'POST',
+                body: JSON.stringify({ sessionId: this.sessionId })
+            });
+            this.closeSlideTurnOverlay();
+            this.setStatus('Presenting', 'live', 'Voice narration is live');
+        } catch (error) {
+            console.error('Continue presentation failed:', error);
+        }
+    }
+
     async requestInterrupt() {
         this.streamPlayer.reset();
         this.stopWaveform();
@@ -774,9 +913,8 @@ class VoicePPTApp {
         }
 
         try {
-            await fetch('/api/autoplex/interrupt', {
+            await this.apiFetch('/api/autoplex/interrupt', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId: this.sessionId })
             });
         } catch (error) {
@@ -789,9 +927,8 @@ class VoicePPTApp {
             return;
         }
         try {
-            await fetch(`/api/autoplex/${paused ? 'pause' : 'resume'}`, {
+            await this.apiFetch(`/api/autoplex/${paused ? 'pause' : 'resume'}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId: this.sessionId })
             });
         } catch (error) {
@@ -811,14 +948,207 @@ class VoicePPTApp {
         };
     }
 
+    openSlideTurnOverlay(data = {}) {
+        this.awaitingSlideContinue = true;
+        document.getElementById('slide-turn-overlay').classList.remove('hidden');
+        document.getElementById('slide-turn-detail').textContent = data.pendingQuestionCount > 0
+            ? `${data.pendingQuestionCount} question${data.pendingQuestionCount === 1 ? '' : 's'} queued for the final Q&A. Ask now, save another, or continue.`
+            : 'Talk to the presenter now, save a typed question for the final Q&A, or continue to the next slide.';
+        document.getElementById('slide-turn-note').textContent = 'Typed questions are saved and answered after the last slide.';
+        document.getElementById('slide-question-input').value = '';
+        this.updateMicState();
+    }
+
+    closeSlideTurnOverlay() {
+        this.awaitingSlideContinue = false;
+        const overlay = document.getElementById('slide-turn-overlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    getRealtimeTools() {
+        return [
+            {
+                type: 'function',
+                name: 'advance_slide',
+                description: 'Move the presentation one slide forward or backward when the attendee asks.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        direction: {
+                            type: 'string',
+                            enum: ['next', 'previous']
+                        }
+                    },
+                    required: ['direction'],
+                    additionalProperties: false
+                }
+            },
+            {
+                type: 'function',
+                name: 'go_to_slide',
+                description: 'Jump to a specific slide number when the attendee references one.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        slide_number: {
+                            type: 'integer',
+                            minimum: 1
+                        }
+                    },
+                    required: ['slide_number'],
+                    additionalProperties: false
+                }
+            },
+            {
+                type: 'function',
+                name: 'resume_presentation',
+                description: 'Resume the main presentation flow and leave interruption mode.',
+                parameters: {
+                    type: 'object',
+                    properties: {},
+                    additionalProperties: false
+                }
+            }
+        ];
+    }
+
+    async advanceSlideByVoice(direction) {
+        if (!this.sessionId) {
+            return false;
+        }
+
+        try {
+            const res = await this.apiFetch('/api/slide/advance', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    direction
+                })
+            });
+            if (!res.ok) {
+                return false;
+            }
+
+            const data = await res.json();
+            if (data?.slide) {
+                this.updateSlide({
+                    slideIndex: data.slideIndex,
+                    totalSlides: this.totalSlides,
+                    slide: data.slide
+                });
+            }
+            return Boolean(data?.success);
+        } catch (error) {
+            console.error('Voice slide advance failed:', error);
+            return false;
+        }
+    }
+
+    async goToSlideByVoice(slideNumber) {
+        if (!this.sessionId) {
+            return false;
+        }
+
+        const targetSlide = Number(slideNumber) - 1;
+        if (!Number.isInteger(targetSlide) || targetSlide < 0) {
+            return false;
+        }
+
+        try {
+            const res = await this.apiFetch('/api/slide/advance', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    targetSlide
+                })
+            });
+            if (!res.ok) {
+                return false;
+            }
+
+            const data = await res.json();
+            if (data?.slide) {
+                this.updateSlide({
+                    slideIndex: data.slideIndex,
+                    totalSlides: this.totalSlides,
+                    slide: data.slide
+                });
+            }
+            return Boolean(data?.success);
+        } catch (error) {
+            console.error('Voice go-to-slide failed:', error);
+            return false;
+        }
+    }
+
+    async executeRealtimeTool(name, args = {}) {
+        switch (name) {
+            case 'advance_slide': {
+                const direction = args.direction === 'previous' ? 'previous' : 'next';
+                if (direction === 'next') {
+                    await this.stopVoiceMode();
+                    await this.continuePresentationFlow();
+                    return {
+                        ok: true,
+                        action: 'advance_slide',
+                        direction,
+                        handoff: 'presentation'
+                    };
+                }
+
+                const moved = await this.advanceSlideByVoice(direction);
+                if (moved) {
+                    this.setStatus('Moved back', 'paused', 'Returned to the previous slide');
+                    this.azureVoice.syncSlideContext();
+                }
+                return {
+                    ok: moved,
+                    action: 'advance_slide',
+                    direction,
+                    current_slide_index: this.currentSlideIndex,
+                    current_slide_title: this.currentSlide?.title || ''
+                };
+            }
+            case 'go_to_slide': {
+                const moved = await this.goToSlideByVoice(args.slide_number);
+                if (moved) {
+                    this.setStatus('Jumped to slide', 'paused', `Now on slide ${this.currentSlideIndex + 1}`);
+                    this.azureVoice.syncSlideContext();
+                }
+                return {
+                    ok: moved,
+                    action: 'go_to_slide',
+                    requested_slide_number: args.slide_number,
+                    current_slide_index: this.currentSlideIndex,
+                    current_slide_title: this.currentSlide?.title || ''
+                };
+            }
+            case 'resume_presentation':
+                await this.stopVoiceMode();
+                await this.continuePresentationFlow();
+                return {
+                    ok: true,
+                    action: 'resume_presentation'
+                };
+            default:
+                return {
+                    ok: false,
+                    error: `Unknown tool: ${name}`
+                };
+        }
+    }
+
     buildVoiceInstructions(context) {
         return [
             'You are the live presenter of a deck.',
             'Answer the user in a natural spoken voice with short, emotionally intelligent sentences.',
-            'Do not speak first when the mic opens.',
+            'When the mic opens, greet the attendee briefly and naturally, then continue the conversation.',
             'Wait for the attendee to ask a question before answering.',
             'Do not narrate the whole slide unless the user asks.',
             'Treat interruptions as live audience questions and answer immediately.',
+            'If the attendee explicitly asks to change slides, jump to a numbered slide, or continue the presentation, use the available navigation tool.',
             'Only use the provided deck context and notes. Do not invent facts.',
             'If the deck does not provide an answer, say that clearly and stay cautious.',
             context.participantName ? `The attendee you are speaking to is ${context.participantName}. Use their name naturally once in a while, not in every response.` : '',
@@ -868,9 +1198,17 @@ class VoicePPTApp {
     updateMicState() {
         const button = document.getElementById('interrupt-mic');
         const label = document.getElementById('interrupt-label');
+        const slideTurnMic = document.getElementById('slide-turn-mic');
+        const slideTurnMicLabel = document.getElementById('slide-turn-mic-label');
         button.classList.toggle('listening', this.isListening || (this.voiceModeEnabled && this.azureVoice.connected));
         button.classList.toggle('armed', this.voiceModeEnabled && !this.azureVoice.connected);
         label.textContent = this.voiceModeEnabled ? 'End Voice' : this.isListening ? 'Listening...' : 'Interrupt';
+        if (slideTurnMic) {
+            slideTurnMic.classList.toggle('is-live', this.isListening || (this.voiceModeEnabled && this.azureVoice.connected));
+        }
+        if (slideTurnMicLabel) {
+            slideTurnMicLabel.textContent = this.voiceModeEnabled ? 'End Voice Session' : 'Talk To Presenter';
+        }
     }
 
     setStatus(text, state, detail = '') {
@@ -893,6 +1231,10 @@ class VoicePPTApp {
         }
         if (this.wrapUpEndsAt > Date.now()) {
             this.setStatus('Final questions', 'paused', 'Hit the mic icon or use the quick prompts before we close');
+            return;
+        }
+        if (this.awaitingSlideContinue) {
+            this.setStatus('Your turn', 'paused', 'Ask now, save a question for later, or continue to the next slide');
             return;
         }
         if (this.isQAPhase) {

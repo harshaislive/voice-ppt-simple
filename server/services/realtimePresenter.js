@@ -63,12 +63,18 @@ class RealtimePresenterService {
             ws.send(JSON.stringify({
               type: 'session.update',
               session: {
-                modalities: ['text', 'audio'],
+                type: 'realtime',
+                output_modalities: ['audio'],
                 instructions,
-                voice: this.voice,
-                input_audio_format: 'pcm16',
-                output_audio_format: 'pcm16',
-                turn_detection: null
+                audio: {
+                  output: {
+                    voice: this.voice,
+                    format: {
+                      type: 'audio/pcm',
+                      rate: 24000
+                    }
+                  }
+                }
               }
             }));
             break;
@@ -85,7 +91,7 @@ class RealtimePresenterService {
             }));
             ws.send(JSON.stringify({
               type: 'response.create',
-              response: { modalities: ['text', 'audio'] }
+              response: { output_modalities: ['audio'] }
             }));
             break;
 
@@ -144,7 +150,10 @@ class RealtimePresenterService {
   _buildWsUrl() {
     const base = this.endpoint.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     const protocol = this.endpoint.startsWith('https') ? 'wss' : 'ws';
-    return `${protocol}://${base}/openai/realtime?api-version=2024-10-01-preview&deployment=${this.deployment}`;
+    if (base.includes('.services.ai.azure.com')) {
+      return `${protocol}://${base}/openai/v1/realtime?model=${encodeURIComponent(this.deployment)}&api-key=${encodeURIComponent(this.apiKey)}`;
+    }
+    return `${protocol}://${base}/openai/realtime?api-version=2024-10-01-preview&deployment=${encodeURIComponent(this.deployment)}&api-key=${encodeURIComponent(this.apiKey)}`;
   }
 
   _buildPrompt(context, safeMode = false) {

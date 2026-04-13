@@ -3,6 +3,8 @@ const stateStore = require('./stateStore');
 
 class ModelService {
     constructor() {
+        this.failClosed = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+
         if (!process.env.AZURE_OPENAI_ENDPOINT || !process.env.AZURE_OPENAI_API_KEY) {
             console.warn('Azure OpenAI credentials not configured');
             this.client = null;
@@ -18,6 +20,9 @@ class ModelService {
     
     async generateNarration(context) {
         if (!this.client) {
+            if (this.failClosed) {
+                throw new Error('Azure OpenAI client is not configured');
+            }
             return this.generateMockNarration(context);
         }
         
@@ -36,12 +41,18 @@ class ModelService {
             return narrationPrompt.parseResponse(raw);
         } catch (error) {
             console.error('Model narration error:', error);
+            if (this.failClosed) {
+                throw error;
+            }
             return this.generateMockNarration(context);
         }
     }
     
     async generateNarrationStream(context, onChunk) {
         if (!this.client) {
+            if (this.failClosed) {
+                throw new Error('Azure OpenAI client is not configured');
+            }
             const text = this.generateMockNarration(context);
             onChunk(text);
             return text;
@@ -71,6 +82,9 @@ class ModelService {
             return narrationPrompt.parseResponse(fullText);
         } catch (error) {
             console.error('Model narration stream error:', error);
+            if (this.failClosed) {
+                throw error;
+            }
             const text = this.generateMockNarration(context);
             onChunk(text);
             return text;
@@ -79,6 +93,9 @@ class ModelService {
     
     async classifyQuestions(questions, slideContent) {
         if (!this.client) {
+            if (this.failClosed) {
+                throw new Error('Azure OpenAI client is not configured');
+            }
             return this.mockClassifyQuestions(questions, slideContent);
         }
         
@@ -97,12 +114,18 @@ class ModelService {
             return JSON.parse(response.choices[0].message.content).classifications;
         } catch (error) {
             console.error('Model classification error:', error);
+            if (this.failClosed) {
+                throw error;
+            }
             return this.mockClassifyQuestions(questions, slideContent);
         }
     }
     
     async decideNextAction(context) {
         if (!this.client) {
+            if (this.failClosed) {
+                throw new Error('Azure OpenAI client is not configured');
+            }
             return this.mockDecideNextAction(context);
         }
         
@@ -121,6 +144,9 @@ class ModelService {
             return JSON.parse(response.choices[0].message.content);
         } catch (error) {
             console.error('Model decision error:', error);
+            if (this.failClosed) {
+                throw error;
+            }
             return this.mockDecideNextAction(context);
         }
     }

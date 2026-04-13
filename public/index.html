@@ -81,6 +81,34 @@
                         </div>
                     </main>
 
+                    <div id="slide-turn-overlay" class="slide-turn-overlay hidden">
+                        <div class="slide-turn-backdrop"></div>
+                        <div class="slide-turn-card">
+                            <div class="slide-turn-copy">
+                                <span class="slide-turn-eyebrow">Your Turn</span>
+                                <h2 class="slide-turn-title">Ask now, save for later, or continue.</h2>
+                                <p id="slide-turn-detail" class="slide-turn-detail">Hold the mic to talk to the presenter, or queue a typed question for the final Q&amp;A.</p>
+                            </div>
+                            <div class="slide-turn-actions">
+                                <button id="slide-turn-mic" class="slide-turn-mic" type="button" aria-label="Talk to presenter">
+                                    <span class="slide-turn-mic-core">
+                                        <span class="slide-turn-mic-ring"></span>
+                                        <span class="slide-turn-mic-icon">
+                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                                        </span>
+                                    </span>
+                                    <span id="slide-turn-mic-label" class="slide-turn-mic-label">Talk To Presenter</span>
+                                </button>
+                                <button id="slide-turn-continue" class="slide-turn-continue" type="button">Next Slide</button>
+                            </div>
+                            <div class="slide-turn-input-row">
+                                <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question for the final Q&amp;A">
+                                <button id="slide-question-send" class="slide-turn-send" type="button">Save For End</button>
+                            </div>
+                            <p id="slide-turn-note" class="slide-turn-note">Typed questions are saved and answered after the last slide.</p>
+                        </div>
+                    </div>
+
                     <div class="immersive-dock">
                         <div class="dock-hint">
                             <span class="dock-label">Live Presenter</span>

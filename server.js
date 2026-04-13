@@ -4,24 +4,38 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const { createCorsOptions, validateRuntimeConfig } = require('./server/config/runtime');
+const {
+    createRateLimiter,
+    hasValidSessionControl,
+    requireAdminApiKey,
+    securityHeaders
+} = require('./server/middleware/security');
 
 // Initialize database
 const { initializeDatabase, getDatabase, saveDatabase } = require('./server/db/init');
 const stateStore = require('./server/services/stateStore');
+const runtimeConfig = validateRuntimeConfig();
+const corsOptions = createCorsOptions(runtimeConfig.allowedOrigins);
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+    cors: corsOptions
 });
 
 // Middleware
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(securityHeaders);
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api', createRateLimiter({ windowMs: 60 * 1000, max: 180, label: 'API' }));
+app.use('/api/session/start', createRateLimiter({ windowMs: 60 * 1000, max: 10, label: 'Session start' }));
+app.use('/api/questions', createRateLimiter({ windowMs: 60 * 1000, max: 30, label: 'Question submission' }));
+app.use('/api/autoplex', createRateLimiter({ windowMs: 60 * 1000, max: 90, label: 'Presenter control' }));
+app.use('/api/realtime/connect', createRateLimiter({ windowMs: 60 * 1000, max: 12, label: 'Realtime connect' }));
+app.use('/api/tts', createRateLimiter({ windowMs: 60 * 1000, max: 20, label: 'TTS' }));
 
 // Make io accessible to routes
 app.set('io', io);
@@ -49,7 +63,7 @@ app.use('/api/realtime', realtimeRoutes);
 app.use('/api/cms', cmsRoutes);
 
 // TTS endpoint
-app.post('/api/tts', async (req, res) => {
+app.post('/api/tts', requireAdminApiKey, async (req, res) => {
     try {
         const { text, voice } = req.body;
         
@@ -73,7 +87,7 @@ app.post('/api/tts', async (req, res) => {
 });
 
 // File indexing endpoint
-app.post('/api/files/index', async (req, res) => {
+app.post('/api/files/index', requireAdminApiKey, async (req, res) => {
     try {
         const { filename, content, title, description } = req.body;
         
@@ -92,7 +106,7 @@ app.post('/api/files/index', async (req, res) => {
 });
 
 // Retrieval endpoint
-app.post('/api/retrieve', async (req, res) => {
+app.post('/api/retrieve', requireAdminApiKey, async (req, res) => {
     try {
         const { query, sessionId, limit = 5 } = req.body;
         
@@ -114,9 +128,26 @@ app.post('/api/retrieve', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
-    socket.on('join-session', (sessionId) => {
+    socket.on('join-session', (payload) => {
+        const sessionId = typeof payload === 'string' ? payload : payload?.sessionId;
+        const controlToken = typeof payload === 'object' ? String(payload?.controlToken || '') : '';
+        const db = app.get('db');
+
+        if (!hasValidSessionControl(db, sessionId, controlToken)) {
+            socket.emit('session-join-error', { error: 'Valid session control token required' });
+            return;
+        }
+
         socket.join(sessionId);
         console.log(`Client ${socket.id} joined session ${sessionId}`);
+    });
+
+    socket.on('presentation-audio-complete', (payload) => {
+        const sessionId = payload?.sessionId;
+        if (!sessionId) {
+            return;
+        }
+        autoplexRoutes.markPlaybackComplete?.(sessionId);
     });
     
     socket.on('disconnect', () => {

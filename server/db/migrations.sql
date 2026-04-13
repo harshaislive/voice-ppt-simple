@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     deck_id TEXT NOT NULL,
+    control_token_hash TEXT,
     current_slide_index INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

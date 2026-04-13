@@ -5,9 +5,12 @@ const modelService = require('../services/model');
 const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
 const realtimePresenter = require('../services/realtimePresenter');
+const { requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
 const pauseFlags = new Map();
+const playbackWaiters = new Map();
+const continueWaiters = new Map();
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,6 +38,57 @@ function setPaused(sessionId, paused) {
 
 function isPaused(sessionId) {
     return pauseFlags.has(sessionId);
+}
+
+function hasRenderableAudio(result) {
+    return Boolean(result && Number(result.totalPcmBytes || 0) > 0);
+}
+
+function waitForPlaybackCompletion(sessionId, fallbackMs) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const timeout = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                playbackWaiters.delete(sessionId);
+                resolve(false);
+            }
+        }, Math.max(fallbackMs || 0, 1500));
+
+        playbackWaiters.set(sessionId, () => {
+            if (!settled) {
+                settled = true;
+                clearTimeout(timeout);
+                playbackWaiters.delete(sessionId);
+                resolve(true);
+            }
+        });
+    });
+}
+
+function markPlaybackComplete(sessionId) {
+    const waiter = playbackWaiters.get(sessionId);
+    if (waiter) {
+        waiter();
+    }
+}
+
+function waitForContinue(sessionId, io, payload = {}) {
+    return new Promise((resolve) => {
+        continueWaiters.set(sessionId, () => {
+            continueWaiters.delete(sessionId);
+            resolve(true);
+        });
+
+        io.to(sessionId).emit('slide-turn-ready', payload);
+    });
+}
+
+function markContinue(sessionId) {
+    const waiter = continueWaiters.get(sessionId);
+    if (waiter) {
+        waiter();
+    }
 }
 
 function getParticipantName(db, sessionId) {
@@ -91,7 +145,7 @@ function stringifyDoc(value) {
     }
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireSessionControl(), async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -113,7 +167,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.post('/interrupt', (req, res) => {
+router.post('/interrupt', requireSessionControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -123,7 +177,7 @@ router.post('/interrupt', (req, res) => {
     res.json({ success: true, interrupted: true });
 });
 
-router.post('/pause', (req, res) => {
+router.post('/pause', requireSessionControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -133,7 +187,7 @@ router.post('/pause', (req, res) => {
     res.json({ success: true, paused: true });
 });
 
-router.post('/resume', (req, res) => {
+router.post('/resume', requireSessionControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -141,6 +195,16 @@ router.post('/resume', (req, res) => {
 
     setPaused(sessionId, false);
     res.json({ success: true, paused: false });
+});
+
+router.post('/continue', requireSessionControl(), (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    markContinue(sessionId);
+    res.json({ success: true, continued: true });
 });
 
 async function runPresentation(db, io, sessionId) {
@@ -183,39 +247,10 @@ async function runPresentation(db, io, sessionId) {
 
         await sleep(120);
 
-        const pendingQuestions = db.all(
-            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY created_at ASC LIMIT 5',
-            [sessionId]
-        );
-        const classificationResults = pendingQuestions.length > 0
-            ? await questionClassifier.classifyQuestions(
-                pendingQuestions.map((q) => q.question_text),
-                slide.content
-            )
-            : [];
-
-        await applyQuestionClassification(db, sessionId, pendingQuestions, classificationResults);
-
         let updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
             [sessionId]
         );
-
-        if (isInterrupted(sessionId) && updatedPendingQuestions.length > 0) {
-            await answerQuestionsInline({
-                db,
-                io,
-                sessionId,
-                slides,
-                currentSlideIndex,
-                questionIds: updatedPendingQuestions.slice(0, 1).map((q) => q.id)
-            });
-            clearInterrupt(sessionId);
-            updatedPendingQuestions = db.all(
-                'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
-                [sessionId]
-            );
-        }
 
         const narrationResult = await narrateSlide({
             db,
@@ -233,20 +268,6 @@ async function runPresentation(db, io, sessionId) {
             [sessionId]
         );
 
-        if (isInterrupted(sessionId) && updatedPendingQuestions.length > 0) {
-            await answerQuestionsInline({
-                db,
-                io,
-                sessionId,
-                slides,
-                currentSlideIndex,
-                questionIds: updatedPendingQuestions.slice(0, 1).map((q) => q.id)
-            });
-            clearInterrupt(sessionId);
-            currentSlideIndex += 1;
-            continue;
-        }
-
         await waitWhilePaused(db, io, sessionId);
         if (!narrationResult.audioHandled) {
             await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
@@ -257,39 +278,19 @@ async function runPresentation(db, io, sessionId) {
             [sessionId, 'narration_generated', JSON.stringify({ slideIndex: currentSlideIndex, narrationLength: narrationText.length })]
         );
 
+        await sleep(900);
+
+        await waitForContinue(sessionId, io, {
+            slideIndex: currentSlideIndex,
+            totalSlides: slides.length,
+            slide: { title: slide.title, content: slide.content, image: slide.image, notes: slide.notes },
+            pendingQuestionCount: updatedPendingQuestions.length
+        });
+
         updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
             [sessionId]
         );
-
-        const decision = await slideEngine.decideNextAction({
-            sessionId,
-            currentSlideIndex,
-            pendingQuestions: updatedPendingQuestions,
-            direction: 'next',
-            classificationResults,
-            totalSlides: slides.length
-        });
-
-        if (decision.action === 'answer_questions' || decision.action === 'pause_for_questions' || isInterrupted(sessionId)) {
-            const freshestPendingQuestions = db.all(
-                'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
-                [sessionId]
-            );
-            const questionIds = Array.isArray(decision.questionIds) && decision.questionIds.length > 0
-                ? decision.questionIds
-                : freshestPendingQuestions.slice(0, 2).map((q) => q.id);
-
-            await answerQuestionsInline({
-                db,
-                io,
-                sessionId,
-                slides,
-                currentSlideIndex,
-                questionIds
-            });
-            clearInterrupt(sessionId);
-        }
 
         currentSlideIndex += 1;
     }
@@ -353,14 +354,18 @@ async function runPresentation(db, io, sessionId) {
                         }
                     });
                     answer = realtimeResult.transcript || question.question_text;
-                    io.to(sessionId).emit('audio-end', {
-                        slideIndex: slides.length + q,
-                        format: 'wav',
-                        isQA: true,
-                        questionIndex: q + 1
-                    });
-                    const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-                    await sleep(Math.max(Math.ceil(answerDurationSec * 1000) + 160, 320));
+                    if (hasRenderableAudio(realtimeResult)) {
+                        io.to(sessionId).emit('audio-end', {
+                            slideIndex: slides.length + q,
+                            format: 'wav',
+                            isQA: true,
+                            questionIndex: q + 1
+                        });
+                        const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
+                        await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 1800, 2500));
+                    } else {
+                        console.warn('Realtime presenter returned no audio for queued QA; falling back to TTS stream');
+                    }
                 } else {
                     answer = await modelService.generateNarrationStream({
                         slideTitle: 'Audience Question',
@@ -479,13 +484,18 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
                     });
                 }
             });
-            io.to(sessionId).emit('audio-end', {
-                slideIndex: -1,
-                format: 'wav',
-                isWrapUp: true
-            });
-            const durationFromAudio = result.totalPcmBytes / (24000 * 2);
-            await sleep(Math.max(Math.ceil(durationFromAudio * 1000) + 160, 600));
+            if (hasRenderableAudio(result)) {
+                io.to(sessionId).emit('audio-end', {
+                    slideIndex: -1,
+                    format: 'wav',
+                    isWrapUp: true
+                });
+                const durationFromAudio = result.totalPcmBytes / (24000 * 2);
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 2000, 3000));
+            } else {
+                console.warn('Realtime presenter returned no audio for wrap-up; falling back to TTS stream');
+                await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
+            }
         } catch (error) {
             await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
         }
@@ -584,77 +594,29 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
     }, {});
 
     let narrationText = '';
-    let audioHandled = false;
 
     try {
-        if (realtimePresenter.isConfigured()) {
-            const realtimeResult = await realtimePresenter.generateNarrationAudio({
-                slideTitle: slide.title,
-                slideContent: slide.content,
-                slideNotes: slide.notes,
-                pendingQuestions,
-                audienceContext: audienceMemory,
-                participantName,
-                knowledgeContext,
-                slideIndex,
-                totalSlides,
-                style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
-            }, {
-                onTranscriptDelta: (delta, full) => {
-                    if (isInterrupted(sessionId)) {
-                        return;
-                    }
-                    io.to(sessionId).emit('narration-delta', {
-                        delta,
-                        full,
-                        slideIndex
-                    });
-                },
-                onAudioChunk: (chunk) => {
-                    if (isInterrupted(sessionId)) {
-                        return;
-                    }
-                    io.to(sessionId).emit('audio-chunk', {
-                        chunk: chunk.toString('base64'),
-                        slideIndex,
-                        sampleRate: 24000,
-                        channels: 1,
-                        bitsPerSample: 16
-                    });
-                }
+        narrationText = await modelService.generateNarrationStream({
+            slideTitle: slide.title,
+            slideContent: slide.content,
+            slideNotes: slide.notes,
+            pendingQuestions,
+            audienceContext: audienceMemory,
+            participantName,
+            knowledgeContext,
+            slideIndex,
+            totalSlides,
+            style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
+        }, (delta, full) => {
+            if (isInterrupted(sessionId)) {
+                return;
+            }
+            io.to(sessionId).emit('narration-delta', {
+                delta,
+                full,
+                slideIndex
             });
-            narrationText = realtimeResult.transcript || slide.content;
-            audioHandled = true;
-            io.to(sessionId).emit('audio-end', {
-                slideIndex,
-                format: 'wav'
-            });
-            const audioDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-            const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + 160, 300);
-            await sleep(waitMs);
-        } else {
-            narrationText = await modelService.generateNarrationStream({
-                slideTitle: slide.title,
-                slideContent: slide.content,
-                slideNotes: slide.notes,
-                pendingQuestions,
-                audienceContext: audienceMemory,
-                participantName,
-                knowledgeContext,
-                slideIndex,
-                totalSlides,
-                style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
-            }, (delta, full) => {
-                if (isInterrupted(sessionId)) {
-                    return;
-                }
-                io.to(sessionId).emit('narration-delta', {
-                    delta,
-                    full,
-                    slideIndex
-                });
-            });
-        }
+        });
     } catch (err) {
         console.error('Narration stream failed for slide', slideIndex, err);
         narrationText = slide.content;
@@ -674,7 +636,7 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
     );
 
     await sleep(80);
-    return { text: narrationText, audioHandled };
+    return { text: narrationText, audioHandled: false };
 }
 
 async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
@@ -704,8 +666,8 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         });
 
         const audioDurationSec = totalPcmBytes / (24000 * 2);
-        const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + 160, options.isQA ? 420 : 300);
-        await sleep(waitMs);
+        const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + (options.isQA ? 2200 : 2000), options.isQA ? 2600 : 2400);
+        await waitForPlaybackCompletion(sessionId, waitMs);
     } catch (err) {
         console.error('TTS stream failed for slide', slideIndex, err);
         io.to(sessionId).emit('audio-end', {
@@ -713,7 +675,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
             format: 'wav',
             ...options
         });
-        await sleep(options.isQA ? 320 : 220);
+        await sleep(options.isQA ? 700 : 500);
     }
 }
 
@@ -801,14 +763,18 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                     }
                 });
                 answer = realtimeResult.transcript || question.question_text;
-                io.to(sessionId).emit('audio-end', {
-                    slideIndex: slides.length + q,
-                    format: 'wav',
-                    isQA: true,
-                    questionIndex: q + 1
-                });
-                const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-                await sleep(Math.max(Math.ceil(answerDurationSec * 1000) + 160, 320));
+                if (hasRenderableAudio(realtimeResult)) {
+                    io.to(sessionId).emit('audio-end', {
+                        slideIndex: slides.length + q,
+                        format: 'wav',
+                        isQA: true,
+                        questionIndex: q + 1
+                    });
+                    const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
+                    await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 1800, 2400));
+                } else {
+                    console.warn('Realtime presenter returned no audio for inline QA; falling back to TTS stream');
+                }
             } else {
                 answer = await modelService.generateNarrationStream({
                     slideTitle: 'Audience Question',
@@ -878,6 +844,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
 }
 
 module.exports = router;
+module.exports.markPlaybackComplete = markPlaybackComplete;
 
 async function waitWhilePaused(db, io, sessionId) {
     let emitted = false;

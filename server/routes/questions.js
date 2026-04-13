@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const {
+    extractSessionControlToken,
+    hasValidSessionControl,
+    requireSessionControl
+} = require('../middleware/security');
 
 // Submit a question
 router.post('/', async (req, res) => {
@@ -66,7 +71,7 @@ router.post('/', async (req, res) => {
 });
 
 // Get questions for a session
-router.get('/:sessionId', (req, res) => {
+router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), (req, res) => {
     try {
         const { sessionId } = req.params;
         const { status = 'pending' } = req.query;
@@ -101,6 +106,11 @@ router.patch('/:questionId', async (req, res) => {
         
         if (!question) {
             return res.status(404).json({ error: 'Question not found' });
+        }
+
+        const controlToken = extractSessionControlToken(req);
+        if (!hasValidSessionControl(db, question.session_id, controlToken)) {
+            return res.status(403).json({ error: 'Valid session control token required' });
         }
         
         // Build update
@@ -163,7 +173,7 @@ router.patch('/:questionId', async (req, res) => {
 });
 
 // Bulk update questions (for classification results)
-router.post('/bulk-update', async (req, res) => {
+router.post('/bulk-update', requireSessionControl(), async (req, res) => {
     try {
         const { sessionId, updates } = req.body;
         

@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireSessionControl } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -20,7 +21,7 @@ router.get('/config', (req, res) => {
     });
 });
 
-router.post('/connect', async (req, res) => {
+router.post('/connect', requireSessionControl(), async (req, res) => {
     const { sessionId, sdp, slideContext } = req.body;
     if (!sessionId || !sdp) {
         return res.status(400).json({ error: 'sessionId and sdp are required' });
@@ -38,6 +39,51 @@ router.post('/connect', async (req, res) => {
         type: 'realtime',
         model: deployment,
         instructions: buildRealtimeInstructions(groundedContext),
+        tool_choice: 'auto',
+        tools: [
+            {
+                type: 'function',
+                name: 'advance_slide',
+                description: 'Move the presentation one slide forward or backward when the attendee explicitly asks to navigate.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        direction: {
+                            type: 'string',
+                            enum: ['next', 'previous']
+                        }
+                    },
+                    required: ['direction'],
+                    additionalProperties: false
+                }
+            },
+            {
+                type: 'function',
+                name: 'go_to_slide',
+                description: 'Jump to a specific slide number when the attendee clearly asks for a particular slide.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        slide_number: {
+                            type: 'integer',
+                            minimum: 1
+                        }
+                    },
+                    required: ['slide_number'],
+                    additionalProperties: false
+                }
+            },
+            {
+                type: 'function',
+                name: 'resume_presentation',
+                description: 'Resume the live presentation flow when the attendee asks to continue or stop the interruption.',
+                parameters: {
+                    type: 'object',
+                    properties: {},
+                    additionalProperties: false
+                }
+            }
+        ],
         output_modalities: ['audio'],
         audio: {
             input: {
@@ -168,6 +214,7 @@ function buildRealtimeInstructions(slideContext = {}) {
         'Speak naturally, conversationally, and with emotional intelligence.',
         'Keep answers concise and verbal-first. Do not sound like you are reading prose.',
         'If the user interrupts, answer immediately in the context of the current slide.',
+        'When the attendee explicitly asks to change slides or resume the deck, use the available navigation tool instead of only talking about it.',
         'If you need to reference the slide, do it briefly and in spoken language.',
         'Ground every answer in the provided deck context and presenter notes.',
         'Do not invent facts, claims, numbers, locations, or product details that are not present in the provided context.',

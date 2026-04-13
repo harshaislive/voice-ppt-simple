@@ -3,9 +3,10 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const ttsService = require('../services/tts');
 const modelService = require('../services/model');
+const { requireSessionControl } = require('../middleware/security');
 
 // Generate narration for current slide
-router.post('/', async (req, res) => {
+router.post('/', requireSessionControl(), async (req, res) => {
     try {
         const { sessionId, style = 'professional', regenerate = false } = req.body;
         
@@ -128,7 +129,7 @@ router.post('/', async (req, res) => {
 });
 
 // Get narration history
-router.get('/:sessionId', (req, res) => {
+router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), (req, res) => {
     try {
         const { sessionId } = req.params;
         const { limit = 10 } = req.query;
