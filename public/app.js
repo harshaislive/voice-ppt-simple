@@ -243,13 +243,22 @@ class VoicePPTApp {
     async startSession() {
         const deckId = document.getElementById('deck-select').value;
         const participantName = (document.getElementById('participant-name').value || '').trim();
+        const passcode = (document.getElementById('session-passcode').value || '').trim();
         if (!participantName) { document.getElementById('participant-name').focus(); this.setStatus('Add your name', 'paused', 'Presenter uses it to personalize'); return; }
         const btn = document.getElementById('start-presentation');
         btn.disabled = true; btn.querySelector('span:last-child').textContent = 'Starting...';
         try {
-            const res = await this.apiFetch('/api/session/start', { method: 'POST', body: JSON.stringify({ deckId, participantName }) });
+            const res = await this.apiFetch('/api/session/start', { method: 'POST', body: JSON.stringify({ deckId, participantName, passcode }) });
             const data = await res.json();
-            if (!data.success) throw new Error(data.error || 'Failed to start');
+            if (!data.success) {
+                if (data.error === 'Invalid passcode') {
+                    document.getElementById('session-passcode').focus();
+                    this.setStatus('Invalid passcode', 'paused', 'Please try again');
+                    btn.disabled = false; btn.querySelector('span:last-child').textContent = 'Start Presentation';
+                    return;
+                }
+                throw new Error(data.error || 'Failed to start');
+            }
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
             this.awaitingSlideContinue = false;

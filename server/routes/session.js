@@ -13,8 +13,13 @@ const {
 // Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
-        const { deckId = 'beforest_pitch', participantName = '' } = req.body;
+        const { deckId = 'beforest_pitch', participantName = '', passcode = '' } = req.body;
         const db = req.app.get('db');
+        
+        const configuredPasscode = process.env.DEFAULT_PASSCODE;
+        if (configuredPasscode && passcode !== configuredPasscode) {
+            return res.status(403).json({ success: false, error: 'Invalid passcode' });
+        }
         
         const sessionId = uuidv4();
         const controlToken = generateSessionControlToken();
