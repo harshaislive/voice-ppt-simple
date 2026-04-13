@@ -1278,6 +1278,72 @@ h1, h2, h3, h4 {
     margin: auto;
 }
 
+.completion-cta {
+    margin: 40px 0 32px;
+}
+
+.cta-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cta-block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 2px solid var(--border-color);
+    padding: 16px 20px;
+    text-decoration: none;
+    color: var(--text);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+}
+
+.cta-block:hover {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #fff;
+    transform: translateX(4px);
+}
+
+.cta-block-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.cta-block-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cta-block-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.cta-block-label {
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-weight: normal;
+    letter-spacing: 0.02em;
+}
+
+.cta-block-arrow {
+    opacity: 0.4;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.cta-block:hover .cta-block-arrow {
+    opacity: 1;
+    transform: translateX(4px);
+}
+
 /* Mobile UI Refinement */
 @media (max-width: 720px) {
     .start-content {

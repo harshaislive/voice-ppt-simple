@@ -659,7 +659,47 @@ class VoicePPTApp {
         document.getElementById('completion-summary').textContent = `${data.totalSlides} slides, ${data.totalQuestionsAnswered} answered.`;
         const activity = { participantName: this.participantName, deckTitle: document.getElementById('deck-label').textContent, totalSlides: data.totalSlides, questionsAnswered: data.totalQuestionsAnswered, userQuestions: this.userQuestions, userReactions: this.userReactions, timestamp: new Date().toISOString() };
         localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
-        document.getElementById('completion-overlay').classList.remove('hidden'); this.stopWaveform();
+        document.getElementById('completion-overlay').classList.remove('hidden');
+        this.stopWaveform();
+        this.loadCtaBlocks();
+    }
+
+    async loadCtaBlocks() {
+        const projectSlug = 'beforest';
+        try {
+            const res = await fetch(`/api/cms/projects/${projectSlug}/cta-blocks`);
+            const data = await res.json();
+            const blocks = data.ctaBlocks || [];
+            if (blocks.length === 0) return;
+            const container = document.getElementById('cta-blocks');
+            const section = document.getElementById('completion-cta');
+            container.innerHTML = '';
+            const icons = {
+                calendar: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+                tree: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14l-5-5-5 5"/><path d="M13 20V8"/><path d="M9 20v-4H5l7-7 7 7h-4v4"/></svg>',
+                mail: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+                globe: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+            };
+            blocks.forEach(block => {
+                const el = document.createElement('a');
+                el.href = block.url;
+                el.target = block.url.startsWith('http') ? '_blank' : '_self';
+                el.rel = 'noopener noreferrer';
+                el.className = 'cta-block';
+                el.innerHTML = `
+                    <div class="cta-block-left">
+                        <div class="cta-block-icon">${icons[block.icon] || icons.globe}</div>
+                        <div class="cta-block-label">${block.label}</div>
+                    </div>
+                    <div class="cta-block-arrow">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>`;
+                container.appendChild(el);
+            });
+            section.classList.remove('hidden');
+        } catch (err) {
+            console.warn('Could not load CTA blocks:', err);
+        }
     }
 
     renderWrapUpMcqs() {

@@ -124,6 +124,16 @@ router.get('/projects/:slug', async (req, res) => {
     }
 });
 
+router.get('/projects/:slug/cta-blocks', async (req, res) => {
+    try {
+        const blocks = await cmsService.getCtaBlocks(req.params.slug);
+        res.json({ ctaBlocks: blocks });
+    } catch (error) {
+        console.error('Error loading CTA blocks:', error);
+        res.status(500).json({ error: 'Failed to load CTA blocks' });
+    }
+});
+
 router.post('/projects/:slug/docs/:docType', async (req, res) => {
     try {
         const result = await cmsService.saveKnowledgeDoc(req.params.slug, req.params.docType, req.body.content);

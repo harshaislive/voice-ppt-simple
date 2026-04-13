@@ -428,6 +428,33 @@ class CMSService {
         }
     }
 
+    async getCtaBlocks(projectSlug) {
+        try {
+            const projects = await this.request('projects', {
+                select: 'id',
+                slug: `eq.${this.escapeFilter(projectSlug)}`,
+                limit: '1'
+            });
+            if (!projects || projects.length === 0) return [];
+            const projectId = projects[0].id;
+            const rows = await this.request('cta_blocks', {
+                select: 'id,title,content_json',
+                project_id: `eq.${projectId}`,
+                order: 'created_at.asc'
+            });
+            return rows.map(r => ({
+                id: r.id,
+                title: r.title,
+                label: r.content_json?.label || r.title,
+                url: r.content_json?.url || '#',
+                icon: r.content_json?.icon || 'link',
+                description: r.content_json?.description || ''
+            }));
+        } catch {
+            return [];
+        }
+    }
+
     humanize(value) {
         return String(value || '')
             .replace(/[_-]+/g, ' ')

@@ -202,33 +202,36 @@
                 </div>
             </aside>
 
-            <!-- Completion Overlay -->
-            <div id="completion-overlay" class="completion-overlay hidden">
-                <div class="completion-content">
-                    <div class="completion-icon">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    </div>
-                    <h2>Presentation Complete</h2>
-                    <p id="completion-summary"></p>
-                    <div id="wrapup-panel" class="wrapup-panel hidden">
-                        <div class="wrapup-header">
-                            <div class="wrapup-header-copy">
-                                <span class="wrapup-eyebrow">Final Minute</span>
-                                <span id="wrapup-deadline" class="wrapup-deadline">Agent ends in 60 seconds</span>
+                    <!-- Completion Overlay -->
+                    <div id="completion-overlay" class="completion-overlay hidden">
+                        <div class="completion-content">
+                            <div class="completion-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                             </div>
-                            <span id="wrapup-timer" class="wrapup-timer">1:00</span>
-                        </div>
-                        <p id="wrapup-message" class="wrapup-message"></p>
-                        <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
-                        <div class="wrapup-slider-nav">
-                            <button id="wrapup-prev" class="wrapup-nav-btn" type="button" aria-label="Previous question">Prev</button>
-                            <div id="wrapup-progress" class="wrapup-progress">1 / 1</div>
-                            <button id="wrapup-next" class="wrapup-nav-btn" type="button" aria-label="Next question">Next</button>
+                            <h2>Thank you</h2>
+                            <p id="completion-summary"></p>
+                            <div id="completion-cta" class="completion-cta hidden">
+                                <div id="cta-blocks" class="cta-blocks"></div>
+                            </div>
+                            <div id="wrapup-panel" class="wrapup-panel hidden">
+                                <div class="wrapup-header">
+                                    <div class="wrapup-header-copy">
+                                        <span class="wrapup-eyebrow">Final Minute</span>
+                                        <span id="wrapup-deadline" class="wrapup-deadline">Agent ends in 60 seconds</span>
+                                    </div>
+                                    <span id="wrapup-timer" class="wrapup-timer">1:00</span>
+                                </div>
+                                <p id="wrapup-message" class="wrapup-message"></p>
+                                <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
+                                <div class="wrapup-slider-nav">
+                                    <button id="wrapup-prev" class="wrapup-nav-btn" type="button" aria-label="Previous question">Prev</button>
+                                    <div id="wrapup-progress" class="wrapup-progress">1 / 1</div>
+                                    <button id="wrapup-next" class="wrapup-nav-btn" type="button" aria-label="Next question">Next</button>
+                                </div>
+                            </div>
+                            <button id="restart-btn" class="btn-start">Start Over</button>
                         </div>
                     </div>
-                    <button id="restart-btn" class="btn-start">Start Over</button>
-                </div>
-            </div>
         </div>
     </div>
 
