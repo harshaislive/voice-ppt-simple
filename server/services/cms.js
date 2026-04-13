@@ -220,6 +220,19 @@ class CMSService {
         }
     }
 
+    _optimizeImageUrl(url) {
+        if (!url) return null;
+        if (url.includes('unsplash.com')) {
+            const base = url.split('?')[0];
+            return `${base}?auto=format&fit=crop&w=1200&q=75`;
+        }
+        if (url.includes('supabase.co/storage')) {
+            const base = url.split('?')[0];
+            return `${base}?width=1200`;
+        }
+        return url;
+    }
+
     async listSupabasePresentations() {
         const rows = await this.request('presentations', {
             select: 'id,slug,title,project_id,status,design_json',
@@ -231,13 +244,16 @@ class CMSService {
             const slides = await this.request('slides', {
                 select: 'content_json',
                 presentation_id: `eq.${row.id}`,
-                order: 'slide_index.asc',
-                limit: '1'
+                order: 'slide_index.asc'
             });
-            const firstSlide = slides[0];
+            const allImages = slides
+                .map(s => s.content_json?.image)
+                .filter(img => img && img.startsWith('http'));
+            
             let startImage = null;
-            if (firstSlide?.content_json?.image) {
-                startImage = firstSlide.content_json.image;
+            if (allImages.length > 0) {
+                const pick = allImages[Math.floor(Math.random() * allImages.length)];
+                startImage = this._optimizeImageUrl(pick);
             }
             return {
                 id: row.slug || row.id,
@@ -335,10 +351,11 @@ class CMSService {
 
     normalizeSlide(slide) {
         const content = slide.content_json || {};
+        const rawImage = content.image || content.image_url || null;
         return {
             title: content.title || slide.title || '',
             content: content.content || content.subtitle || '',
-            image: content.image || content.image_url || null,
+            image: this._optimizeImageUrl(rawImage),
             notes: slide.notes || content.notes || '',
             layout: slide.layout_type || content.layout || 'immersive',
             customPrompt: content.customPrompt || slide.customPrompt || null
