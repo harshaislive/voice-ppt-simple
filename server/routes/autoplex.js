@@ -649,21 +649,62 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
         return acc;
     }, {});
 
+    const context = {
+        slideTitle: slide.title,
+        slideContent: slide.content,
+        slideNotes: slide.notes,
+        pendingQuestions,
+        audienceContext: audienceMemory,
+        participantName,
+        knowledgeContext,
+        slideIndex,
+        totalSlides,
+        style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
+    };
+
     let narrationText = '';
 
+    if (realtimePresenter.isConfigured()) {
+        try {
+            const result = await realtimePresenter.generateNarrationAudio(context, {
+                onTranscriptDelta: (delta, full) => {
+                    if (isInterrupted(sessionId)) return;
+                    io.to(sessionId).emit('narration-delta', {
+                        delta,
+                        full,
+                        slideIndex
+                    });
+                },
+                onAudioChunk: (chunk) => {
+                    if (isInterrupted(sessionId)) return;
+                    io.to(sessionId).emit('audio-chunk', {
+                        chunk: chunk.toString('base64'),
+                        slideIndex,
+                        sampleRate: 24000,
+                        channels: 1,
+                        bitsPerSample: 16
+                    });
+                }
+            });
+            narrationText = result.transcript || slide.content;
+            if (hasRenderableAudio(result)) {
+                io.to(sessionId).emit('audio-end', {
+                    slideIndex,
+                    format: 'wav'
+                });
+                const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 1800, 2500));
+                return { text: narrationText, audioHandled: true };
+            }
+            console.warn('Realtime presenter returned no audio for slide narration; falling back to TTS stream');
+        } catch (err) {
+            console.error('Realtime presenter failed for slide narration, falling back:', err.message);
+            narrationText = '';
+        }
+    }
+
     try {
-        narrationText = await modelService.generateNarrationStream({
-            slideTitle: slide.title,
-            slideContent: slide.content,
-            slideNotes: slide.notes,
-            pendingQuestions,
-            audienceContext: audienceMemory,
-            participantName,
-            knowledgeContext,
-            slideIndex,
-            totalSlides,
-            style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
-        }, (delta, full) => {
+        narrationText = await modelService.generateNarrationStream(context, (delta, full) => {
             if (isInterrupted(sessionId)) {
                 return;
             }
