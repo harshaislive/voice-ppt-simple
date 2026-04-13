@@ -400,6 +400,169 @@ class CMSService {
     escapeFilter(value) {
         return String(value).replace(/,/g, '\\,');
     }
+
+    // --- New CMS Mutation Methods ---
+
+    async createPresentation(data) {
+        const id = data.id || `deck_${Date.now()}`;
+        const fileName = `${id}.json`;
+        let filePath;
+
+        if (data.projectSlug) {
+            const projectDir = path.join(this.projectsDir, data.projectSlug);
+            const presentationsDir = path.join(projectDir, 'presentations');
+            await fs.mkdir(presentationsDir, { recursive: true });
+            filePath = path.join(presentationsDir, fileName);
+        } else {
+            await fs.mkdir(this.baseDir, { recursive: true });
+            filePath = path.join(this.baseDir, fileName);
+        }
+
+        const presentationData = {
+            id,
+            title: data.title || this.humanize(id),
+            slides: data.slides || [],
+            ...data
+        };
+
+        await fs.writeFile(filePath, JSON.stringify(presentationData, null, 2), 'utf8');
+        return presentationData;
+    }
+
+    async updatePresentation(identifier, data) {
+        let filePath = path.join(this.baseDir, `${identifier}.json`);
+        let exists = false;
+        try {
+            await fs.access(filePath);
+            exists = true;
+        } catch {}
+
+        if (!exists && data.projectSlug) {
+            filePath = path.join(this.projectsDir, data.projectSlug, 'presentations', `${identifier}.json`);
+        } else if (!exists) {
+            try {
+                const projectDirs = await fs.readdir(this.projectsDir);
+                for (const projectDirName of projectDirs) {
+                    const testPath = path.join(this.projectsDir, projectDirName, 'presentations', `${identifier}.json`);
+                    try {
+                        await fs.access(testPath);
+                        filePath = testPath;
+                        exists = true;
+                        break;
+                    } catch {}
+                }
+            } catch {}
+        }
+
+        const presentationData = {
+            id: identifier,
+            title: data.title || this.humanize(identifier),
+            slides: data.slides || [],
+            ...data
+        };
+        
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, JSON.stringify(presentationData, null, 2), 'utf8');
+        return presentationData;
+    }
+
+    async deletePresentation(identifier) {
+        let filePath = path.join(this.baseDir, `${identifier}.json`);
+        let exists = false;
+        try {
+            await fs.access(filePath);
+            exists = true;
+        } catch {}
+
+        if (!exists) {
+            try {
+                const projectDirs = await fs.readdir(this.projectsDir);
+                for (const projectDirName of projectDirs) {
+                    const testPath = path.join(this.projectsDir, projectDirName, 'presentations', `${identifier}.json`);
+                    try {
+                        await fs.access(testPath);
+                        filePath = testPath;
+                        exists = true;
+                        break;
+                    } catch {}
+                }
+            } catch {}
+        }
+
+        if (exists) {
+            await fs.unlink(filePath);
+            return { success: true };
+        }
+        throw new Error('Presentation not found');
+    }
+
+    async updateSlide(presentationId, slideIndex, slideData) {
+        const presentation = await this.loadPresentationFromLocal(presentationId);
+        if (!presentation) throw new Error('Presentation not found');
+        
+        if (!presentation.slides) presentation.slides = [];
+        
+        const idx = parseInt(slideIndex, 10);
+        if (isNaN(idx) || idx >= presentation.slides.length || idx < 0) {
+            presentation.slides.push(slideData);
+        } else {
+            presentation.slides[idx] = { ...presentation.slides[idx], ...slideData };
+        }
+        
+        await this.updatePresentation(presentationId, presentation);
+        return presentation.slides;
+    }
+    
+    async deleteSlide(presentationId, slideIndex) {
+        const presentation = await this.loadPresentationFromLocal(presentationId);
+        if (!presentation) throw new Error('Presentation not found');
+        
+        const idx = parseInt(slideIndex, 10);
+        if (presentation.slides && presentation.slides.length > idx && idx >= 0) {
+            presentation.slides.splice(idx, 1);
+            await this.updatePresentation(presentationId, presentation);
+        }
+        return presentation.slides;
+    }
+
+    async saveKnowledgeDoc(projectSlug, docType, content) {
+        const projectDir = path.join(this.projectsDir, projectSlug);
+        await fs.mkdir(projectDir, { recursive: true });
+        
+        let fileName = `${docType}.md`;
+        if (docType === 'images' || docType === 'content_schema' || docType === 'project') {
+            fileName = `${docType}.json`;
+        }
+        
+        if (docType === 'cta' || docType === 'contact') {
+            await fs.mkdir(path.join(projectDir, 'cta'), { recursive: true });
+            fileName = 'cta/contact.md';
+        }
+        
+        const filePath = path.join(projectDir, fileName);
+        await fs.writeFile(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf8');
+        return { success: true, docType };
+    }
+
+    async deleteKnowledgeDoc(projectSlug, docType) {
+        const projectDir = path.join(this.projectsDir, projectSlug);
+        let fileName = `${docType}.md`;
+        if (docType === 'images' || docType === 'content_schema' || docType === 'project') {
+            fileName = `${docType}.json`;
+        }
+        
+        if (docType === 'cta' || docType === 'contact') {
+            fileName = 'cta/contact.md';
+        }
+        
+        const filePath = path.join(projectDir, fileName);
+        try {
+            await fs.unlink(filePath);
+            return { success: true };
+        } catch {
+            throw new Error('Document not found');
+        }
+    }
 }
 
 module.exports = new CMSService();

@@ -79,51 +79,74 @@
                                 <p id="slide-subtitle" class="slide-subtitle"></p>
                             </div>
                         </div>
+
+                        <!-- Poll Container -->
+                        <div id="poll-container" class="poll-container hidden">
+                            <h3 id="poll-question"></h3>
+                            <div id="poll-options"></div>
+                        </div>
                     </main>
+
+                    <footer class="presentation-footer">
+                        <div class="footer-block footer-left">
+                            <span class="footer-hint">Click to interrupt & ask</span>
+                            <div class="immersive-dock">
+                                <button id="interrupt-mic" class="interrupt-mic" type="button" aria-label="Interrupt and speak">
+                                    <span class="interrupt-core">
+                                        <span class="interrupt-ring"></span>
+                                        <span class="interrupt-icon">
+                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                                        </span>
+                                    </span>
+                                    <span id="interrupt-label" class="interrupt-label">Interrupt</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="footer-block footer-right">
+                            <span class="footer-hint">React here</span>
+                            <div id="reaction-bar" class="reaction-bar">
+                                <button class="reaction-btn reaction-clap" data-emoji="👏" aria-label="Clap">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M11 20.355a2 2 0 0 1-2-2v-5l-1.37-1.37a2.12 2.12 0 0 1 3-3l1.37 1.37a1 1 0 0 0 1.41 0l3-3a2.12 2.12 0 1 1 3 3l-3 3a1 1 0 0 0 0 1.41l1.37 1.37a2.12 2.12 0 0 1-3 3l-1.37-1.37a1 1 0 0 0-1.41 0l-1 1a1.99 1.99 0 0 1-1 1.59z"/></svg>
+                                </button>
+                                <button class="reaction-btn reaction-heart" data-emoji="❤️" aria-label="Heart">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                </button>
+                                <button class="reaction-btn reaction-idea" data-emoji="💡" aria-label="Idea">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6C7.8 12.16 7 10.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </footer>
 
                     <div id="slide-turn-overlay" class="slide-turn-overlay hidden">
                         <div class="slide-turn-backdrop"></div>
                         <div class="slide-turn-card">
                             <div class="slide-turn-copy">
-                                <span class="slide-turn-eyebrow">Your Turn</span>
-                                <h2 class="slide-turn-title">Ask now, save for later, or continue.</h2>
-                                <p id="slide-turn-detail" class="slide-turn-detail">Hold the mic to talk to the presenter, or queue a typed question for the final Q&amp;A.</p>
+                                <span class="slide-turn-eyebrow">Pause</span>
+                                <h2 class="slide-turn-title">Talk to the Presenter?</h2>
+                                <p id="slide-turn-detail" class="slide-turn-detail">Interrupt now by voice, or save a typed question for later.</p>
                             </div>
+                            
                             <div class="slide-turn-actions">
-                                <button id="slide-turn-mic" class="slide-turn-mic" type="button" aria-label="Talk to presenter">
-                                    <span class="slide-turn-mic-core">
-                                        <span class="slide-turn-mic-ring"></span>
-                                        <span class="slide-turn-mic-icon">
-                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-                                        </span>
-                                    </span>
-                                    <span id="slide-turn-mic-label" class="slide-turn-mic-label">Talk To Presenter</span>
+                                <button id="slide-turn-mic" class="slide-turn-mic" type="button">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                                    <span id="slide-turn-mic-label">Talk To Presenter</span>
                                 </button>
-                                <button id="slide-turn-continue" class="slide-turn-continue" type="button">Next Slide</button>
+                                <button id="slide-turn-continue" class="slide-turn-continue" type="button">
+                                    <span>Continue Presentation</span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
                             </div>
-                            <div class="slide-turn-input-row">
-                                <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question for the final Q&amp;A">
-                                <button id="slide-question-send" class="slide-turn-send" type="button">Save For End</button>
+
+                            <div class="slide-turn-qa">
+                                <div class="slide-turn-input-row">
+                                    <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question for the end...">
+                                    <button id="slide-question-send" class="slide-turn-send">Save</button>
+                                </div>
+                                <p id="slide-turn-note" class="slide-turn-note">Questions saved here are queued for the final Q&A.</p>
                             </div>
-                            <p id="slide-turn-note" class="slide-turn-note">Typed questions are saved and answered after the last slide.</p>
                         </div>
-                    </div>
-
-                    <div class="immersive-dock">
-                        <div class="dock-hint">
-                            <span class="dock-label">Live Presenter</span>
-                            <span class="dock-sub">Interrupt by voice or queue typed questions</span>
-                        </div>
-
-                        <button id="interrupt-mic" class="interrupt-mic" type="button" aria-label="Interrupt and speak">
-                            <span class="interrupt-core">
-                                <span class="interrupt-ring"></span>
-                                <span class="interrupt-icon">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-                                </span>
-                            </span>
-                            <span id="interrupt-label" class="interrupt-label">Interrupt</span>
-                        </button>
                     </div>
 
                     <canvas id="waveform" class="waveform"></canvas>

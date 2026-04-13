@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice PPT Admin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Voice PPT Admin Dashboard</h1>
+        </header>
+        
+        <main>
+            <section id="presentations-list">
+                <div class="section-header">
+                    <h2>Presentations</h2>
+                    <button id="btn-create-presentation">Create New</button>
+                </div>
+                <ul id="list-container">
+                    <!-- Presentations will be listed here -->
+                </ul>
+            </section>
+
+            <section id="editor" class="hidden">
+                <div class="section-header">
+                    <h2 id="editor-title">Edit Presentation</h2>
+                    <div>
+                        <button id="btn-back">Back to List</button>
+                        <button id="btn-save">Save</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>ID / Slug</label>
+                    <input type="text" id="pres-id" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Project Slug (optional)</label>
+                    <input type="text" id="pres-project">
+                </div>
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="pres-title">
+                </div>
+                
+                <div class="slides-section">
+                    <div class="section-header">
+                        <h3>Slides</h3>
+                        <button id="btn-add-slide">Add Slide</button>
+                    </div>
+                    <div id="slides-container">
+                        <!-- Slides will be rendered here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

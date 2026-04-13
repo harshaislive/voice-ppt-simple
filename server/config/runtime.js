@@ -1,4 +1,4 @@
-const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://ubuntu-small-openclaw.tail05d15d.ts.net', 'http://100.102.10.108:3000', 'https://office-pc.tail05d15d.ts.net'];
 
 function isProduction() {
     return (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
@@ -63,6 +63,13 @@ function validateRuntimeConfig() {
 }
 
 function createCorsOptions(allowedOrigins = []) {
+    const production = isProduction();
+    
+    // In development, allow all origins to simplify setup across various local/tailscale interfaces
+    if (!production) {
+        return { origin: true, methods: ['GET', 'POST', 'PATCH'] };
+    }
+
     if (!allowedOrigins.length) {
         return { origin: true, methods: ['GET', 'POST', 'PATCH'] };
     }

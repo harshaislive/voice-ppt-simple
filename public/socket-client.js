@@ -128,6 +128,12 @@ class SocketClient {
             this.app.restorePresentationStatus();
         });
 
+        this.socket.on('receive-reaction', (data) => {
+            if (data?.emoji) {
+                this.app.spawnReaction(data.emoji);
+            }
+        });
+
         this.socket.on('presentation-error', (data) => {
             this.app.setStatus('Error', '', data.error || 'Presentation failed');
             console.error('Presentation error:', data.error);
@@ -137,6 +143,12 @@ class SocketClient {
     disconnect() {
         if (this.socket) { this.socket.disconnect(); this.socket = null; }
         this.isConnected = false;
+    }
+
+    sendReaction(emoji) {
+        if (this.socket && this.isConnected) {
+            this.socket.emit('send-reaction', { emoji, sessionId: this.app.sessionId });
+        }
     }
 
     notifyPlaybackComplete(sessionId) {

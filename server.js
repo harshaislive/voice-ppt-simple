@@ -149,6 +149,14 @@ io.on('connection', (socket) => {
         }
         autoplexRoutes.markPlaybackComplete?.(sessionId);
     });
+
+    socket.on('send-reaction', (payload) => {
+        const sessionId = payload?.sessionId;
+        const emoji = payload?.emoji;
+        if (sessionId && emoji) {
+            io.to(sessionId).emit('receive-reaction', { emoji });
+        }
+    });
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);

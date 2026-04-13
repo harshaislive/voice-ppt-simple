@@ -432,7 +432,64 @@ class VoicePPTApp {
         });
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+        
+        // Reaction Buttons
+        document.querySelectorAll('.reaction-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const emoji = btn.getAttribute('data-emoji');
+                this.socketClient?.sendReaction(emoji);
+                // Local feedback
+                this.spawnReaction(emoji);
+            });
+        });
+
         window.addEventListener('resize', () => this.resizeWaveform());
+    }
+
+    spawnReaction(emoji) {
+        const container = document.querySelector('.presentation-stage');
+        if (!container) return;
+
+        // Map emoji to brand colors
+        const colorMap = {
+            '👏': '#344736', // Forest Green
+            '❤️': '#86312b', // Rich Red
+            '💡': '#ffc083'  // Warm Yellow
+        };
+        const color = colorMap[emoji] || '#342e29';
+
+        // Create a burst of 3-5 emojis
+        const count = 3 + Math.floor(Math.random() * 3);
+        
+        for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            el.className = 'floating-reaction';
+            el.textContent = emoji;
+            el.style.color = color;
+            
+            // Randomize start position slightly around the button area or bottom center
+            const startX = window.innerWidth > 720 
+                ? (window.innerWidth - 100 + (Math.random() * 60 - 30)) // Near right side on desktop
+                : (window.innerWidth / 2 + (Math.random() * 100 - 50)); // Centerish on mobile
+                
+            const drift = (Math.random() * 120 - 60) + 'px';
+            const rotation = (Math.random() * 40 - 20) + 'deg';
+            const scale = 0.8 + Math.random() * 1.2;
+            const duration = 1.5 + Math.random() * 1;
+            const delay = Math.random() * 0.2;
+
+            el.style.left = `${startX}px`;
+            el.style.bottom = '100px';
+            el.style.setProperty('--drift', drift);
+            el.style.setProperty('--rotation', rotation);
+            el.style.setProperty('--scale', scale);
+            el.style.animation = `float-and-fade ${duration}s ease-out ${delay}s forwards`;
+
+            container.appendChild(el);
+
+            // Cleanup
+            setTimeout(() => el.remove(), (duration + delay) * 1000);
+        }
     }
 
     async loadPresentationCatalog() {
@@ -1393,13 +1450,23 @@ class VoicePPTApp {
     }
 
     updateWaveformData() {
-        const t = performance.now() / 1000;
-        const playing = this.streamPlayer.isPlaying || this.voiceModeEnabled;
-        for (let i = 0; i < this.waveformData.length; i++) {
-            const base = playing ? Math.sin(t * 1.7 + i * 0.25) * 0.12 : 0;
-            const wave = playing ? Math.sin(t * 4 + i * 0.55) * 0.22 : 0;
-            const target = playing ? base + wave + Math.random() * 0.12 + 0.18 : 0.02;
-            this.waveformData[i] += (target - this.waveformData[i]) * (playing ? 0.14 : 0.08);
+        if (this.streamPlayer.analyserNode && this.streamPlayer.isPlaying) {
+            const dataArray = new Uint8Array(this.streamPlayer.analyserNode.frequencyBinCount);
+            this.streamPlayer.analyserNode.getByteFrequencyData(dataArray);
+            
+            for (let i = 0; i < Math.min(this.waveformData.length, dataArray.length); i++) {
+                const val = dataArray[i] / 255.0;
+                this.waveformData[i] += (val - this.waveformData[i]) * 0.2;
+            }
+        } else {
+            const t = performance.now() / 1000;
+            const playing = this.streamPlayer.isPlaying || this.voiceModeEnabled;
+            for (let i = 0; i < this.waveformData.length; i++) {
+                const base = playing ? Math.sin(t * 1.7 + i * 0.25) * 0.12 : 0;
+                const wave = playing ? Math.sin(t * 4 + i * 0.55) * 0.22 : 0;
+                const target = playing ? base + wave + Math.random() * 0.12 + 0.18 : 0.02;
+                this.waveformData[i] += (target - this.waveformData[i]) * (playing ? 0.14 : 0.08);
+            }
         }
     }
 
