@@ -11,12 +11,17 @@ class CMSService {
     }
 
     isSupabaseConfigured() {
-        return Boolean(this.supabaseUrl && this.supabaseServiceRoleKey);
+        const configured = Boolean(this.supabaseUrl && this.supabaseServiceRoleKey);
+        if (!configured) {
+            console.warn(`[CMS] isSupabaseConfigured: false — supabaseUrl=${!!this.supabaseUrl}, serviceRoleKey=${!!this.supabaseServiceRoleKey}`);
+        }
+        return configured;
     }
 
     async listPresentations() {
         const local = await this.listLocalPresentations();
         if (!this.isSupabaseConfigured()) {
+            console.warn('[CMS] listPresentations: Supabase not configured, using local only');
             return local;
         }
 
@@ -26,6 +31,7 @@ class CMSService {
             [...local, ...remote].forEach((item) => {
                 merged.set(item.id, item);
             });
+            console.log(`[CMS] listPresentations: ${remote.length} remote + ${local.length} local = ${merged.size} total`);
             return Array.from(merged.values());
         } catch (error) {
             console.error('CMS listPresentations failed, using local fallback:', error.message);
@@ -38,11 +44,14 @@ class CMSService {
             try {
                 const remote = await this.loadPresentationFromSupabase(identifier);
                 if (remote) {
+                    console.log(`[CMS] loadPresentation: using Supabase for '${identifier}'`);
                     return remote;
                 }
             } catch (error) {
                 console.error('CMS remote presentation load failed, using local fallback:', error.message);
             }
+        } else {
+            console.warn('[CMS] loadPresentation: Supabase not configured, using local');
         }
 
         return this.loadPresentationFromLocal(identifier);
@@ -230,11 +239,13 @@ class CMSService {
     }
 
     async listSupabasePresentations() {
+        console.log('[CMS] listSupabasePresentations: starting');
         const rows = await this.request('presentations', {
             select: 'id,slug,title,project_id,status,design_json',
             status: 'eq.published',
             order: 'title.asc'
         });
+        console.log(`[CMS] listSupabasePresentations: found ${rows.length} presentations`);
 
         const results = await Promise.all(rows.map(async (row) => {
             const slides = await this.request('slides', {
@@ -267,6 +278,7 @@ class CMSService {
     }
 
     async loadPresentationFromSupabase(identifier) {
+        console.log(`[CMS] loadPresentationFromSupabase: looking for '${identifier}'`);
         const presentations = await this.request('presentations', {
             select: 'id,project_id,slug,title,deck_schema_json,flow_json,design_json,status',
             slug: `eq.${this.escapeFilter(identifier)}`
@@ -274,8 +286,10 @@ class CMSService {
 
         const presentation = presentations[0];
         if (!presentation) {
+            console.warn(`[CMS] loadPresentationFromSupabase: '${identifier}' not found in Supabase`);
             return null;
         }
+        console.log(`[CMS] loadPresentationFromSupabase: found '${presentation.title}' with id=${presentation.id}`);
 
         const [slides, docs] = await Promise.all([
             this.request('slides', {
