@@ -8,6 +8,7 @@ const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
 const realtimePresenter = require('../services/realtimePresenter');
 const analyticsService = require('../services/analytics');
+const cmsService = require('../services/cms');
 const { requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
@@ -165,6 +166,36 @@ function buildKnowledgeContext(metadata = {}) {
     }
 
     return sections.join('\n\n').slice(0, 8000);
+}
+
+async function buildFullQAContext(sessionMetadata, slides) {
+    const sections = [];
+    
+    try {
+        const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
+        if (fs.existsSync(frameworkPath)) {
+            sections.push(`AGENT FRAMEWORK / CONSTITUTION:\n${fs.readFileSync(frameworkPath, 'utf8')}`);
+        }
+    } catch {}
+
+    if (sessionMetadata.knowledgeDocs) {
+        const docs = sessionMetadata.knowledgeDocs;
+        if (docs.soul) sections.push(`PROJECT SOUL:\n${docs.soul}`);
+        if (docs.agents) sections.push(`PROJECT RULES:\n${docs.agents}`);
+        if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${docs.product}`);
+        if (docs.flow) sections.push(`PRESENTATION FLOW:\n${docs.flow}`);
+        if (docs.design) sections.push(`DESIGN CONTEXT:\n${docs.design}`);
+        if (docs.cta) sections.push(`CALL TO ACTION:\n${docs.cta}`);
+    }
+
+    if (slides && slides.length > 0) {
+        sections.push(`FULL PRESENTATION CONTENT:\nThis is everything currently in the deck. Use this to answer questions about specific slides, claims, or content the attendee has seen.\n`);
+        slides.forEach((slide, i) => {
+            sections.push(`Slide ${i + 1}: "${slide.title}"\n${slide.content || ''}${slide.notes ? `\nPresenter notes: ${slide.notes}` : ''}`);
+        });
+    }
+
+    return sections.join('\n\n');
 }
 
 function stringifyDoc(value) {
@@ -340,6 +371,9 @@ async function runPresentation(db, io, sessionId) {
 
     await runWrapUp(db, io, sessionId, session.deck_id, participantName);
 
+    const sessionMetadata = getSessionMetadata(db, sessionId);
+    const qaKnowledgeContext = await buildFullQAContext(sessionMetadata, slides);
+
     const allQuestions = db.all(
         'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
         [sessionId]
@@ -442,6 +476,11 @@ async function runPresentation(db, io, sessionId) {
             });
 
             analyticsService.logEvent(sessionId, 'ai_answer', slides.length + q, answer, { questionId: question.id, questionText: question.question_text });
+
+            if (/I don't have enough information|I don't have that information|I don't have enough|I don't know enough|don't have that detail/i.test(answer)) {
+                analyticsService.logEvent(sessionId, 'unanswered_question', slides.length + q, answer, { questionId: question.id, questionText: question.question_text });
+                db.run('UPDATE questions SET status = \'unanswered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?', [answer, question.id]);
+            }
 
             if (!realtimePresenter.isConfigured()) {
                 await streamAudio(io, sessionId, answer, slides.length + q, {
@@ -848,7 +887,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
     await sleep(120);
     const sessionMetadata = getSessionMetadata(db, sessionId);
     const participantName = getParticipantName(db, sessionId);
-    const knowledgeContext = buildKnowledgeContext(sessionMetadata);
+    const knowledgeContext = await buildFullQAContext(sessionMetadata, slides);
 
     const audienceMemory = db.all(
         'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
@@ -967,6 +1006,11 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
         });
 
         analyticsService.logEvent(sessionId, 'ai_answer', slides.length + q, answer, { questionId: question.id, questionText: question.question_text, isInterrupt: true });
+
+        if (/I don't have enough information|I don't have that information|I don't have enough|I don't know enough|don't have that detail/i.test(answer)) {
+            analyticsService.logEvent(sessionId, 'unanswered_question', currentSlideIndex, answer, { questionId: question.id, questionText: question.question_text });
+            db.run('UPDATE questions SET status = \'unanswered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?', [answer, question.id]);
+        }
 
         if (!realtimePresenter.isConfigured()) {
             await streamAudio(io, sessionId, answer, slides.length + q, {
