@@ -231,6 +231,7 @@ router.post('/resume', requireSessionControl(), (req, res) => {
         return res.status(400).json({ error: 'Session ID is required' });
     }
 
+    clearInterrupt(sessionId);
     setPaused(sessionId, false);
     res.json({ success: true, paused: false });
 });
@@ -241,6 +242,7 @@ router.post('/continue', requireSessionControl(), (req, res) => {
         return res.status(400).json({ error: 'Session ID is required' });
     }
 
+    clearInterrupt(sessionId);
     markContinue(sessionId);
     res.json({ success: true, continued: true });
 });

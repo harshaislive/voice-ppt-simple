@@ -579,6 +579,8 @@ class VoicePPTApp {
 
     async continuePresentationFlow() {
         if (!this.sessionId) return;
+        this.streamPlayer.reset();
+        this.resetSubtitleState();
         try { await this.apiFetch('/api/autoplex/continue', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); this.ui.closeSlideTurnOverlay(); this.setStatus('Presenting', 'live', 'Narration live'); }
         catch (err) { console.error(err); }
     }
