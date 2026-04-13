@@ -241,8 +241,7 @@ class CMSService {
     async loadPresentationFromSupabase(identifier) {
         const presentations = await this.request('presentations', {
             select: 'id,project_id,slug,title,deck_schema_json,flow_json,design_json,status',
-            or: `(slug.eq.${this.escapeFilter(identifier)},id.eq.${this.escapeFilter(identifier)})`,
-            limit: '1'
+            slug: `eq.${this.escapeFilter(identifier)}`
         });
 
         const presentation = presentations[0];
@@ -651,7 +650,7 @@ class CMSService {
     }
 
     async deletePresentationFromSupabase(identifier) {
-        await this.request('presentations', { or: `(slug.eq.${this.escapeFilter(identifier)},id.eq.${this.escapeFilter(identifier)})` }, { method: 'DELETE' });
+        await this.request('presentations', { slug: `eq.${this.escapeFilter(identifier)}` }, { method: 'DELETE' });
     }
 }
 
