@@ -65,6 +65,7 @@ class VoicePPTApp {
         this.questionAudioPlayer = document.getElementById('audio-player');
         this.activeQuestionAudioButton = null;
         this.questionAudioPausedNarration = false;
+        this.slideAudioStarted = false;
 
         this.bindEvents();
         this.bindQuestionAudioControls();
@@ -650,6 +651,7 @@ class VoicePPTApp {
         this.totalSlides = data.totalSlides || this.totalSlides;
         this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, this.currentSlideIndex);
         this.currentSlide = data.slide || null;
+        this.slideAudioStarted = false;
         this.ui.closeSlideTurnOverlay();
         this.resetSubtitleState();
         this.fullNarrationTranscript = '';
@@ -693,6 +695,7 @@ class VoicePPTApp {
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
+        this.slideAudioStarted = true;
         this.renderSubtitle();
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
         this.startWaveform();
@@ -725,6 +728,7 @@ class VoicePPTApp {
     waitForPlaybackFinish() {
         const poll = () => {
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
+            if (!this.slideAudioStarted) { setTimeout(poll, 120); return; }
             this.stopWaveform();
             this.stopTranscriptProgress();
             this.clearTranscriptChunkTimers();
@@ -868,6 +872,7 @@ class VoicePPTApp {
         this.pendingPlaybackStartAt = null;
         this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
+        this.slideAudioStarted = false;
         this.clearTranscriptChunkTimers();
         this.stopTranscriptProgress();
         this.ui.renderSubtitle('', false);
