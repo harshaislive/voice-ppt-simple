@@ -134,6 +134,16 @@ router.get('/projects/:slug/cta-blocks', async (req, res) => {
     }
 });
 
+router.get('/projects/:slug/loading-quotes', async (req, res) => {
+    try {
+        const quotes = await cmsService.getLoadingQuotes(req.params.slug);
+        res.json(quotes);
+    } catch (error) {
+        console.error('Error loading loading quotes:', error);
+        res.status(500).json({ error: 'Failed to load loading quotes' });
+    }
+});
+
 router.post('/projects/:slug/docs/:docType', async (req, res) => {
     try {
         const result = await cmsService.saveKnowledgeDoc(req.params.slug, req.params.docType, req.body.content);

@@ -458,28 +458,17 @@ class CMSService {
     }
 
     async getCtaBlocks(projectSlug) {
+        // ... existing getCtaBlocks ...
+    }
+
+    async getLoadingQuotes(projectSlug) {
         try {
-            const projects = await this.request('projects', {
-                select: 'id',
-                slug: `eq.${this.escapeFilter(projectSlug)}`,
-                limit: '1'
-            });
-            if (!projects || projects.length === 0) return [];
-            const projectId = projects[0].id;
-            const rows = await this.request('cta_blocks', {
-                select: 'id,title,content_json',
-                project_id: `eq.${projectId}`,
-                order: 'created_at.asc'
-            });
-            return rows.map(r => ({
-                id: r.id,
-                title: r.title,
-                label: r.content_json?.label || r.title,
-                url: r.content_json?.url || '#',
-                icon: r.content_json?.icon || 'link',
-                description: r.content_json?.description || ''
-            }));
-        } catch {
+            const projectDir = path.join(this.projectsDir, projectSlug);
+            const quotesPath = path.join(projectDir, 'loading_quotes.json');
+            const raw = await fs.readFile(quotesPath, 'utf8');
+            return JSON.parse(raw);
+        } catch (error) {
+            console.warn(`[CMS] getLoadingQuotes: failed to load quotes for '${projectSlug}':`, error.message);
             return [];
         }
     }

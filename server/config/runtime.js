@@ -26,20 +26,42 @@ function validateRuntimeConfig() {
     }
 
     if (production) {
-        const requiredVars = [
-            'AZURE_OPENAI_ENDPOINT',
-            'AZURE_OPENAI_API_KEY',
-            'AZURE_OPENAI_DEPLOYMENT_NAME',
-            'AZURE_OPENAI_REALTIME_ENDPOINT',
-            'AZURE_OPENAI_REALTIME_API_KEY',
-            'AZURE_OPENAI_REALTIME_DEPLOYMENT'
+        const requiredGroups = [
+            {
+                names: ['AZURE_OPENAI_ENDPOINT', 'AZURE_VOICELIVE_ENDPOINT', 'AZURE_EXISTING_AIPROJECT_ENDPOINT'],
+                message: 'Azure chat endpoint is required in production'
+            },
+            {
+                names: ['AZURE_OPENAI_API_KEY', 'AZURE_VOICELIVE_API_KEY', 'AZURE_AI_API_KEY'],
+                message: 'Azure API key is required in production'
+            },
+            {
+                names: ['AZURE_OPENAI_DEPLOYMENT_NAME', 'AZURE_CHAT_DEPLOYMENT'],
+                message: 'Azure chat deployment is required in production'
+            }
         ];
 
-        requiredVars.forEach((name) => {
-            if (!String(process.env[name] || '').trim()) {
-                errors.push(`${name} is required in production`);
+        requiredGroups.forEach((group) => {
+            const found = group.names.some((name) => String(process.env[name] || '').trim());
+            if (!found) {
+                errors.push(group.message);
             }
         });
+
+        const hasRealtimeConfig = (
+            String(process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT || process.env.AZURE_OPENAI_TTS_DEPLOYMENT || '').trim() &&
+            String(process.env.AZURE_OPENAI_REALTIME_ENDPOINT || process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_VOICELIVE_ENDPOINT || '').trim() &&
+            String(process.env.AZURE_OPENAI_REALTIME_API_KEY || process.env.AZURE_OPENAI_TTS_API_KEY || process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_VOICELIVE_API_KEY || '').trim()
+        );
+
+        const hasSpeechSdkConfig = (
+            String(process.env.AZURE_SPEECH_KEY || process.env.AZURE_AI_SPEECH_KEY || process.env.AZURE_COGSERVICES_KEY || '').trim() &&
+            String(process.env.AZURE_SPEECH_REGION || process.env.AZURE_LOCATION || process.env.AZURE_REGION || '').trim()
+        );
+
+        if (!hasRealtimeConfig && !hasSpeechSdkConfig) {
+            errors.push('Either realtime Azure OpenAI TTS config or Azure Speech SDK config is required in production');
+        }
 
         if (process.env.CMS_REMOTE_REQUIRED === 'true') {
             ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'].forEach((name) => {

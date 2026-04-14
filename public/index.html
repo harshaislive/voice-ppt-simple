@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice-PPT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,20 +13,44 @@
     <div id="app" class="app">
         <!-- START SCREEN -->
         <div id="start-screen" class="start-screen">
-            <div id="start-hero" class="start-hero"></div>
+            <div id="start-hero" class="start-hero">
+                <div class="start-hero-badge" aria-hidden="true">Live Narration · Questions · Read-Along</div>
+                <div class="start-hero-gradient" aria-hidden="true"></div>
+            </div>
             <div class="start-content">
                 <div class="start-header-group">
-                    <p id="home-start-sub" class="start-sub">This Is Not A Holiday Idea</p>
+                    <p class="start-sub">Beforest Presentation Console</p>
                     <h1 id="home-start-title" class="start-title">THE 10% LIFE</h1>
+                    <p id="home-start-sub" class="start-intro">A voice-led presentation that speaks, listens, and answers live.</p>
                 </div>
+
                 <div class="start-actions">
-                    <input id="participant-name" class="name-input" type="text" placeholder="Your name" autocomplete="name" maxlength="60">
-                    <input id="session-passcode" class="session-passcode" type="password" placeholder="Passcode" autocomplete="off" maxlength="20">
-                    <button id="start-presentation" class="btn-start">
+                    <label class="sr-only" for="participant-name">Your name</label>
+                    <input id="participant-name" name="participantName" class="name-input" type="text" placeholder="Your name…" autocomplete="name">
+
+                    <label class="sr-only" for="session-passcode">Passcode</label>
+                    <input id="session-passcode" name="sessionPasscode" class="session-passcode" type="password" placeholder="Passcode…" autocomplete="one-time-code" spellcheck="false">
+
+                    <button id="start-presentation" class="btn-start" type="button">
                         <span>Begin Experience</span>
                     </button>
+
+                    <p class="start-hint">Use your mic or type questions anytime during the presentation.</p>
                 </div>
-                <div class="start-hint">The presenter will speak to you. Questions are answered live at the end.</div>
+            </div>
+        </div>
+
+        <!-- LOADING OVERLAY (The 10% Breath) -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="loading-quote-container">
+                    <p id="loading-quote-text" class="loading-quote"></p>
+                    <p id="loading-quote-author" class="loading-author"></p>
+                </div>
+                <div class="loading-progress-bar">
+                    <div id="loading-progress-fill" class="loading-progress-fill"></div>
+                </div>
+                <p class="loading-status">Preparing your sanctuary…</p>
             </div>
         </div>
 
@@ -76,7 +100,7 @@
                                 <h1 id="slide-title" class="slide-title"></h1>
                                 <div id="slide-content-flow" class="slide-content-flow">
                                     <p id="slide-subtitle" class="slide-subtitle"></p>
-                                    <p id="full-transcription" class="full-transcription">No narration yet...</p>
+                                    <p id="full-transcription" class="full-transcription"></p>
                                 </div>
                             </div>
                         </div>

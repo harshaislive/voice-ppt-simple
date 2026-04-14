@@ -73,7 +73,14 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         services: {
             database: hasDb ? 'connected' : 'disconnected',
-            azureOpenAI: !!(process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY),
+            azureOpenAI: !!(
+                (process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_VOICELIVE_ENDPOINT || process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT) &&
+                (process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_VOICELIVE_API_KEY || process.env.AZURE_AI_API_KEY)
+            ),
+            azureSpeech: !!(
+                (process.env.AZURE_SPEECH_KEY || process.env.AZURE_AI_SPEECH_KEY || process.env.AZURE_COGSERVICES_KEY) &&
+                (process.env.AZURE_SPEECH_REGION || process.env.AZURE_LOCATION || process.env.AZURE_REGION)
+            ),
             supabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
         }
     });

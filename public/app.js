@@ -38,7 +38,15 @@ class VoicePPTApp {
         this.subtitleBuffer = '';
         this.subtitleReady = false;
         this.fullNarrationTranscript = '';
+        this.narrationSourceText = '';
+        this.wordBoundaries = [];
+        this.transcriptChunks = [];
+        this.transcriptChunkIndex = -1;
+        this.transcriptChunkTimers = [];
+        this.pendingPlaybackStartAt = null;
+        this.transcriptChunkMode = 'waiting';
         this.presentationCatalog = [];
+        this.loadingQuotes = [];
         this.awaitingPlaybackComplete = false;
         this.awaitingSlideContinue = false;
 
@@ -48,10 +56,31 @@ class VoicePPTApp {
         this.waveformAnimFrame = null;
 
         this.bindEvents();
+        this.streamPlayer.onStreamStart = ({ startedAtMs }) => {
+            this.pendingPlaybackStartAt = startedAtMs;
+            this.syncTranscriptReelPlayback();
+        };
         this.loadSessionConfig();
         this.loadPresentationCatalog();
+        this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
         this.resizeWaveform();
+    }
+
+    async loadLoadingQuotes() {
+        try {
+            const res = await fetch('/api/cms/projects/beforest/loading-quotes');
+            if (res.ok) {
+                this.loadingQuotes = await res.json();
+            } else {
+                this.loadingQuotes = [
+                    { text: "10% isn't about subtraction — it's about protection.", author: "Beforest" },
+                    { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
+                ];
+            }
+        } catch (err) {
+            console.warn('Failed to load loading quotes:', err);
+        }
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -188,39 +217,48 @@ class VoicePPTApp {
     }
 
     bindEvents() {
-        document.getElementById('start-presentation').addEventListener('click', () => this.startSession());
-        document.getElementById('participant-name').addEventListener('keypress', (e) => {
+        const on = (id, event, handler) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            el.addEventListener(event, handler);
+            return el;
+        };
+
+        on('start-presentation', 'click', () => this.startSession());
+        on('participant-name', 'keypress', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); this.startSession(); }
         });
-        document.getElementById('submit-question').addEventListener('click', () => this.submitQuestion());
-        document.getElementById('question-input').addEventListener('keypress', (e) => {
+        on('submit-question', 'click', () => this.submitQuestion());
+        on('question-input', 'keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submitQuestion(); }
         });
-        document.getElementById('chat-toggle').addEventListener('click', () => this.ui.toggleQuestionDrawer(true));
-        document.getElementById('qa-close').addEventListener('click', () => this.ui.toggleQuestionDrawer(false));
-        document.getElementById('qa-scrim').addEventListener('click', () => this.ui.toggleQuestionDrawer(false));
-        document.getElementById('restart-btn').addEventListener('click', () => location.reload());
-        document.getElementById('interrupt-mic').addEventListener('click', () => this.handleInterruptMic());
-        document.getElementById('slide-turn-mic').addEventListener('click', () => this.handleInterruptMic());
-        document.getElementById('wrapup-mic').addEventListener('click', () => this.handleInterruptMic());
-        document.getElementById('slide-turn-continue').addEventListener('click', () => this.continuePresentationFlow());
-        document.getElementById('footer-continue-btn').addEventListener('click', () => this.continuePresentationFlow());
-        document.getElementById('slide-question-send').addEventListener('click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
-        document.getElementById('slide-question-input').addEventListener('keypress', (e) => {
+        on('chat-toggle', 'click', () => this.ui.toggleQuestionDrawer(true));
+        on('qa-close', 'click', () => this.ui.toggleQuestionDrawer(false));
+        on('qa-scrim', 'click', () => this.ui.toggleQuestionDrawer(false));
+        on('restart-btn', 'click', () => location.reload());
+        on('interrupt-mic', 'click', () => this.handleInterruptMic());
+        on('slide-turn-mic', 'click', () => this.handleInterruptMic());
+        on('wrapup-mic', 'click', () => this.handleInterruptMic());
+        on('slide-turn-continue', 'click', () => this.continuePresentationFlow());
+        on('footer-continue-btn', 'click', () => this.continuePresentationFlow());
+        on('slide-question-send', 'click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
+        on('slide-question-input', 'keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
             }
         });
-        document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
-        document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+        on('wrapup-prev', 'click', () => this.changeWrapUpCard(-1));
+        on('wrapup-next', 'click', () => this.changeWrapUpCard(1));
 
-        document.getElementById('mic-retry-btn').addEventListener('click', () => {
-            document.getElementById('mic-permission-modal').classList.add('hidden');
+        on('mic-retry-btn', 'click', () => {
+            const modal = document.getElementById('mic-permission-modal');
+            if (modal) modal.classList.add('hidden');
             this.handleInterruptMic();
         });
-        document.getElementById('mic-close-btn').addEventListener('click', () => {
-            document.getElementById('mic-permission-modal').classList.add('hidden');
+        on('mic-close-btn', 'click', () => {
+            const modal = document.getElementById('mic-permission-modal');
+            if (modal) modal.classList.add('hidden');
         });
         
         document.querySelectorAll('.reaction-btn').forEach(btn => {
@@ -233,15 +271,18 @@ class VoicePPTApp {
             });
         });
 
-        document.getElementById('help-fab').addEventListener('click', () => {
-            document.getElementById('help-modal-overlay').classList.add('open');
+        on('help-fab', 'click', () => {
+            const overlay = document.getElementById('help-modal-overlay');
+            if (overlay) overlay.classList.add('open');
         });
-        document.getElementById('help-modal-close').addEventListener('click', () => {
-            document.getElementById('help-modal-overlay').classList.remove('open');
+        on('help-modal-close', 'click', () => {
+            const overlay = document.getElementById('help-modal-overlay');
+            if (overlay) overlay.classList.remove('open');
         });
-        document.getElementById('help-modal-overlay').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('help-modal-overlay')) {
-                document.getElementById('help-modal-overlay').classList.remove('open');
+        on('help-modal-overlay', 'click', (e) => {
+            const overlay = document.getElementById('help-modal-overlay');
+            if (overlay && e.target === overlay) {
+                overlay.classList.remove('open');
             }
         });
 
@@ -321,7 +362,9 @@ class VoicePPTApp {
                 heroEl.style.backgroundImage = `url(${p.startImage})`;
                 console.log('Hero image set:', p.startImage);
             } else {
-                console.warn('No hero image available, using gradient fallback');
+                if (heroEl) {
+                    heroEl.style.backgroundImage = '';
+                }
             }
 
         } catch (err) { console.error('Catalog load failed:', err); }
@@ -371,6 +414,10 @@ class VoicePPTApp {
                 }
                 throw new Error(data.error || 'Failed to start');
             }
+
+            // Start the loading experience (The 10% Breath)
+            const loadingPromise = this.ui.showLoadingScreen(this.loadingQuotes);
+
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
             this.persistSession({
@@ -383,13 +430,27 @@ class VoicePPTApp {
                 passcodeRequired: data.passcodeRequired
             });
             this.awaitingSlideContinue = false;
-            document.getElementById('start-screen').classList.add('hidden');
-            document.getElementById('present-view').classList.remove('hidden');
-            document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
+            const prewarmPromise = this.apiFetch('/api/autoplex/prewarm', {
+                method: 'POST',
+                body: JSON.stringify({ sessionId: this.sessionId, slideIndex: 0 })
+            }).catch(err => {
+                console.warn('Initial narration prewarm failed:', err);
+                return null;
+            });
+            
+            // Prime initial slide while loading
             await this.primeInitialSlide();
             this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
+
+            // Wait for both the visible loading breath and the first-slide AI prewarm.
+            await Promise.all([loadingPromise, prewarmPromise]);
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('present-view').classList.remove('hidden');
+            document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
+            
             this.setStatus('Ready', 'live', 'Ask anytime');
             this.syncQuestionCount();
             setTimeout(() => this.triggerAutoPlex(), 250);
@@ -451,7 +512,8 @@ class VoicePPTApp {
             this.fullNarrationTranscript = String(data.full || delta);
         }
         this.renderSubtitle();
-        this.ui.updateFullTranscriptionDisplay(this.fullNarrationTranscript);
+        this.narrationSourceText = this.fullNarrationTranscript.trim();
+        this.refreshTranscriptReel();
     }
 
     handleAudioChunk(data) {
@@ -462,18 +524,42 @@ class VoicePPTApp {
         this.startWaveform();
     }
 
-    handleAudioEnd() { this.showTranscript(false); this.subtitleReady = false; this.waitForPlaybackFinish(); }
+    handleWordBoundaries(data) {
+        this.wordBoundaries = Array.isArray(data?.words) ? data.words : [];
+        this.refreshTranscriptReel();
+        this.syncTranscriptReelPlayback();
+    }
+
+    handleAudioEnd() {
+        this.showTranscript(false);
+        this.subtitleReady = false;
+        this.waitForPlaybackFinish();
+    }
 
     waitForPlaybackFinish() {
         const poll = () => {
-            if (this.streamPlayer.isPlaying) { setTimeout(poll, 120); return; }
+            if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
             this.stopWaveform();
+            this.clearTranscriptChunkTimers();
+            if (this.transcriptChunks.length > 0) {
+                this.transcriptChunkIndex = this.transcriptChunks.length - 1;
+                this.transcriptChunkMode = 'complete';
+            } else {
+                this.transcriptChunkIndex = -1;
+            }
+            this.pendingPlaybackStartAt = null;
+            this.renderFullTranscription();
             if (this.awaitingPlaybackComplete) { this.awaitingPlaybackComplete = false; this.socketClient.notifyPlaybackComplete(this.sessionId); }
         };
         setTimeout(poll, 120);
     }
 
-    showVoiceTranscript(text) { if (!text) return; this.subtitleBuffer = String(text).trim(); this.subtitleReady = true; this.renderSubtitle(); }
+    showVoiceTranscript(text) {
+        if (!text) return;
+        this.subtitleBuffer = String(text).trim();
+        this.subtitleReady = true;
+        this.renderSubtitle();
+    }
 
     renderSubtitle() {
         const cleaned = this.subtitleBuffer.replace(/\s+/g, ' ').trim();
@@ -484,9 +570,131 @@ class VoicePPTApp {
         this.ui.renderSubtitle(compact, this.subtitleReady);
     }
 
-    finalizeSubtitleText(text) { if (!this.subtitleBuffer.trim()) { this.subtitleBuffer = String(text || '').trim(); this.renderSubtitle(); } }
+    renderFullTranscription() {
+        if (this.transcriptChunkMode === 'waiting' || !this.transcriptChunks.length) {
+            this.ui.renderTranscriptWaiting('full-transcription');
+            return;
+        }
 
-    resetSubtitleState() { this.subtitleBuffer = ''; this.subtitleReady = false; this.ui.renderSubtitle('', false); }
+        const index = Math.max(0, Math.min(this.transcriptChunkIndex, this.transcriptChunks.length - 1));
+        const chunk = this.transcriptChunks[index] || this.transcriptChunks[0];
+        this.ui.renderTranscriptReel('full-transcription', {
+            state: this.transcriptChunkMode === 'complete' ? 'complete' : 'live',
+            headline: this.transcriptChunkMode === 'complete' ? 'Complete' : 'Speaking',
+            phrase: chunk?.text || ''
+        });
+    }
+
+    syncTranscriptReelPlayback() {
+        if (!this.transcriptChunks.length || !this.pendingPlaybackStartAt) {
+            this.transcriptChunkMode = 'waiting';
+            this.renderFullTranscription();
+            return;
+        }
+
+        this.clearTranscriptChunkTimers();
+        this.transcriptChunkMode = 'live';
+        const now = performance.now();
+
+        this.transcriptChunks.forEach((chunk, index) => {
+            const startMs = Number(chunk.startMs || 0);
+            const timer = setTimeout(() => {
+                this.transcriptChunkIndex = index;
+                this.transcriptChunkMode = 'live';
+                this.renderFullTranscription();
+            }, Math.max(0, Math.round(this.pendingPlaybackStartAt + startMs - now)));
+            this.transcriptChunkTimers.push(timer);
+        });
+    }
+
+    clearTranscriptChunkTimers() {
+        this.transcriptChunkTimers.forEach(timer => clearTimeout(timer));
+        this.transcriptChunkTimers = [];
+    }
+
+    finalizeSubtitleText(text) {
+        const clean = String(text || '').trim();
+        if (clean) {
+            this.narrationSourceText = clean;
+            this.fullNarrationTranscript = clean;
+            this.refreshTranscriptReel();
+        }
+    }
+
+    resetSubtitleState() {
+        this.subtitleBuffer = '';
+        this.subtitleReady = false;
+        this.fullNarrationTranscript = '';
+        this.narrationSourceText = '';
+        this.wordBoundaries = [];
+        this.transcriptChunks = [];
+        this.transcriptChunkIndex = -1;
+        this.pendingPlaybackStartAt = null;
+        this.transcriptChunkMode = 'waiting';
+        this.clearTranscriptChunkTimers();
+        this.ui.renderSubtitle('', false);
+        this.renderFullTranscription();
+    }
+
+    refreshTranscriptReel() {
+        const sourceText = this.narrationSourceText.trim();
+        if (this.wordBoundaries.length > 0) {
+            this.transcriptChunks = this.chunkWordBoundaries(this.wordBoundaries);
+        } else if (sourceText) {
+            this.transcriptChunks = this.chunkTranscriptText(sourceText);
+        } else {
+            this.transcriptChunks = [];
+        }
+        this.transcriptChunkIndex = -1;
+        this.transcriptChunkMode = this.pendingPlaybackStartAt ? 'live' : 'waiting';
+        this.renderFullTranscription();
+        if (this.pendingPlaybackStartAt) {
+            this.syncTranscriptReelPlayback();
+        }
+    }
+
+    chunkTranscriptText(text, maxWords = 7) {
+        const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+        const chunks = [];
+        let i = 0;
+        while (i < words.length) {
+            let end = Math.min(i + maxWords, words.length);
+            for (let j = end - 1; j > i + 2; j--) {
+                if (/[.!?]["')\]]?$/.test(words[j])) {
+                    end = j + 1;
+                    break;
+                }
+            }
+            const slice = words.slice(i, end);
+            const startMs = chunks.length === 0 ? 0 : chunks[chunks.length - 1].endMs + 120;
+            const durationMs = Math.max(900, slice.length * 240);
+            chunks.push({
+                text: slice.join(' '),
+                startMs,
+                endMs: startMs + durationMs
+            });
+            i = end;
+        }
+        return chunks;
+    }
+
+    chunkWordBoundaries(boundaries = [], maxWords = 7) {
+        const words = boundaries.filter(Boolean);
+        const chunks = [];
+        for (let i = 0; i < words.length; i += maxWords) {
+            const slice = words.slice(i, i + maxWords);
+            if (!slice.length) continue;
+            const startMs = Number(slice[0].offsetMs || 0);
+            const last = slice[slice.length - 1];
+            const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 120;
+            chunks.push({
+                text: slice.map(item => String(item.word || '').trim()).filter(Boolean).join(' '),
+                startMs,
+                endMs
+            });
+        }
+        return chunks;
+    }
 
     async analyzeImageBrightness(imageUrl) {
         const img = new Image(); img.crossOrigin = "Anonymous"; img.src = imageUrl;

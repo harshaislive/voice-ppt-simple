@@ -1,20 +1,45 @@
 const { AzureOpenAI } = require('openai');
 const stateStore = require('./stateStore');
 
+function trimTrailingSlash(value) {
+    return String(value || '').replace(/\/+$/, '');
+}
+
+function deriveFoundryBaseEndpoint(value) {
+    const raw = trimTrailingSlash(value);
+    if (!raw) return '';
+    return raw.replace(/\/api\/projects\/[^/]+$/i, '');
+}
+
 class ModelService {
     constructor() {
         this.failClosed = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+        this.endpoint = deriveFoundryBaseEndpoint(
+            process.env.AZURE_OPENAI_ENDPOINT ||
+            process.env.AZURE_VOICELIVE_ENDPOINT ||
+            process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT
+        );
+        this.apiKey =
+            process.env.AZURE_OPENAI_API_KEY ||
+            process.env.AZURE_VOICELIVE_API_KEY ||
+            process.env.AZURE_AI_API_KEY ||
+            '';
+        this.apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
+        this.deployment =
+            process.env.AZURE_OPENAI_DEPLOYMENT_NAME ||
+            process.env.AZURE_CHAT_DEPLOYMENT ||
+            'gpt-5.4';
 
-        if (!process.env.AZURE_OPENAI_ENDPOINT || !process.env.AZURE_OPENAI_API_KEY) {
+        if (!this.endpoint || !this.apiKey) {
             console.warn('Azure OpenAI credentials not configured');
             this.client = null;
             return;
         }
 
         this.client = new AzureOpenAI({
-            apiKey: process.env.AZURE_OPENAI_API_KEY,
-            endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-            apiVersion: '2024-08-01-preview'
+            apiKey: this.apiKey,
+            endpoint: this.endpoint,
+            apiVersion: this.apiVersion
         });
     }
     
@@ -31,7 +56,7 @@ class ModelService {
             const messages = narrationPrompt.buildMessages(context);
             
             const response = await this.client.chat.completions.create({
-                model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
+                model: this.deployment,
                 messages,
                 temperature: 0.9,
                 max_completion_tokens: 2000
@@ -63,7 +88,7 @@ class ModelService {
             const messages = narrationPrompt.buildMessages(context);
             
             const stream = await this.client.chat.completions.create({
-                model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
+                model: this.deployment,
                 messages,
                 temperature: 0.9,
                 max_completion_tokens: 2000,
@@ -104,7 +129,7 @@ class ModelService {
             const messages = classifyPrompt.buildMessages(questions, slideContent);
             
             const response = await this.client.chat.completions.create({
-                model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
+                model: this.deployment,
                 messages,
                 temperature: 0.3,
                 max_completion_tokens: 2000,
@@ -134,7 +159,7 @@ class ModelService {
             const messages = nextStepPrompt.buildMessages(context);
             
             const response = await this.client.chat.completions.create({
-                model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
+                model: this.deployment,
                 messages,
                 temperature: 0.3,
                 max_completion_tokens: 2000,

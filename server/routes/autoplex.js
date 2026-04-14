@@ -16,6 +16,7 @@ const pauseFlags = new Map();
 const playbackWaiters = new Map();
 const continueWaiters = new Map();
 const presentationStartTimes = new Map();
+const prewarmedSlides = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
@@ -65,6 +66,38 @@ function isPaused(sessionId) {
 
 function hasRenderableAudio(result) {
     return Boolean(result && Number(result.totalPcmBytes || 0) > 0);
+}
+
+function shouldUseRealtimePresenter() {
+    return realtimePresenter.isConfigured() && !ttsService.prefersManagedNarration();
+}
+
+function shouldStreamNarrationText() {
+    return !ttsService.prefersManagedNarration();
+}
+
+function getPrewarmKey(sessionId, slideIndex) {
+    return `${sessionId}:${slideIndex}`;
+}
+
+function getPrewarmedSlide(sessionId, slideIndex) {
+    return prewarmedSlides.get(getPrewarmKey(sessionId, slideIndex)) || null;
+}
+
+function setPrewarmedSlide(sessionId, slideIndex, payload) {
+    prewarmedSlides.set(getPrewarmKey(sessionId, slideIndex), {
+        ...payload,
+        createdAt: Date.now()
+    });
+}
+
+function consumePrewarmedSlide(sessionId, slideIndex) {
+    const key = getPrewarmKey(sessionId, slideIndex);
+    const value = prewarmedSlides.get(key) || null;
+    if (value) {
+        prewarmedSlides.delete(key);
+    }
+    return value;
 }
 
 function waitForPlaybackCompletion(sessionId, fallbackMs) {
@@ -212,6 +245,32 @@ function stringifyDoc(value) {
     }
 }
 
+function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
+    const sessionMetadata = getSessionMetadata(db, sessionId);
+    const participantName = getParticipantName(db, sessionId);
+    const knowledgeContext = buildKnowledgeContext(sessionMetadata);
+    const audienceMemory = db.all(
+        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
+        [sessionId]
+    ).reduce((acc, item) => {
+        acc[item.key] = item.value;
+        return acc;
+    }, {});
+
+    return {
+        slideTitle: slide.title,
+        slideContent: slide.content,
+        slideNotes: slide.notes,
+        pendingQuestions,
+        audienceContext: audienceMemory,
+        participantName,
+        knowledgeContext,
+        slideIndex,
+        totalSlides,
+        style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
+    };
+}
+
 router.post('/', requireSessionControl(), async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
@@ -278,6 +337,72 @@ router.post('/continue', requireSessionControl(), (req, res) => {
     res.json({ success: true, continued: true });
 });
 
+router.post('/prewarm', requireSessionControl(), async (req, res) => {
+    const { sessionId, slideIndex = 0 } = req.body;
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    try {
+        const db = req.app.get('db');
+        const session = db.get('SELECT * FROM sessions WHERE id = ?', [sessionId]);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const slides = db.all('SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC', [sessionId]);
+        const targetSlide = slides[slideIndex];
+        if (!targetSlide) {
+            return res.status(404).json({ error: 'Slide not found' });
+        }
+
+        if (getPrewarmedSlide(sessionId, slideIndex)) {
+            return res.json({ success: true, prewarmed: true, cached: true, slideIndex });
+        }
+
+        if (shouldUseRealtimePresenter()) {
+            return res.json({ success: true, prewarmed: false, reason: 'realtime-presenter-active', slideIndex });
+        }
+
+        const pendingQuestions = db.all(
+            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
+            [sessionId]
+        ).map((q) => q.question_text);
+
+        const context = buildNarrationContext({
+            db,
+            sessionId,
+            slide: targetSlide,
+            slideIndex,
+            totalSlides: slides.length,
+            pendingQuestions
+        });
+
+        const narrationText = await modelService.generateNarration(context);
+        const audioResult = await ttsService.synthesizeDetailed(narrationText, 'default');
+
+        setPrewarmedSlide(sessionId, slideIndex, {
+            text: narrationText,
+            pcmBase64: audioResult.pcmBuffer.toString('base64'),
+            sampleRate: audioResult.sampleRate,
+            channels: audioResult.channels,
+            bitsPerSample: audioResult.bitsPerSample,
+            wordBoundaries: audioResult.wordBoundaries || [],
+            totalPcmBytes: audioResult.pcmBuffer.length
+        });
+
+        res.json({
+            success: true,
+            prewarmed: true,
+            slideIndex,
+            hasWordBoundaries: (audioResult.wordBoundaries || []).length > 0
+        });
+    } catch (error) {
+        console.error('Prewarm failed:', error);
+        res.status(500).json({ error: 'Failed to prewarm slide' });
+    }
+});
+
 async function runPresentation(db, io, sessionId) {
     const session = db.get('SELECT * FROM sessions WHERE id = ? AND status IN (\'active\', \'presenting\')', [sessionId]);
     if (!session) {
@@ -327,15 +452,18 @@ async function runPresentation(db, io, sessionId) {
             [sessionId]
         );
 
-        const narrationResult = await narrateSlide({
-            db,
-            io,
-            sessionId,
-            slide,
-            slideIndex: currentSlideIndex,
-            totalSlides: slides.length,
-            pendingQuestions: updatedPendingQuestions.slice(0, 5).map((q) => q.question_text)
-        });
+        const prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
+        const narrationResult = prewarmed
+            ? { text: prewarmed.text, audioHandled: true, prewarmed: true, prewarmedAudio: prewarmed }
+            : await narrateSlide({
+                db,
+                io,
+                sessionId,
+                slide,
+                slideIndex: currentSlideIndex,
+                totalSlides: slides.length,
+                pendingQuestions: updatedPendingQuestions.slice(0, 5).map((q) => q.question_text)
+            });
         const narrationText = narrationResult.text;
 
         updatedPendingQuestions = db.all(
@@ -344,7 +472,9 @@ async function runPresentation(db, io, sessionId) {
         );
 
         await waitWhilePaused(db, io, sessionId);
-        if (!narrationResult.audioHandled) {
+        if (narrationResult.prewarmedAudio) {
+            await playPrewarmedAudio(io, sessionId, currentSlideIndex, narrationResult.prewarmedAudio, { isQA: false });
+        } else if (!narrationResult.audioHandled) {
             await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
         }
 
@@ -396,7 +526,7 @@ async function runPresentation(db, io, sessionId) {
 
             let answer = '';
             try {
-                if (realtimePresenter.isConfigured()) {
+                if (shouldUseRealtimePresenter()) {
                     const realtimeResult = await realtimePresenter.generateNarrationAudio({
                         slideTitle: 'Audience Question',
                         slideContent: question.question_text,
@@ -442,7 +572,7 @@ async function runPresentation(db, io, sessionId) {
                     } else {
                         console.warn('Realtime presenter returned no audio for queued QA; falling back to TTS stream');
                     }
-                } else {
+                } else if (shouldStreamNarrationText()) {
                     answer = await modelService.generateNarrationStream({
                         slideTitle: 'Audience Question',
                         slideContent: question.question_text,
@@ -460,6 +590,17 @@ async function runPresentation(db, io, sessionId) {
                             questionIndex: q + 1,
                             totalQuestions: allQuestions.length
                         });
+                    });
+                } else {
+                    answer = await modelService.generateNarration({
+                        slideTitle: 'Audience Question',
+                        slideContent: question.question_text,
+                        slideNotes: 'Answer this question concisely, warmly, and like a real presenter speaking directly to one person in the room.',
+                        pendingQuestions: [],
+                        participantName,
+                        slideIndex: slides.length + q,
+                        totalSlides: slides.length + allQuestions.length,
+                        style: 'conversational'
                     });
                 }
             } catch (err) {
@@ -481,7 +622,7 @@ async function runPresentation(db, io, sessionId) {
                 db.run('UPDATE questions SET status = \'unanswered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?', [answer, question.id]);
             }
 
-            if (!realtimePresenter.isConfigured()) {
+            if (!shouldUseRealtimePresenter()) {
                 await streamAudio(io, sessionId, answer, slides.length + q, {
                     isQA: true,
                     questionIndex: q + 1
@@ -546,7 +687,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
         isWrapUp: true
     });
 
-    if (realtimePresenter.isConfigured()) {
+    if (shouldUseRealtimePresenter()) {
         try {
             const result = await realtimePresenter.generateNarrationAudio({
                 slideTitle: 'Wrap Up',
@@ -618,7 +759,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
         ].join(' ');
         io.to(sessionId).emit('narration-text', { text: closingLines, slideIndex: -1, isWrapUp: true });
 
-        if (realtimePresenter.isConfigured()) {
+        if (shouldUseRealtimePresenter()) {
             try {
                 const result = await realtimePresenter.generateNarrationAudio({
                     slideTitle: 'Closing',
@@ -724,33 +865,11 @@ async function applyQuestionClassification(db, sessionId, pendingQuestions, clas
 }
 
 async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
-    const sessionMetadata = getSessionMetadata(db, sessionId);
-    const participantName = getParticipantName(db, sessionId);
-    const knowledgeContext = buildKnowledgeContext(sessionMetadata);
-    const audienceMemory = db.all(
-        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
-        [sessionId]
-    ).reduce((acc, item) => {
-        acc[item.key] = item.value;
-        return acc;
-    }, {});
-
-    const context = {
-        slideTitle: slide.title,
-        slideContent: slide.content,
-        slideNotes: slide.notes,
-        pendingQuestions,
-        audienceContext: audienceMemory,
-        participantName,
-        knowledgeContext,
-        slideIndex,
-        totalSlides,
-        style: slideIndex === 0 ? 'hook' : slideIndex === totalSlides - 1 ? 'closer' : 'conversational'
-    };
+    const context = buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions });
 
     let narrationText = '';
 
-    if (realtimePresenter.isConfigured()) {
+    if (shouldUseRealtimePresenter()) {
         try {
             const result = await realtimePresenter.generateNarrationAudio(context, {
                 onTranscriptDelta: (delta, full) => {
@@ -790,23 +909,29 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
     }
 
     try {
-        narrationText = await modelService.generateNarrationStream(context, (delta, full) => {
-            if (isInterrupted(sessionId)) {
-                return;
-            }
-            io.to(sessionId).emit('narration-delta', {
-                delta,
-                full,
-                slideIndex
+        if (shouldStreamNarrationText()) {
+            narrationText = await modelService.generateNarrationStream(context, (delta, full) => {
+                if (isInterrupted(sessionId)) {
+                    return;
+                }
+                io.to(sessionId).emit('narration-delta', {
+                    delta,
+                    full,
+                    slideIndex
+                });
             });
-        });
+        } else {
+            narrationText = await modelService.generateNarration(context);
+        }
     } catch (err) {
-        console.error('Narration stream failed for slide', slideIndex, err);
+        console.error('Narration generation failed for slide', slideIndex, err);
         narrationText = slide.content;
-        io.to(sessionId).emit('narration-delta', { delta: narrationText, full: narrationText, slideIndex });
+        if (shouldStreamNarrationText()) {
+            io.to(sessionId).emit('narration-delta', { delta: narrationText, full: narrationText, slideIndex });
+        }
     }
 
-    if (!isInterrupted(sessionId)) {
+    if (!isInterrupted(sessionId) && shouldStreamNarrationText()) {
         io.to(sessionId).emit('narration-text', {
             text: narrationText,
             slideIndex
@@ -826,7 +951,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
     try {
         let totalPcmBytes = 0;
 
-        await ttsService.synthesizeStream(text, 'default', (pcmChunk) => {
+        await ttsService.synthesizeStream(text, 'default', (pcmChunk, audioMeta = {}) => {
             if (isInterrupted(sessionId)) {
                 return;
             }
@@ -835,11 +960,23 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
             io.to(sessionId).emit('audio-chunk', {
                 chunk: pcmChunk.toString('base64'),
                 slideIndex,
-                sampleRate: 24000,
-                channels: 1,
-                bitsPerSample: 16,
+                sampleRate: audioMeta.sampleRate || 24000,
+                channels: audioMeta.channels || 1,
+                bitsPerSample: audioMeta.bitsPerSample || 16,
                 ...options
             });
+        }, {
+            onWordBoundaries: (wordBoundaries = []) => {
+                if (isInterrupted(sessionId) || !Array.isArray(wordBoundaries) || wordBoundaries.length === 0) {
+                    return;
+                }
+
+                io.to(sessionId).emit('word-boundaries', {
+                    slideIndex,
+                    words: wordBoundaries,
+                    ...options
+                });
+            }
         });
 
         io.to(sessionId).emit('audio-end', {
@@ -860,6 +997,41 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         });
         await sleep(options.isQA ? 700 : 500);
     }
+}
+
+async function playPrewarmedAudio(io, sessionId, slideIndex, prewarmed, options = {}) {
+    io.to(sessionId).emit('narration-text', {
+        text: prewarmed.text,
+        slideIndex,
+        ...options
+    });
+
+    if (Array.isArray(prewarmed.wordBoundaries) && prewarmed.wordBoundaries.length > 0) {
+        io.to(sessionId).emit('word-boundaries', {
+            slideIndex,
+            words: prewarmed.wordBoundaries,
+            ...options
+        });
+    }
+
+    io.to(sessionId).emit('audio-chunk', {
+        chunk: prewarmed.pcmBase64,
+        slideIndex,
+        sampleRate: prewarmed.sampleRate || 24000,
+        channels: prewarmed.channels || 1,
+        bitsPerSample: prewarmed.bitsPerSample || 16,
+        ...options
+    });
+
+    io.to(sessionId).emit('audio-end', {
+        slideIndex,
+        format: 'wav',
+        ...options
+    });
+
+    const audioDurationSec = Number(prewarmed.totalPcmBytes || 0) / (((prewarmed.sampleRate || 24000) * (prewarmed.bitsPerSample || 16) / 8) * (prewarmed.channels || 1));
+    const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + (options.isQA ? 2200 : 2000), options.isQA ? 2600 : 2400);
+    await waitForPlaybackCompletion(sessionId, waitMs);
 }
 
 async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIndex, questionIds }) {
@@ -906,7 +1078,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
 
         let answer = '';
         try {
-            if (realtimePresenter.isConfigured()) {
+            if (shouldUseRealtimePresenter()) {
                 const realtimeResult = await realtimePresenter.generateNarrationAudio({
                     slideTitle: 'Audience Question',
                     slideContent: question.question_text,
@@ -959,7 +1131,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                 } else {
                     console.warn('Realtime presenter returned no audio for inline QA; falling back to TTS stream');
                 }
-            } else {
+            } else if (shouldStreamNarrationText()) {
                 answer = await modelService.generateNarrationStream({
                     slideTitle: 'Audience Question',
                     slideContent: question.question_text,
@@ -986,6 +1158,25 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                         totalQuestions: questions.length
                     });
                 });
+            } else {
+                answer = await modelService.generateNarration({
+                    slideTitle: 'Audience Question',
+                    slideContent: question.question_text,
+                    slideNotes: [
+                        `You are answering a typed audience question immediately after slide ${currentSlideIndex + 1}.`,
+                        currentSlide ? `Current slide title: ${currentSlide.title}.` : '',
+                        currentSlide ? `Current slide visible text: ${currentSlide.content}.` : '',
+                        currentSlide?.notes ? `Presenter notes: ${currentSlide.notes}.` : '',
+                        'Answer only from this deck context. If the deck does not contain the answer, say that clearly and do not invent details.'
+                    ].filter(Boolean).join(' '),
+                    pendingQuestions: [],
+                    audienceContext: audienceMemory,
+                    participantName,
+                    knowledgeContext,
+                    slideIndex: slides.length + q,
+                    totalSlides: slides.length + questions.length,
+                    style: 'conversational'
+                });
             }
         } catch (err) {
             answer = 'That is a fair question. The short answer is yes, but the nuance depends on your context and what outcome you care about most.';
@@ -1006,7 +1197,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
             db.run('UPDATE questions SET status = \'unanswered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?', [answer, question.id]);
         }
 
-        if (!realtimePresenter.isConfigured()) {
+        if (!shouldUseRealtimePresenter()) {
             await streamAudio(io, sessionId, answer, slides.length + q, {
                 isQA: true,
                 questionIndex: q + 1

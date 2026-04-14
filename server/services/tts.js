@@ -1,14 +1,26 @@
 const WebSocket = require('ws');
 const { AzureOpenAI } = require('openai');
 const axios = require('axios');
+const sdk = require('microsoft-cognitiveservices-speech-sdk');
 
 const TTS_PROVIDERS = {
   AZURE_REALTIME: 'azure-realtime',
   AZURE_SPEECH: 'azure-speech',
+  AZURE_SDK: 'azure-sdk',
   KITTENTTS: 'kittentts'
 };
 
-const AZURE_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const DEFAULT_AUDIO_META = {
+  sampleRate: 24000,
+  channels: 1,
+  bitsPerSample: 16
+};
+
+const VOICE_MAP_SDK = {
+  default: 'en-US-AvaMultilingualNeural',
+  female: 'en-US-AvaMultilingualNeural',
+  male: 'en-US-AndrewMultilingualNeural'
+};
 
 const VOICE_MAP_REALTIME = {
   default: 'alloy',
@@ -27,6 +39,16 @@ const VOICE_MAP_KITTENTTS = {
   female: 'female',
   male: 'male'
 };
+
+function trimTrailingSlash(value) {
+  return String(value || '').replace(/\/+$/, '');
+}
+
+function deriveFoundryBaseEndpoint(value) {
+  const raw = trimTrailingSlash(value);
+  if (!raw) return '';
+  return raw.replace(/\/api\/projects\/[^/]+$/i, '');
+}
 
 function pcm16ToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
   const dataSize = pcmBuffer.length;
@@ -50,31 +72,121 @@ function pcm16ToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSampl
   return buffer;
 }
 
+function extractPcmFromWav(wavBuffer) {
+  if (!Buffer.isBuffer(wavBuffer) || wavBuffer.length < 44) {
+    throw new Error('Invalid WAV buffer');
+  }
+
+  if (wavBuffer.toString('ascii', 0, 4) !== 'RIFF' || wavBuffer.toString('ascii', 8, 12) !== 'WAVE') {
+    throw new Error('Unsupported WAV container');
+  }
+
+  let offset = 12;
+  let fmtChunk = null;
+  let dataChunk = null;
+
+  while (offset + 8 <= wavBuffer.length) {
+    const chunkId = wavBuffer.toString('ascii', offset, offset + 4);
+    const chunkSize = wavBuffer.readUInt32LE(offset + 4);
+    const chunkStart = offset + 8;
+    const chunkEnd = chunkStart + chunkSize;
+
+    if (chunkEnd > wavBuffer.length) {
+      break;
+    }
+
+    if (chunkId === 'fmt ') {
+      fmtChunk = {
+        audioFormat: wavBuffer.readUInt16LE(chunkStart),
+        channels: wavBuffer.readUInt16LE(chunkStart + 2),
+        sampleRate: wavBuffer.readUInt32LE(chunkStart + 4),
+        bitsPerSample: wavBuffer.readUInt16LE(chunkStart + 14)
+      };
+    } else if (chunkId === 'data') {
+      dataChunk = wavBuffer.subarray(chunkStart, chunkEnd);
+    }
+
+    offset = chunkEnd + (chunkSize % 2);
+  }
+
+  if (!fmtChunk || !dataChunk) {
+    throw new Error('WAV buffer is missing fmt or data chunk');
+  }
+
+  if (fmtChunk.audioFormat !== 1) {
+    throw new Error(`Unsupported WAV format: ${fmtChunk.audioFormat}`);
+  }
+
+  return {
+    pcmBuffer: dataChunk,
+    sampleRate: fmtChunk.sampleRate,
+    channels: fmtChunk.channels,
+    bitsPerSample: fmtChunk.bitsPerSample
+  };
+}
+
 class TTSService {
   constructor() {
     this.failClosed = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
-    this.provider = this._detectProvider();
-    this.ttsEndpoint = (process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/$/, '');
-    this.ttsApiKey = process.env.AZURE_OPENAI_TTS_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
-    this.ttsDeployment = process.env.AZURE_OPENAI_TTS_DEPLOYMENT || process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-realtime-mini';
-    this.ttsVoice = process.env.AZURE_OPENAI_TTS_VOICE || 'alloy';
+    this.ttsEndpoint = deriveFoundryBaseEndpoint(
+      process.env.AZURE_OPENAI_TTS_ENDPOINT ||
+      process.env.AZURE_OPENAI_REALTIME_ENDPOINT ||
+      process.env.AZURE_OPENAI_ENDPOINT ||
+      process.env.AZURE_VOICELIVE_ENDPOINT ||
+      process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT
+    );
+    this.ttsApiKey =
+      process.env.AZURE_OPENAI_TTS_API_KEY ||
+      process.env.AZURE_OPENAI_REALTIME_API_KEY ||
+      process.env.AZURE_OPENAI_API_KEY ||
+      process.env.AZURE_VOICELIVE_API_KEY ||
+      process.env.AZURE_AI_API_KEY ||
+      '';
+    this.ttsDeployment =
+      process.env.AZURE_OPENAI_TTS_DEPLOYMENT ||
+      process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT ||
+      process.env.AZURE_OPENAI_DEPLOYMENT_NAME ||
+      'gpt-realtime-mini';
+    this.ttsVoice = process.env.AZURE_OPENAI_TTS_VOICE || process.env.AZURE_OPENAI_REALTIME_VOICE || 'alloy';
+    this.speechKey =
+      process.env.AZURE_SPEECH_KEY ||
+      process.env.AZURE_AI_SPEECH_KEY ||
+      process.env.AZURE_COGSERVICES_KEY ||
+      process.env.AZURE_OPENAI_API_KEY ||
+      '';
+    this.speechRegion =
+      process.env.AZURE_SPEECH_REGION ||
+      process.env.AZURE_LOCATION ||
+      process.env.AZURE_REGION ||
+      '';
+    this.speechVoice = process.env.AZURE_SPEECH_VOICE || process.env.AZURE_OPENAI_TTS_SPEECH_VOICE || '';
     this.kittenttsUrl = process.env.KITTENTTS_URL || 'http://localhost:8080/tts';
     this.timeout = parseInt(process.env.TTS_TIMEOUT_MS, 10) || 30000;
+    this.provider = this._detectProvider();
     this._ttsClient = null;
   }
 
   _detectProvider() {
-    const env = process.env.TTS_PROVIDER;
+    const env = String(process.env.TTS_PROVIDER || '').toLowerCase().replace(/[_\s]/g, '-');
     if (env) {
-      const normalized = env.toLowerCase().replace(/[_\s-]/g, '-');
-      if (normalized === 'azure-realtime' || normalized === 'realtime') return TTS_PROVIDERS.AZURE_REALTIME;
-      if (normalized === 'azure-speech' || normalized === 'speech') return TTS_PROVIDERS.AZURE_SPEECH;
-      if (normalized === 'kittentts' || normalized === 'kitten') return TTS_PROVIDERS.KITTENTTS;
+      if (env === 'azure-realtime' || env === 'realtime') return TTS_PROVIDERS.AZURE_REALTIME;
+      if (env === 'azure-speech' || env === 'speech') return TTS_PROVIDERS.AZURE_SPEECH;
+      if (env === 'azure-sdk' || env === 'azure-speech-sdk' || env === 'speech-sdk') return TTS_PROVIDERS.AZURE_SDK;
+      if (env === 'kittentts' || env === 'kitten') return TTS_PROVIDERS.KITTENTTS;
     }
-    if (process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT) {
-      return TTS_PROVIDERS.AZURE_REALTIME;
-    }
+
+    if (this.speechKey && this.speechRegion) return TTS_PROVIDERS.AZURE_SDK;
+    if (this.ttsEndpoint && this.ttsApiKey) return TTS_PROVIDERS.AZURE_REALTIME;
+    if (process.env.KITTENTTS_URL) return TTS_PROVIDERS.KITTENTTS;
     return null;
+  }
+
+  supportsWordBoundaries() {
+    return this.provider === TTS_PROVIDERS.AZURE_SDK;
+  }
+
+  prefersManagedNarration() {
+    return this.supportsWordBoundaries();
   }
 
   _getTtsClient() {
@@ -84,7 +196,7 @@ class TTSService {
     this._ttsClient = new AzureOpenAI({
       apiKey: this.ttsApiKey,
       endpoint: this.ttsEndpoint,
-      apiVersion: '2024-08-01-preview'
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview'
     });
     return this._ttsClient;
   }
@@ -102,10 +214,18 @@ class TTSService {
     if (provider === TTS_PROVIDERS.KITTENTTS) {
       return VOICE_MAP_KITTENTTS[voice] || voice;
     }
+    if (provider === TTS_PROVIDERS.AZURE_SDK) {
+      return this.speechVoice || VOICE_MAP_SDK[voice] || VOICE_MAP_SDK.default;
+    }
     return VOICE_MAP_REALTIME[voice] || this.ttsVoice;
   }
 
   async synthesize(text, voice = 'default') {
+    const result = await this.synthesizeDetailed(text, voice);
+    return result.audioBuffer;
+  }
+
+  async synthesizeDetailed(text, voice = 'default') {
     if (!text) throw new Error('Text is required');
 
     try {
@@ -114,6 +234,8 @@ class TTSService {
           return await this._synthesizeViaRealtime(text, voice);
         case TTS_PROVIDERS.AZURE_SPEECH:
           return await this._synthesizeViaSpeech(text, voice);
+        case TTS_PROVIDERS.AZURE_SDK:
+          return await this._synthesizeViaSpeechSdk(text, voice);
         case TTS_PROVIDERS.KITTENTTS:
           return await this._synthesizeViaKittenTTS(text, voice);
         default:
@@ -121,15 +243,28 @@ class TTSService {
             throw new Error('No TTS provider configured');
           }
           console.warn('No TTS provider configured, generating placeholder audio');
-          return this.generatePlaceholderWav(text);
+          return this._placeholderResult(text);
       }
     } catch (error) {
       console.error('TTS synthesis error:', error.message);
       if (this.failClosed) {
         throw error;
       }
-      return this.generatePlaceholderWav(text);
+      return this._placeholderResult(text);
     }
+  }
+
+  _placeholderResult(text) {
+    const audioBuffer = this.generatePlaceholderWav(text);
+    const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
+    return {
+      audioBuffer,
+      pcmBuffer,
+      sampleRate,
+      channels,
+      bitsPerSample,
+      wordBoundaries: []
+    };
   }
 
   async _synthesizeViaRealtime(text, voice) {
@@ -150,10 +285,6 @@ class TTSService {
         ws.close();
         reject(new Error('Realtime TTS connection timed out'));
       }, this.timeout);
-
-      ws.on('open', () => {
-        // no-op; wait for session.created event
-      });
 
       ws.on('message', (raw) => {
         let event;
@@ -203,21 +334,33 @@ class TTSService {
             }
             break;
 
-          case 'response.done':
+          case 'response.done': {
             clearTimeout(timer);
             ws.close();
-            if (audioChunks.length > 0) {
-              const pcm = Buffer.concat(audioChunks);
-              resolve(pcm16ToWav(pcm, 24000, 1, 16));
-            } else {
-              resolve(this.generatePlaceholderWav(text));
+            if (audioChunks.length === 0) {
+              resolve(this._placeholderResult(text));
+              return;
             }
+
+            const pcmBuffer = Buffer.concat(audioChunks);
+            resolve({
+              audioBuffer: pcm16ToWav(pcmBuffer, DEFAULT_AUDIO_META.sampleRate, DEFAULT_AUDIO_META.channels, DEFAULT_AUDIO_META.bitsPerSample),
+              pcmBuffer,
+              sampleRate: DEFAULT_AUDIO_META.sampleRate,
+              channels: DEFAULT_AUDIO_META.channels,
+              bitsPerSample: DEFAULT_AUDIO_META.bitsPerSample,
+              wordBoundaries: []
+            });
             break;
+          }
 
           case 'error':
             clearTimeout(timer);
             ws.close();
             reject(new Error(event.error?.message || 'Realtime TTS error'));
+            break;
+
+          default:
             break;
         }
       });
@@ -241,7 +384,6 @@ class TTSService {
     if (!client) throw new Error('Azure OpenAI credentials not configured for TTS');
 
     const mappedVoice = this._mapVoice(voice, TTS_PROVIDERS.AZURE_SPEECH);
-
     const response = await client.audio.speech.create({
       model: this.ttsDeployment,
       voice: mappedVoice,
@@ -249,11 +391,85 @@ class TTSService {
       response_format: 'wav'
     });
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (!buffer || buffer.length === 0) {
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    if (!audioBuffer.length) {
       throw new Error('Empty audio response from Azure Speech API');
     }
-    return buffer;
+
+    const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
+    return {
+      audioBuffer,
+      pcmBuffer,
+      sampleRate,
+      channels,
+      bitsPerSample,
+      wordBoundaries: []
+    };
+  }
+
+  async _synthesizeViaSpeechSdk(text, voice) {
+    if (!this.speechKey || !this.speechRegion) {
+      throw new Error('Azure Speech SDK credentials are not configured');
+    }
+
+    const speechConfig = sdk.SpeechConfig.fromSubscription(this.speechKey, this.speechRegion);
+    speechConfig.speechSynthesisVoiceName = this._mapVoice(voice, TTS_PROVIDERS.AZURE_SDK);
+    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm;
+    speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestWordBoundary, 'true');
+
+    return new Promise((resolve, reject) => {
+      const wordBoundaries = [];
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+
+      synthesizer.wordBoundary = (_sender, event) => {
+        const word = String(event.text || '').trim();
+        if (!word) return;
+        wordBoundaries.push({
+          word,
+          textOffset: Number(event.textOffset || 0),
+          wordLength: Number(event.wordLength || word.length),
+          offsetMs: Math.max(0, Math.round(Number(event.audioOffset || 0) / 10000)),
+          durationMs: 0
+        });
+      };
+
+      synthesizer.speakTextAsync(
+        text,
+        (result) => {
+          try {
+            if (result.reason !== sdk.ResultReason.SynthesizingAudioCompleted) {
+              throw new Error(result.errorDetails || 'Azure Speech SDK synthesis failed');
+            }
+
+            const audioBuffer = Buffer.from(result.audioData);
+            const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
+
+            for (let i = 0; i < wordBoundaries.length; i++) {
+              const current = wordBoundaries[i];
+              const next = wordBoundaries[i + 1];
+              current.durationMs = Math.max(0, (next?.offsetMs || current.offsetMs) - current.offsetMs);
+            }
+
+            resolve({
+              audioBuffer,
+              pcmBuffer,
+              sampleRate,
+              channels,
+              bitsPerSample,
+              wordBoundaries
+            });
+          } catch (error) {
+            reject(error);
+          } finally {
+            synthesizer.close();
+          }
+        },
+        (error) => {
+          synthesizer.close();
+          reject(new Error(`Azure Speech SDK error: ${error}`));
+        }
+      );
+    });
   }
 
   async _synthesizeViaKittenTTS(text, voice) {
@@ -265,13 +481,23 @@ class TTSService {
       data: { text, voice: mappedVoice, format: 'wav' },
       responseType: 'arraybuffer',
       timeout: this.timeout,
-      headers: { 'Content-Type': 'application/json', 'Accept': 'audio/wav' }
+      headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' }
     });
 
     if (!response.data || response.data.length === 0) {
       throw new Error('Empty audio response from KittenTTS');
     }
-    return Buffer.from(response.data);
+
+    const audioBuffer = Buffer.from(response.data);
+    const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
+    return {
+      audioBuffer,
+      pcmBuffer,
+      sampleRate,
+      channels,
+      bitsPerSample,
+      wordBoundaries: []
+    };
   }
 
   generatePlaceholderWav(text) {
@@ -301,25 +527,39 @@ class TTSService {
       buffer[i] = 0;
     }
 
-    console.log('Generated placeholder WAV:', { textLength: text.length, duration, bufferSize: buffer.length });
     return buffer;
   }
 
-  async synthesizeStream(text, voice, onAudioChunk) {
+  async synthesizeStream(text, voice, onAudioChunk, handlers = {}) {
     if (!text) throw new Error('Text is required');
-    if (typeof voice === 'function') { onAudioChunk = voice; voice = 'default'; }
-    if (!onAudioChunk) onAudioChunk = () => {};
-
-    if (this.provider === TTS_PROVIDERS.AZURE_REALTIME) {
-      return await this._streamViaRealtime(text, voice, onAudioChunk);
+    if (typeof voice === 'function') {
+      handlers = onAudioChunk || {};
+      onAudioChunk = voice;
+      voice = 'default';
+    }
+    if (typeof onAudioChunk !== 'function') {
+      onAudioChunk = () => {};
     }
 
-    const wav = await this.synthesize(text, voice);
-    onAudioChunk(wav);
-    return wav;
+    if (this.provider === TTS_PROVIDERS.AZURE_REALTIME) {
+      return await this._streamViaRealtime(text, voice, onAudioChunk, handlers);
+    }
+
+    const result = await this.synthesizeDetailed(text, voice);
+    handlers.onWordBoundaries?.(result.wordBoundaries || [], {
+      sampleRate: result.sampleRate,
+      channels: result.channels,
+      bitsPerSample: result.bitsPerSample
+    });
+    onAudioChunk(result.pcmBuffer, {
+      sampleRate: result.sampleRate,
+      channels: result.channels,
+      bitsPerSample: result.bitsPerSample
+    });
+    return result.audioBuffer;
   }
 
-  async _streamViaRealtime(text, voice, onAudioChunk) {
+  async _streamViaRealtime(text, voice, onAudioChunk, handlers = {}) {
     const mappedVoice = this._mapVoice(voice, TTS_PROVIDERS.AZURE_REALTIME);
     const wsUrl = this._buildRealtimeWsUrl();
 
@@ -337,8 +577,6 @@ class TTSService {
         ws.close();
         reject(new Error('Realtime TTS stream timed out'));
       }, this.timeout);
-
-      ws.on('open', () => {});
 
       ws.on('message', (raw) => {
         let event;
@@ -382,25 +620,30 @@ class TTSService {
             if (event.delta) {
               const chunk = Buffer.from(event.delta, 'base64');
               audioChunks.push(chunk);
-              onAudioChunk(chunk);
+              onAudioChunk(chunk, { ...DEFAULT_AUDIO_META });
             }
             break;
 
-          case 'response.done':
+          case 'response.done': {
             clearTimeout(timer);
             ws.close();
-            if (audioChunks.length > 0) {
-              const pcm = Buffer.concat(audioChunks);
-              resolve(pcm16ToWav(pcm, 24000, 1, 16));
-            } else {
+            const pcmBuffer = audioChunks.length > 0 ? Buffer.concat(audioChunks) : Buffer.alloc(0);
+            if (!pcmBuffer.length) {
               resolve(this.generatePlaceholderWav(text));
+              return;
             }
+            handlers.onWordBoundaries?.([], { ...DEFAULT_AUDIO_META });
+            resolve(pcm16ToWav(pcmBuffer, DEFAULT_AUDIO_META.sampleRate, DEFAULT_AUDIO_META.channels, DEFAULT_AUDIO_META.bitsPerSample));
             break;
+          }
 
           case 'error':
             clearTimeout(timer);
             ws.close();
             reject(new Error(event.error?.message || 'Realtime TTS stream error'));
+            break;
+
+          default:
             break;
         }
       });
@@ -433,12 +676,16 @@ class TTSService {
       case TTS_PROVIDERS.AZURE_REALTIME:
       case TTS_PROVIDERS.AZURE_SPEECH:
         return !!(this.ttsEndpoint && this.ttsApiKey);
+      case TTS_PROVIDERS.AZURE_SDK:
+        return !!(this.speechKey && this.speechRegion);
       case TTS_PROVIDERS.KITTENTTS:
         try {
           const url = this.kittenttsUrl.replace(/\/tts$/, '/health');
           await axios.get(url, { timeout: 5000 });
           return true;
-        } catch { return false; }
+        } catch {
+          return false;
+        }
       default:
         return false;
     }

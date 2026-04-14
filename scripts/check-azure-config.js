@@ -4,6 +4,12 @@ function trimSlash(value) {
     return String(value || '').replace(/\/+$/, '');
 }
 
+function deriveFoundryBaseEndpoint(value) {
+    const raw = trimSlash(value);
+    if (!raw) return '';
+    return raw.replace(/\/api\/projects\/[^/]+$/i, '');
+}
+
 function redact(value) {
     const text = String(value || '');
     if (!text) {
@@ -46,13 +52,15 @@ async function probe(name, url, options) {
 }
 
 async function main() {
-    const chatEndpoint = trimSlash(process.env.AZURE_OPENAI_ENDPOINT);
-    const chatKey = process.env.AZURE_OPENAI_API_KEY || '';
-    const chatDeployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || '';
+    const chatEndpoint = deriveFoundryBaseEndpoint(process.env.AZURE_OPENAI_ENDPOINT || process.env.AZURE_VOICELIVE_ENDPOINT || process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT);
+    const chatKey = process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_VOICELIVE_API_KEY || process.env.AZURE_AI_API_KEY || '';
+    const chatDeployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || process.env.AZURE_CHAT_DEPLOYMENT || '';
 
-    const realtimeEndpoint = trimSlash(process.env.AZURE_OPENAI_REALTIME_ENDPOINT || process.env.AZURE_OPENAI_TTS_ENDPOINT);
-    const realtimeKey = process.env.AZURE_OPENAI_REALTIME_API_KEY || process.env.AZURE_OPENAI_TTS_API_KEY || '';
+    const realtimeEndpoint = deriveFoundryBaseEndpoint(process.env.AZURE_OPENAI_REALTIME_ENDPOINT || process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_VOICELIVE_ENDPOINT || process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT);
+    const realtimeKey = process.env.AZURE_OPENAI_REALTIME_API_KEY || process.env.AZURE_OPENAI_TTS_API_KEY || process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_VOICELIVE_API_KEY || '';
     const realtimeDeployment = process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT || process.env.AZURE_OPENAI_TTS_DEPLOYMENT || '';
+    const speechKey = process.env.AZURE_SPEECH_KEY || process.env.AZURE_AI_SPEECH_KEY || process.env.AZURE_COGSERVICES_KEY || '';
+    const speechRegion = process.env.AZURE_SPEECH_REGION || process.env.AZURE_LOCATION || process.env.AZURE_REGION || '';
 
     console.log('Azure config check');
     console.log(JSON.stringify({
@@ -61,7 +69,9 @@ async function main() {
         chatDeployment,
         realtimeEndpoint,
         realtimeKey: redact(realtimeKey),
-        realtimeDeployment
+        realtimeDeployment,
+        speechKey: redact(speechKey),
+        speechRegion
     }, null, 2));
 
     const probes = [];

@@ -1,6 +1,131 @@
 export class UIManager {
     constructor(app) {
         this.app = app;
+        this.loadingQuotes = [];
+        this.currentQuoteIndex = 0;
+        this.loadingTimer = null;
+    }
+
+    async showLoadingScreen(quotes) {
+        this.loadingQuotes = quotes;
+        const overlay = document.getElementById('loading-overlay');
+        const quoteText = document.getElementById('loading-quote-text');
+        const quoteAuthor = document.getElementById('loading-quote-author');
+        const progressFill = document.getElementById('loading-progress-fill');
+        
+        if (!overlay) return;
+        
+        overlay.classList.remove('hidden');
+        this.currentQuoteIndex = Math.floor(Math.random() * this.loadingQuotes.length);
+        this._updateQuote();
+
+        // Start progress bar animation (simulated for 12 seconds)
+        let progress = 0;
+        const duration = 12000;
+        const interval = 100;
+        const step = (interval / duration) * 100;
+
+        if (this.loadingTimer) clearInterval(this.loadingTimer);
+        
+        return new Promise((resolve) => {
+            this.loadingTimer = setInterval(() => {
+                progress += step;
+                if (progressFill) progressFill.style.width = `${Math.min(progress, 100)}%`;
+                
+                // Switch quote every 4 seconds
+                if (Math.floor(progress) % 33 === 0 && progress > 5 && progress < 90) {
+                    this.currentQuoteIndex = (this.currentQuoteIndex + 1) % this.loadingQuotes.length;
+                    this._updateQuote();
+                }
+
+                if (progress >= 100) {
+                    clearInterval(this.loadingTimer);
+                    setTimeout(() => {
+                        overlay.classList.add('hidden');
+                        resolve();
+                    }, 500);
+                }
+            }, interval);
+        });
+    }
+
+    _updateQuote() {
+        const quoteText = document.getElementById('loading-quote-text');
+        const quoteAuthor = document.getElementById('loading-quote-author');
+        const quote = this.loadingQuotes[this.currentQuoteIndex];
+        
+        if (quoteText) {
+            quoteText.style.opacity = 0;
+            setTimeout(() => {
+                quoteText.textContent = `"${quote.text}"`;
+                quoteText.style.opacity = 1;
+            }, 500);
+        }
+        if (quoteAuthor) {
+            quoteAuthor.style.opacity = 0;
+            setTimeout(() => {
+                quoteAuthor.textContent = quote.author;
+                quoteAuthor.style.opacity = 0.4;
+            }, 500);
+        }
+    }
+
+    renderTranscriptWaiting(containerId, hint = '') {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'transcript-reel transcript-reel-waiting';
+
+        const meta = document.createElement('div');
+        meta.className = 'transcript-reel-meta';
+        meta.textContent = 'Composing';
+
+        const lines = document.createElement('div');
+        lines.className = 'transcript-reel-lines';
+        const phrases = [
+            'finding the next line',
+            'setting the room tone',
+            'forming the opening beat'
+        ];
+        phrases.forEach((phrase, index) => {
+            const pill = document.createElement('span');
+            pill.className = 'transcript-reel-pill';
+            pill.style.animationDelay = `${index * 220}ms`;
+            pill.textContent = phrase;
+            lines.appendChild(pill);
+        });
+
+        wrap.append(meta, lines);
+        container.appendChild(wrap);
+    }
+
+    renderTranscriptReel(containerId, data = {}) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        const state = data.state || 'waiting';
+        const phrase = String(data.phrase || '').trim();
+        if (state === 'waiting' || !phrase) {
+            this.renderTranscriptWaiting(containerId, data.note || '');
+            return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.className = `transcript-reel transcript-reel-${state}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'transcript-reel-meta';
+        meta.textContent = data.headline || 'Speaking';
+
+        const phraseEl = document.createElement('div');
+        phraseEl.className = 'transcript-reel-phrase';
+        phraseEl.textContent = phrase;
+
+        wrap.append(meta, phraseEl);
+        container.appendChild(wrap);
     }
 
     setStatus(text, state, detail = '') {
@@ -32,7 +157,7 @@ export class UIManager {
     updateFullTranscriptionDisplay(transcript) {
         const el = document.getElementById('full-transcription');
         if (el) {
-            el.textContent = transcript.trim() || 'No transcription yet...';
+            el.textContent = transcript.trim() || '';
         }
     }
 

@@ -62,6 +62,10 @@ export class SocketClient {
             this.app.handleAudioChunk(data);
         });
 
+        this.socket.on('word-boundaries', (data) => {
+            this.app.handleWordBoundaries(data);
+        });
+
         this.socket.on('audio-end', (data) => {
             this.app.handleAudioEnd();
         });

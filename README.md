@@ -5,7 +5,7 @@ A voice-first presentation engine that uses AI to narrate slides in real-time, h
 ## Features
 
 - **Real-time AI narration** using Azure OpenAI GPT-5.4
-- **Text-to-speech** via Azure OpenAI gpt-realtime-mini (or tts-1/tts-1-hd)
+- **Text-to-speech** via Azure OpenAI gpt-realtime-mini, Azure Speech SDK word-boundary synthesis, or tts-1/tts-1-hd
 - **Question classification** and prioritization
 - **Slide advancement** based on audience interaction
 - **Document indexing** and semantic retrieval
@@ -34,13 +34,21 @@ Edit `.env` with your Azure OpenAI credentials.
 
 ### TTS Provider (default: Azure Realtime)
 
-The app uses **Azure OpenAI gpt-realtime-mini** for text-to-speech by default (same Azure credentials, just needs a separate deployment). Set `TTS_PROVIDER` to switch backends:
+The app supports multiple TTS backends. Set `TTS_PROVIDER` to switch backends:
 
 | `TTS_PROVIDER`   | Description | Required env vars |
 |------------------|-------------|-------------------|
 | `azure-realtime` | gpt-realtime-mini via WebSocket (default) | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_TTS_DEPLOYMENT` |
 | `azure-speech`   | tts-1/tts-1-hd via REST API | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_TTS_DEPLOYMENT` |
+| `azure-sdk`      | Azure Speech SDK with real word-boundary timings for karaoke highlighting | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` |
 | `kittentts`      | Legacy KittenTTS Python server | `KITTENTTS_URL` |
+
+If you are using an Azure Foundry project/account endpoint such as `https://<name>.services.ai.azure.com/`, the app also accepts:
+
+- `AZURE_VOICELIVE_ENDPOINT`
+- `AZURE_VOICELIVE_API_KEY`
+- `AZURE_EXISTING_AIPROJECT_ENDPOINT`
+- `AZURE_CHAT_DEPLOYMENT`
 
 ### KittenTTS (legacy, only if TTS_PROVIDER=kittentts)
 
@@ -154,7 +162,14 @@ A traditional pitch deck for Beforest's forest investment model.
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | GPT deployment name | `gpt-5.4` |
 | `AZURE_OPENAI_TTS_DEPLOYMENT` | TTS model deployment name | `gpt-realtime-mini` |
 | `AZURE_OPENAI_TTS_VOICE` | TTS voice (alloy/echo/fable/onyx/nova/shimmer) | `alloy` |
-| `TTS_PROVIDER` | TTS backend: `azure-realtime`, `azure-speech`, `kittentts` | Auto-detect |
+| `AZURE_SPEECH_KEY` | Azure Speech resource key for word-boundary timing | - |
+| `AZURE_SPEECH_REGION` | Azure Speech resource region | - |
+| `AZURE_SPEECH_VOICE` | Azure Speech voice name | `en-US-AvaMultilingualNeural` |
+| `AZURE_VOICELIVE_ENDPOINT` | Azure Foundry account endpoint alias | - |
+| `AZURE_VOICELIVE_API_KEY` | Azure Foundry API key alias | - |
+| `AZURE_EXISTING_AIPROJECT_ENDPOINT` | Azure Foundry project endpoint alias | - |
+| `AZURE_CHAT_DEPLOYMENT` | Azure Foundry chat deployment alias | - |
+| `TTS_PROVIDER` | TTS backend: `azure-realtime`, `azure-speech`, `azure-sdk`, `kittentts` | Auto-detect |
 | `KITTENTTS_URL` | KittenTTS API endpoint (legacy) | `http://localhost:8080/tts` |
 | `PORT` | Server port | `3000` |
 | `NODE_ENV` | Environment | `development` |

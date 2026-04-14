@@ -11,6 +11,8 @@ export class StreamAudioPlayer {
         this.chunkQueue = [];
         this.bufferTimer = null;
         this.isBuffering = false;
+        this.onStreamStart = null;
+        this._streamStartNotified = false;
     }
 
     _ensureContext() {
@@ -63,6 +65,13 @@ export class StreamAudioPlayer {
         // Add a small scheduling buffer (50ms) to ensure smooth transition from buffering to playing
         const schedulingBuffer = 0.05;
         this.nextStartTime = this.audioContext.currentTime + schedulingBuffer;
+        if (!this._streamStartNotified) {
+            this._streamStartNotified = true;
+            this.onStreamStart?.({
+                audioContextStartTime: this.nextStartTime,
+                startedAtMs: performance.now() + (schedulingBuffer * 1000)
+            });
+        }
         
         while (this.chunkQueue.length > 0) {
             const chunk = this.chunkQueue.shift();
@@ -95,6 +104,15 @@ export class StreamAudioPlayer {
         };
     }
 
+    hasPendingPlayback() {
+        if (this.isBuffering) return true;
+        if (this.chunkQueue.length > 0) return true;
+        if (this.activeSources.length > 0) return true;
+        if (this.isPlaying) return true;
+        if (this.audioContext && this.nextStartTime > this.audioContext.currentTime) return true;
+        return false;
+    }
+
     reset() {
         if (this.bufferTimer) {
             clearTimeout(this.bufferTimer);
@@ -108,6 +126,7 @@ export class StreamAudioPlayer {
         this.activeSources = [];
         this.nextStartTime = 0;
         this.isPlaying = false;
+        this._streamStartNotified = false;
     }
 
     _base64ToArrayBuffer(base64) {

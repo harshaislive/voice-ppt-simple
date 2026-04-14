@@ -1,10 +1,32 @@
 const WebSocket = require('ws');
 const narrationPrompt = require('../prompts/narrationPrompt');
 
+function trimTrailingSlash(value) {
+  return String(value || '').replace(/\/+$/, '');
+}
+
+function deriveFoundryBaseEndpoint(value) {
+  const raw = trimTrailingSlash(value);
+  if (!raw) return '';
+  return raw.replace(/\/api\/projects\/[^/]+$/i, '');
+}
+
 class RealtimePresenterService {
   constructor() {
-    this.endpoint = (process.env.AZURE_OPENAI_REALTIME_ENDPOINT || process.env.AZURE_OPENAI_TTS_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/$/, '');
-    this.apiKey = process.env.AZURE_OPENAI_REALTIME_API_KEY || process.env.AZURE_OPENAI_TTS_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
+    this.endpoint = deriveFoundryBaseEndpoint(
+      process.env.AZURE_OPENAI_REALTIME_ENDPOINT ||
+      process.env.AZURE_OPENAI_TTS_ENDPOINT ||
+      process.env.AZURE_OPENAI_ENDPOINT ||
+      process.env.AZURE_VOICELIVE_ENDPOINT ||
+      process.env.AZURE_EXISTING_AIPROJECT_ENDPOINT
+    );
+    this.apiKey =
+      process.env.AZURE_OPENAI_REALTIME_API_KEY ||
+      process.env.AZURE_OPENAI_TTS_API_KEY ||
+      process.env.AZURE_OPENAI_API_KEY ||
+      process.env.AZURE_VOICELIVE_API_KEY ||
+      process.env.AZURE_AI_API_KEY ||
+      '';
     this.deployment = process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT || process.env.AZURE_OPENAI_TTS_DEPLOYMENT || 'gpt-realtime-mini';
     this.voice = process.env.AZURE_OPENAI_REALTIME_VOICE || process.env.AZURE_OPENAI_TTS_VOICE || 'alloy';
     this.timeout = parseInt(process.env.REALTIME_PRESENTER_TIMEOUT_MS, 10) || 45000;
