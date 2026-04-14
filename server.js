@@ -168,7 +168,7 @@ setInterval(() => {
                     .join(', ');
                 
                 dbHelper.run(
-                    'INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+                    'INSERT OR REPLACE INTO audience_memory (session_id, key, value, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
                     [sessionId, 'latest_reaction_summary', `Audience just reacted with: ${summary}`, 0.9]
                 );
             }
