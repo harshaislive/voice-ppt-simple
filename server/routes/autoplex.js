@@ -354,12 +354,8 @@ async function runPresentation(db, io, sessionId) {
 
         await sleep(900);
 
-        await waitForContinue(sessionId, io, {
-            slideIndex: currentSlideIndex,
-            totalSlides: slides.length,
-            slide: { title: slide.title, content: slide.content, image: slide.image, notes: slide.notes },
-            pendingQuestionCount: updatedPendingQuestions.length
-        });
+        // Auto-advance after a brief pause — no "Your Turn" popup
+        await sleep(2000);
 
         updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',

@@ -214,13 +214,6 @@ class VoicePPTApp {
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
 
-        const accordionToggle = document.getElementById('accordion-toggle');
-        if (accordionToggle) {
-            accordionToggle.addEventListener('click', () => {
-                document.getElementById('read-along-accordion').classList.toggle('is-open');
-            });
-        }
-
         document.getElementById('mic-retry-btn').addEventListener('click', () => {
             document.getElementById('mic-permission-modal').classList.add('hidden');
             this.handleInterruptMic();
