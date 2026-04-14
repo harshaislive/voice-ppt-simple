@@ -168,14 +168,14 @@ class RealtimePresenterService {
       }
 
       return {
-        instructions: 'You are a confident, direct presenter speaking live. Use a single consistent voice throughout — calm, assured, conversational. Do not change vocal style, emphasis, or register mid-speech. Speak in short declarative sentences with occasional longer ones for weight. Never sound theatrical, breathless, or like you are switching between characters. One voice, one tone, from start to finish.',
+        instructions: 'You are a film narrator. Calm, sharp, certain. One consistent voice throughout — no register shifts, no theatrical lunges, no breathless emphasis changes. Speak in short declarative sentences with occasional longer ones for weight. Think documentary voiceover, not stage actor. Stay grounded in the provided context and never invent facts.',
         userText: userSections.join('\n\n')
       };
     }
 
     const userText = this._buildSafePrompt(context);
     return {
-      instructions: 'You are a direct, assertive presenter. One consistent voice throughout. Short declarative sentences, then one that lands. No hedging, no filler, no voice changes mid-speech. Stay grounded in the provided context and never invent facts.',
+      instructions: 'You are a film narrator. Calm, sharp, certain. One consistent voice throughout. Short declarative sentences, one that lands. No hedging, no filler, no voice shifts, no theatrical emphasis changes. Think documentary voiceover. Stay grounded in the provided context and never invent facts.',
       userText
     };
   }
@@ -193,18 +193,19 @@ class RealtimePresenterService {
     } = context;
 
     const lines = [
-      `Slide ${slideIndex + 1} of ${totalSlides}.`,
+      `Scene ${slideIndex + 1} of ${totalSlides}.`,
       `Title: ${slideTitle || ''}`,
-      `Visible text: ${slideContent || ''}`,
-      slideNotes ? `Presenter notes: ${slideNotes}` : '',
-      participantName ? `Attendee: ${participantName}. Use their name at most once, naturally.` : '',
+      `On screen: ${slideContent || ''}`,
+      slideNotes ? `Intent: ${slideNotes}` : '',
+      participantName ? `Attendee: ${participantName}. Name them once max.` : '',
       pendingQuestions && pendingQuestions.length
-        ? `Pending audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
+        ? `Audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
         : '',
       audienceContext && Object.keys(audienceContext).length
-        ? `What you just said on the previous slide: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
+        ? `Previous scene narration: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
         : '',
-      'Deliver this with conviction. Short punchy sentences, then one that lands hard. No hedging. No reading the slide aloud.',
+      'Four beats: Hook (1 sentence, grab attention) → Insight (2-3 sentences, what the slide MEANS) → Implication (1-2 sentences, why it matters) → Bridge (1 sentence, momentum forward).',
+      'Specific over vague. No filler phrases. No recapping. One consistent voice.',
       'Do not invent facts or numbers not in the slide or notes.'
     ].filter(Boolean);
 

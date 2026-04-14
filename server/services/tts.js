@@ -167,7 +167,7 @@ class TTSService {
               session: {
                 type: 'realtime',
                 output_modalities: ['audio'],
-                instructions: 'Read the provided text aloud in a natural, professional voice. Do not add any commentary, introduction, or extra words. Only read the text exactly as given.',
+                instructions: 'Read the provided text aloud naturally and clearly. One consistent voice throughout. Do not add commentary, introductions, or extra words. Only read the text exactly as given.',
                 audio: {
                   output: {
                     voice: mappedVoice,
@@ -352,7 +352,7 @@ class TTSService {
               session: {
                 type: 'realtime',
                 output_modalities: ['audio'],
-                instructions: 'Read the provided text aloud in a natural, professional voice. Do not add any commentary, introduction, or extra words. Only read the text exactly as given.',
+                instructions: 'Read the provided text aloud naturally and clearly. One consistent voice throughout. Do not add commentary, introductions, or extra words. Only read the text exactly as given.',
                 audio: {
                   output: {
                     voice: mappedVoice,
