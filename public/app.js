@@ -237,6 +237,11 @@ class VoicePPTApp {
             const scrubber = document.getElementById('scrubber-container');
             if (scrubber) scrubber.classList.add('hidden');
         });
+        on('scrubber-container', 'click', (e) => {
+            if (e.target.id === 'scrubber-container') {
+                e.target.classList.add('hidden');
+            }
+        });
 
         on('start-presentation', 'click', () => this.startSession());
         on('participant-name', 'keypress', (e) => {
