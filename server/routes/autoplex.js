@@ -92,6 +92,142 @@ function pcm16ToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSampl
     return buffer;
 }
 
+function extractPcmFromWav(wavBuffer) {
+    if (!Buffer.isBuffer(wavBuffer) || wavBuffer.length < 44) {
+        throw new Error('Invalid WAV buffer');
+    }
+
+    if (wavBuffer.toString('ascii', 0, 4) !== 'RIFF' || wavBuffer.toString('ascii', 8, 12) !== 'WAVE') {
+        throw new Error('Unsupported WAV container');
+    }
+
+    let offset = 12;
+    let fmtChunk = null;
+    let dataChunk = null;
+
+    while (offset + 8 <= wavBuffer.length) {
+        const chunkId = wavBuffer.toString('ascii', offset, offset + 4);
+        const chunkSize = wavBuffer.readUInt32LE(offset + 4);
+        const chunkStart = offset + 8;
+        const chunkEnd = chunkStart + chunkSize;
+
+        if (chunkEnd > wavBuffer.length) {
+            break;
+        }
+
+        if (chunkId === 'fmt ') {
+            fmtChunk = {
+                audioFormat: wavBuffer.readUInt16LE(chunkStart),
+                channels: wavBuffer.readUInt16LE(chunkStart + 2),
+                sampleRate: wavBuffer.readUInt32LE(chunkStart + 4),
+                bitsPerSample: wavBuffer.readUInt16LE(chunkStart + 14)
+            };
+        } else if (chunkId === 'data') {
+            dataChunk = wavBuffer.subarray(chunkStart, chunkEnd);
+        }
+
+        offset = chunkEnd + (chunkSize % 2);
+    }
+
+    if (!fmtChunk || !dataChunk) {
+        throw new Error('WAV buffer is missing fmt or data chunk');
+    }
+
+    if (fmtChunk.audioFormat !== 1) {
+        throw new Error(`Unsupported WAV format: ${fmtChunk.audioFormat}`);
+    }
+
+    return {
+        pcmBuffer: dataChunk,
+        sampleRate: fmtChunk.sampleRate,
+        channels: fmtChunk.channels,
+        bitsPerSample: fmtChunk.bitsPerSample
+    };
+}
+
+function getPersistedReplayPath(narrationAudioPath) {
+    if (!narrationAudioPath || typeof narrationAudioPath !== 'string') {
+        return null;
+    }
+
+    const normalized = narrationAudioPath.replace(/^\/+/, '');
+    return path.join(__dirname, '..', '..', 'public', normalized);
+}
+
+async function readPersistedNarrationBuffer({ narrationAudioPath, narrationAudioUrl }) {
+    const localPath = getPersistedReplayPath(narrationAudioPath);
+    if (localPath && fs.existsSync(localPath)) {
+        return fs.promises.readFile(localPath);
+    }
+
+    if (narrationAudioUrl && typeof fetch === 'function') {
+        const response = await fetch(narrationAudioUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch narration audio: ${response.status}`);
+        }
+        return Buffer.from(await response.arrayBuffer());
+    }
+
+    return null;
+}
+
+async function loadPersistedReplayPlayback(db, sessionId, slideIndex) {
+    let slide = db.get(
+        'SELECT * FROM slides WHERE session_id = ? AND slide_index = ?',
+        [sessionId, slideIndex]
+    );
+
+    if ((!slide || (!slide.narration_audio_path && !slide.narration_audio_url)) && supabaseSession.isConfigured()) {
+        try {
+            const remoteSlide = await supabaseSession.getSlideByIndex(sessionId, slideIndex);
+            if (remoteSlide) {
+                slide = {
+                    ...slide,
+                    ...remoteSlide
+                };
+            }
+        } catch (error) {
+            console.warn('[AutoPlex] Failed to load persisted replay slide from Supabase:', error.message);
+        }
+    }
+
+    if (!slide || (!slide.narration_audio_path && !slide.narration_audio_url)) {
+        return null;
+    }
+
+    const narrationText = slide.narration_text || slide.narration_metadata_json?.transcriptText || slide.content || '';
+    const metadata = typeof slide.narration_metadata_json === 'string'
+        ? (() => {
+            try {
+                return JSON.parse(slide.narration_metadata_json);
+            } catch {
+                return {};
+            }
+        })()
+        : (slide.narration_metadata_json || {});
+    const audioBuffer = await readPersistedNarrationBuffer({
+        narrationAudioPath: slide.narration_audio_path,
+        narrationAudioUrl: slide.narration_audio_url
+    });
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+        return null;
+    }
+
+    const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
+    const wordBoundaries = Array.isArray(metadata.wordBoundaries) ? metadata.wordBoundaries : [];
+
+    return {
+        text: narrationText,
+        pcmBase64: pcmBuffer.toString('base64'),
+        sampleRate,
+        channels,
+        bitsPerSample,
+        wordBoundaries,
+        totalPcmBytes: pcmBuffer.length
+    };
+}
+
 function shouldUseRealtimePresenter() {
     return realtimePresenter.isConfigured() && !ttsService.prefersManagedNarration();
 }
@@ -654,8 +790,13 @@ router.post('/replay-slide', requireSessionControl(), async (req, res) => {
             reason: 'replay'
         });
 
-        const cached = getReplayCache(sessionId, resolvedSlideIndex) || getPrewarmedSlide(sessionId, resolvedSlideIndex);
+        const cached = getReplayCache(sessionId, resolvedSlideIndex)
+            || getPrewarmedSlide(sessionId, resolvedSlideIndex)
+            || await loadPersistedReplayPlayback(db, sessionId, resolvedSlideIndex);
         if (cached) {
+            if (!getReplayCache(sessionId, resolvedSlideIndex)) {
+                setReplayCache(sessionId, resolvedSlideIndex, cached);
+            }
             await emitCachedPlayback(io, sessionId, resolvedSlideIndex, cached, { isReplay: true });
         }
 
