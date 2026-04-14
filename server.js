@@ -160,10 +160,19 @@ setInterval(() => {
                     .map(([emoji, count]) => `${count}x ${emoji}`)
                     .join(', ');
                 
-                dbHelper.run(
-                    'INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-                    [sessionId, 'latest_reaction_summary', `Audience just reacted with: ${summary}`, 0.9]
-                );
+                try {
+                    dbHelper.run(
+                        `INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                         ON CONFLICT(session_id, key) DO UPDATE SET
+                            value = excluded.value,
+                            confidence = excluded.confidence,
+                            updated_at = CURRENT_TIMESTAMP`,
+                        [sessionId, 'latest_reaction_summary', `Audience just reacted with: ${summary}`, 0.9]
+                    );
+                } catch (error) {
+                    console.error('Failed to persist reaction summary:', error);
+                }
             }
 
             // Reset after reporting

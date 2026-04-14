@@ -25,6 +25,7 @@ class VoicePPTApp {
         this.isListening = false;
         this.voiceModeEnabled = false;
         this.voiceTurnState = 'idle';
+        this.suppressPresentationAudio = false;
         
         this.votes = new Map();
         this.userReactions = [];
@@ -471,6 +472,9 @@ class VoicePPTApp {
     }
 
     handleAudioChunk(data) {
+        if (this.suppressPresentationAudio) {
+            return;
+        }
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
         this.renderSubtitle();
@@ -590,6 +594,7 @@ class VoicePPTApp {
 
     async handleInterruptMic() {
         if (this.voiceModeEnabled) { await this.stopVoiceMode(); return; }
+        this.suppressPresentationAudio = true;
         await this.requestInterrupt(); await this.pauseAutoplex(true);
         if (await this.azureVoice.connect()) { 
             this.voiceModeEnabled = true; 
@@ -600,6 +605,7 @@ class VoicePPTApp {
         // Fallback to browser recognition
         if (!this.recognition) { 
             await this.pauseAutoplex(false);
+            this.suppressPresentationAudio = false;
             document.getElementById('question-input').focus(); 
             this.setStatus('Type interruption', 'paused', 'Voice unavailable'); 
             return; 
@@ -609,6 +615,7 @@ class VoicePPTApp {
         } catch (err) { 
             console.error(err); 
             await this.pauseAutoplex(false);
+            this.suppressPresentationAudio = false;
             this.setStatus('Mic unavailable', 'paused', 'Type question'); 
         }
     }
@@ -617,6 +624,7 @@ class VoicePPTApp {
         this.voiceModeEnabled = false; 
         await this.azureVoice.disconnect(); 
         await this.pauseAutoplex(false); 
+        this.suppressPresentationAudio = false;
         this.updateMicState(); 
         this.restorePresentationStatus(); 
     }
@@ -670,6 +678,23 @@ class VoicePPTApp {
     }
 
     async pauseAutoplex(p) { if (!this.sessionId) return; try { await this.apiFetch(`/api/autoplex/${p ? 'pause' : 'resume'}`, { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error(err); } }
+
+    buildVoiceInstructions(context = {}) {
+        const { deckLabel, participantName, title, subtitle, notes, slideIndex, totalSlides } = context;
+        const slideLabel = title ? `Current slide ${slideIndex + 1 || '?'}/${totalSlides || '?'}, "${title}".` : 'The presentation is live.';
+        return [
+            'You are the live voice presenter for an interactive presentation.',
+            'Wait for the attendee to speak first, then answer in natural spoken language.',
+            'Keep answers concise, grounded in the current slide and deck context, and conversational.',
+            'If the attendee asks to move slides or resume the deck, use the available tools.',
+            'Do not invent facts that are not present in the current presentation context.',
+            participantName ? `You are speaking to ${participantName}. Use their name naturally, but sparingly.` : '',
+            deckLabel ? `Deck: ${deckLabel}.` : '',
+            slideLabel,
+            subtitle ? `Visible text: ${subtitle}` : '',
+            notes ? `Presenter notes: ${notes}` : ''
+        ].filter(Boolean).join(' ');
+    }
 
     getCurrentSlideContext() {
         return {

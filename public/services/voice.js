@@ -9,6 +9,7 @@ export class AzureVoiceSession {
         this.connecting = false;
         this.pendingToolCalls = new Set();
         this.supported = Boolean(window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia);
+        this.voice = 'alloy';
         if (this.remoteAudio) {
             this.remoteAudio.autoplay = true;
             this.remoteAudio.playsInline = true;
@@ -29,6 +30,7 @@ export class AzureVoiceSession {
             if (!config.enabled) {
                 throw new Error('Azure realtime voice is not configured');
             }
+            this.voice = config.voice || 'alloy';
 
             try {
                 this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -140,6 +142,9 @@ export class AzureVoiceSession {
                 tools: this.app.getRealtimeTools(),
                 output_modalities: ['audio'],
                 audio: {
+                    output: {
+                        voice: this.voice
+                    },
                     input: {
                         transcription: { model: 'whisper-1' },
                         turn_detection: {

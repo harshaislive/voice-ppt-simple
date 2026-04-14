@@ -82,6 +82,10 @@ router.post('/', requireSessionControl(), async (req, res) => {
         db.run(`
             INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(session_id, key) DO UPDATE SET
+                value = excluded.value,
+                confidence = excluded.confidence,
+                updated_at = CURRENT_TIMESTAMP
         `, [sessionId, `last_narration_${session.current_slide_index}`, narrationText, 0.9]);
         
         // Generate TTS audio

@@ -97,7 +97,7 @@ router.post('/connect', requireSessionControl(), async (req, res) => {
                     threshold: 0.45,
                     prefix_padding_ms: 250,
                     silence_duration_ms: 500,
-                    create_response: false,
+                    create_response: true,
                     interrupt_response: true
                 }
             },
