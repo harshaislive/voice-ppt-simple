@@ -18,9 +18,13 @@ const playbackWaiters = new Map();
 const continueWaiters = new Map();
 const presentationStartTimes = new Map();
 const prewarmedSlides = new Map();
+const prewarmTasks = new Map();
 const replayCache = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 250;
+const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 80;
+const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 300;
 
 setInterval(() => {
     const now = Date.now();
@@ -360,6 +364,14 @@ function setPrewarmedSlide(sessionId, slideIndex, payload) {
     });
 }
 
+function getPrewarmTask(sessionId, slideIndex) {
+    return prewarmTasks.get(getPrewarmKey(sessionId, slideIndex)) || null;
+}
+
+function setPrewarmTask(sessionId, slideIndex, task) {
+    prewarmTasks.set(getPrewarmKey(sessionId, slideIndex), task);
+}
+
 function consumePrewarmedSlide(sessionId, slideIndex) {
     const key = getPrewarmKey(sessionId, slideIndex);
     const value = prewarmedSlides.get(key) || null;
@@ -367,6 +379,72 @@ function consumePrewarmedSlide(sessionId, slideIndex) {
         prewarmedSlides.delete(key);
     }
     return value;
+}
+
+async function prewarmSlideAudio({ db, sessionId, slideIndex, slide, totalSlides, pendingQuestions = [] }) {
+    if (!slide) {
+        throw new Error('Slide is required for prewarm');
+    }
+
+    const existing = getPrewarmedSlide(sessionId, slideIndex);
+    if (existing) {
+        return existing;
+    }
+
+    const inFlight = getPrewarmTask(sessionId, slideIndex);
+    if (inFlight) {
+        return inFlight;
+    }
+
+    const task = (async () => {
+        const context = buildNarrationContext({
+            db,
+            sessionId,
+            slide,
+            slideIndex,
+            totalSlides,
+            pendingQuestions
+        });
+
+        const narrationText = await modelService.generateNarration(context);
+        const audioResult = await ttsService.synthesizeDetailed(narrationText, 'default');
+        const payload = {
+            text: narrationText,
+            pcmBase64: audioResult.pcmBuffer.toString('base64'),
+            sampleRate: audioResult.sampleRate,
+            channels: audioResult.channels,
+            bitsPerSample: audioResult.bitsPerSample,
+            wordBoundaries: audioResult.wordBoundaries || [],
+            totalPcmBytes: audioResult.pcmBuffer.length
+        };
+
+        setPrewarmedSlide(sessionId, slideIndex, payload);
+        setReplayCache(sessionId, slideIndex, payload);
+
+        await persistSlideNarration({
+            db,
+            sessionId,
+            slideIndex,
+            slide,
+            narrationText,
+            audioBuffer: audioResult.audioBuffer,
+            pcmBuffer: audioResult.pcmBuffer,
+            sampleRate: audioResult.sampleRate,
+            channels: audioResult.channels,
+            bitsPerSample: audioResult.bitsPerSample,
+            audioSource: 'prewarmed',
+            wordBoundaries: audioResult.wordBoundaries || []
+        });
+
+        return payload;
+    })();
+
+    setPrewarmTask(sessionId, slideIndex, task);
+    try {
+        return await task;
+    } finally {
+        prewarmTasks.delete(getPrewarmKey(sessionId, slideIndex));
+    }
 }
 
 function getReplayKey(sessionId, slideIndex) {
@@ -685,67 +763,25 @@ router.post('/prewarm', requireSessionControl(), async (req, res) => {
             return res.json({ success: true, prewarmed: true, cached: true, slideIndex });
         }
 
-        if (shouldUseRealtimePresenter()) {
-            return res.json({ success: true, prewarmed: false, reason: 'realtime-presenter-active', slideIndex });
-        }
-
         const pendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
             [sessionId]
         ).map((q) => q.question_text);
 
-        const context = buildNarrationContext({
+        const prewarmed = await prewarmSlideAudio({
             db,
             sessionId,
-            slide: targetSlide,
             slideIndex,
+            slide: targetSlide,
             totalSlides: slides.length,
             pendingQuestions
-        });
-
-        const narrationText = await modelService.generateNarration(context);
-        const audioResult = await ttsService.synthesizeDetailed(narrationText, 'default');
-
-        setPrewarmedSlide(sessionId, slideIndex, {
-            text: narrationText,
-            pcmBase64: audioResult.pcmBuffer.toString('base64'),
-            sampleRate: audioResult.sampleRate,
-            channels: audioResult.channels,
-            bitsPerSample: audioResult.bitsPerSample,
-            wordBoundaries: audioResult.wordBoundaries || [],
-            totalPcmBytes: audioResult.pcmBuffer.length
-        });
-
-        setReplayCache(sessionId, slideIndex, {
-            text: narrationText,
-            pcmBase64: audioResult.pcmBuffer.toString('base64'),
-            sampleRate: audioResult.sampleRate,
-            channels: audioResult.channels,
-            bitsPerSample: audioResult.bitsPerSample,
-            wordBoundaries: audioResult.wordBoundaries || [],
-            totalPcmBytes: audioResult.pcmBuffer.length
-        });
-
-        await persistSlideNarration({
-            db,
-            sessionId,
-            slideIndex,
-            slide: targetSlide,
-            narrationText,
-            audioBuffer: audioResult.audioBuffer,
-            pcmBuffer: audioResult.pcmBuffer,
-            sampleRate: audioResult.sampleRate,
-            channels: audioResult.channels,
-            bitsPerSample: audioResult.bitsPerSample,
-            audioSource: 'prewarmed',
-            wordBoundaries: audioResult.wordBoundaries || []
         });
 
         res.json({
             success: true,
             prewarmed: true,
             slideIndex,
-            hasWordBoundaries: (audioResult.wordBoundaries || []).length > 0
+            hasWordBoundaries: (prewarmed.wordBoundaries || []).length > 0
         });
     } catch (error) {
         console.error('Prewarm failed:', error);
@@ -830,8 +866,7 @@ async function runPresentation(db, io, sessionId) {
         deckTitle: session.deck_id
     });
 
-    // Increased delay to 1.5s to ensure client audio context is fully resumed and buffered
-    await sleep(1500);
+    await sleep(PRESENTATION_START_DELAY_MS);
 
     let currentSlideIndex = 0;
     console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}`);
@@ -851,14 +886,25 @@ async function runPresentation(db, io, sessionId) {
             reason: 'auto-advance'
         });
 
-        await sleep(120);
+        await sleep(SLIDE_CHANGE_SETTLE_MS);
 
         let updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
             [sessionId]
         );
 
-        const prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
+        let prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
+        if (!prewarmed) {
+            const inFlightPrewarm = getPrewarmTask(sessionId, currentSlideIndex);
+            if (inFlightPrewarm) {
+                try {
+                    await inFlightPrewarm;
+                    prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
+                } catch (error) {
+                    console.warn(`[AutoPlex] In-flight prewarm failed for slide ${currentSlideIndex + 1}:`, error.message);
+                }
+            }
+        }
         const narrationResult = prewarmed
             ? { text: prewarmed.text, audioHandled: true, prewarmed: true, prewarmedAudio: prewarmed }
             : await narrateSlide({
@@ -886,54 +932,13 @@ async function runPresentation(db, io, sessionId) {
                         [sessionId]
                     ).map(q => q.question_text);
 
-                    const nextContext = buildNarrationContext({
+                    await prewarmSlideAudio({
                         db,
                         sessionId,
-                        slide: nextSlide,
                         slideIndex: nextSlideIndex,
+                        slide: nextSlide,
                         totalSlides: slides.length,
                         pendingQuestions: nextPendingQuestions
-                    });
-
-                    // Check if we should use realtime or standard TTS for prewarm
-                    // Note: Realtime presenter usually streams, so prewarming it into a buffer 
-                    // is slightly different but we can still generate the narration text at least.
-                    const nextNarrationText = await modelService.generateNarration(nextContext);
-                    const nextAudioResult = await ttsService.synthesizeDetailed(nextNarrationText, 'default');
-
-                    setPrewarmedSlide(sessionId, nextSlideIndex, {
-                        text: nextNarrationText,
-                        pcmBase64: nextAudioResult.pcmBuffer.toString('base64'),
-                        sampleRate: nextAudioResult.sampleRate,
-                        channels: nextAudioResult.channels,
-                        bitsPerSample: nextAudioResult.bitsPerSample,
-                        wordBoundaries: nextAudioResult.wordBoundaries || [],
-                        totalPcmBytes: nextAudioResult.pcmBuffer.length
-                    });
-                    
-                    setReplayCache(sessionId, nextSlideIndex, {
-                        text: nextNarrationText,
-                        pcmBase64: nextAudioResult.pcmBuffer.toString('base64'),
-                        sampleRate: nextAudioResult.sampleRate,
-                        channels: nextAudioResult.channels,
-                        bitsPerSample: nextAudioResult.bitsPerSample,
-                        wordBoundaries: nextAudioResult.wordBoundaries || [],
-                        totalPcmBytes: nextAudioResult.pcmBuffer.length
-                    });
-
-                    await persistSlideNarration({
-                        db,
-                        sessionId,
-                        slideIndex: nextSlideIndex,
-                        slide: nextSlide,
-                        narrationText: nextNarrationText,
-                        audioBuffer: nextAudioResult.audioBuffer,
-                        pcmBuffer: nextAudioResult.pcmBuffer,
-                        sampleRate: nextAudioResult.sampleRate,
-                        channels: nextAudioResult.channels,
-                        bitsPerSample: nextAudioResult.bitsPerSample,
-                        audioSource: 'prewarmed',
-                        wordBoundaries: nextAudioResult.wordBoundaries || []
                     });
                     
                     console.log(`[AutoPlex] Pre-warm complete for slide ${nextSlideIndex + 1}`);
@@ -1018,10 +1023,7 @@ async function runPresentation(db, io, sessionId) {
             [sessionId, 'narration_generated', JSON.stringify({ slideIndex: currentSlideIndex, narrationLength: narrationText.length })]
         );
 
-        await sleep(900);
-
-        // Auto-advance after a brief pause — no "Your Turn" popup
-        await sleep(2000);
+        await sleep(POST_SLIDE_HOLD_MS);
 
         updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',

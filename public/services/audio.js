@@ -51,7 +51,7 @@ export class StreamAudioPlayer {
                 this.isBuffering = false;
                 this.bufferTimer = null;
                 this._flushQueue();
-            }, 250);
+            }, 120);
         }
 
         if (this.isBuffering) {
