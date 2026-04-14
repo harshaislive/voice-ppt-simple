@@ -51,6 +51,9 @@ class VoicePPTApp {
         this.awaitingPlaybackComplete = false;
         this.awaitingSlideContinue = false;
 
+        this.isAudioPaused = false;
+        this.pauseStartMs = null;
+
         this.waveformCanvas = document.getElementById('waveform');
         this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
         this.waveformData = new Array(64).fill(0);
@@ -243,6 +246,7 @@ class VoicePPTApp {
         on('qa-close', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('qa-scrim', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('restart-btn', 'click', () => location.reload());
+        on('slide-pause-btn', 'click', () => this.toggleAudioPause());
         on('interrupt-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-mic', 'click', () => this.openQuestionComposer());
         on('wrapup-mic', 'click', () => this.openQuestionComposer());
@@ -901,6 +905,42 @@ class VoicePPTApp {
     }
 
     async pauseAutoplex(p) { if (!this.sessionId) return; try { await this.apiFetch(`/api/autoplex/${p ? 'pause' : 'resume'}`, { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error(err); } }
+
+    toggleAudioPause() {
+        if (!this.streamPlayer || !this.streamPlayer.audioContext) return;
+        const btn = document.getElementById('slide-pause-btn');
+        const iconPause = btn?.querySelector('.icon-pause');
+        const iconPlay = btn?.querySelector('.icon-play');
+
+        if (this.streamPlayer.audioContext.state === 'running') {
+            this.streamPlayer.audioContext.suspend();
+            this.streamPlayer.isPlaying = false;
+            this.isAudioPaused = true;
+            this.pauseStartMs = performance.now();
+            this.clearTranscriptChunkTimers();
+            this.stopWaveform();
+            
+            if (btn) btn.classList.add('is-paused');
+            if (iconPause) iconPause.style.display = 'none';
+            if (iconPlay) iconPlay.style.display = 'block';
+            this.pauseAutoplex(true);
+        } else if (this.streamPlayer.audioContext.state === 'suspended') {
+            this.streamPlayer.audioContext.resume();
+            this.streamPlayer.isPlaying = true;
+            this.isAudioPaused = false;
+            if (this.pauseStartMs && this.pendingPlaybackStartAt) {
+                this.pendingPlaybackStartAt += (performance.now() - this.pauseStartMs);
+                this.pauseStartMs = null;
+            }
+            this.syncTranscriptReelPlayback();
+            this.startWaveform();
+            
+            if (btn) btn.classList.remove('is-paused');
+            if (iconPause) iconPause.style.display = 'block';
+            if (iconPlay) iconPlay.style.display = 'none';
+            this.pauseAutoplex(false);
+        }
+    }
 
     getCurrentSlideContext() {
         return {

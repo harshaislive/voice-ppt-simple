@@ -97,7 +97,13 @@
                                 <h1 id="slide-title" class="slide-title"></h1>
                                 <div id="slide-content-flow" class="slide-content-flow">
                                     <p id="slide-subtitle" class="slide-subtitle"></p>
-                                    <p id="full-transcription" class="full-transcription"></p>
+                                    <div style="position: relative; flex: 1;">
+                                        <p id="full-transcription" class="full-transcription"></p>
+                                        <button id="slide-pause-btn" class="slide-pause-btn" type="button" aria-label="Pause/Play">
+                                            <svg class="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                            <svg class="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

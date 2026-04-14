@@ -2268,3 +2268,10 @@ h1, h2, h3, h4 {
 .qa-slide-header { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
 .qa-slide-q { font-weight: 600; font-size: 1.05rem; }
 .qa-slide-a { font-size: 0.95rem; line-height: 1.5; color: var(--text-dim); }
+
+
+/* Pause/Play Button */
+.slide-pause-btn { position: absolute; bottom: 10px; right: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-red); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: background 0.2s, transform 0.15s; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.slide-pause-btn:hover { transform: scale(1.1); background: #9e3430; }
+.slide-pause-btn.is-paused { background: var(--accent-green); }
+.slide-pause-btn.is-paused:hover { background: #2a3a2b; }
