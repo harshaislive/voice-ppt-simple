@@ -41,6 +41,8 @@ export class UIManager {
         const label = document.getElementById('interrupt-label');
         const slideTurnMic = document.getElementById('slide-turn-mic');
         const slideTurnMicLabel = document.getElementById('slide-turn-mic-label');
+        const wrapupMic = document.getElementById('wrapup-mic');
+        const wrapupMicLabel = document.getElementById('wrapup-mic-label');
 
         const active = isListening || (voiceModeEnabled && azureConnected);
 
@@ -59,6 +61,14 @@ export class UIManager {
         
         if (slideTurnMicLabel) {
             slideTurnMicLabel.textContent = voiceModeEnabled ? 'End Voice Session' : 'Talk To Presenter';
+        }
+
+        if (wrapupMic) {
+            wrapupMic.classList.toggle('listening', active);
+        }
+
+        if (wrapupMicLabel) {
+            wrapupMicLabel.textContent = voiceModeEnabled ? 'End Voice' : isListening ? 'Listening...' : 'Ask Anything';
         }
     }
 

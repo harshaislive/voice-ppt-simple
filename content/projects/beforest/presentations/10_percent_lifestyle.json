@@ -1,0 +1,58 @@
+{
+  "id": "10_percent_lifestyle",
+  "slug": "10_percent_lifestyle",
+  "title": "The 10% Life",
+  "description": "The Art of Return: Strategic Wilderness Integration",
+  "status": "published",
+  "slides": [
+    {
+      "id": "tension",
+      "title": "You've been running at 100%.",
+      "content": "And calling it living. Success was supposed to be the finish line, not just the beginning of a race we never chose.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_50.jpeg",
+      "notes": "Hold up the mirror. Name the exhaustion of the urban trap. The average professional spends less than 2% outdoors."
+    },
+    {
+      "id": "reframe",
+      "title": "What if 90% was enough?",
+      "content": "30 nights a year in the deep quiet of the wilderness. Enough time to reset your circadian rhythm. Not subtraction — protection.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_31.jpeg",
+      "notes": "Explain the 10% solution: 30 nights annually. A practice, not a holiday. The math of transformation."
+    },
+    {
+      "id": "proof",
+      "title": "Seven years of quiet work.",
+      "content": "6 collectives. 1,300 acres. 250 families. We didn't just find land — we restore it. Earn trust with substance.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_1.png",
+      "notes": "Six collectives. 1,300 acres. 250 families. Seven years. Each number as its own sentence. Regeneration, not development."
+    },
+    {
+      "id": "experience",
+      "title": "Rewilded landscapes by Beforest.",
+      "content": "Poomaale 1.0 & 2.0, Coorg · Hammiyala, Coorg · Hyderabad · Bhopal · Mumbai. Belonging to a place, not just visiting.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_6.jpeg",
+      "notes": "Showcase the sanctuaries. Ancient forests, coffee plantations, grasslands. Not amenities — transformation."
+    },
+    {
+      "id": "clarity",
+      "title": "300 Nights of Intentional Living.",
+      "content": "30 person-nights per year for 10 years. Across all Beforest Collectives. Access, not ownership. No carry-forward — rhythm, not accumulation.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_24.png",
+      "notes": "Address objections directly. Person-nights, not family nights. Frame it as a recurring reset practice."
+    },
+    {
+      "id": "urgency",
+      "title": "The weight of 'Next Year'.",
+      "content": "Every year you wait is a year of 10% you don't get back. This isn't about missing an opportunity; it's about missing a version of yourself.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_46.png",
+      "notes": "Move away from sales urgency. Focus on the personal cost of waiting. Calibration and reset are needed now, not eventually."
+    },
+    {
+      "id": "action",
+      "title": "Blyton Bungalow: The First 1%.",
+      "content": "Experience before commitment. A Kodava-inspired sanctuary built from the earth. 128 acres of private coffee forest in Coorg.",
+      "image": "https://fjnkpphjtlaeijjcbejb.supabase.co/storage/v1/object/public/presentation-images/beforest/image_35.jpeg",
+      "notes": "Details: Hospitality without the footprint. 6 signature rooms. 60 million liters of water conserved. 90-point coffee. The pilot, not the backup plan. Every rupee of the trial stay adjusts toward membership."
+    }
+  ]
+}

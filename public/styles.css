@@ -574,30 +574,62 @@ h1, h2, h3, h4 {
     padding-bottom: 120px; /* Space for footer */
 }
 
-/* Adaptive Themes */
-.slide-copy.theme-light {
-    background-color: #fdfbf7;
-    color: #342e29;
+.folio-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid rgba(52, 46, 41, 0.1);
+    padding-bottom: 12px;
+    position: relative;
 }
 
-.slide-copy.theme-dark {
-    background-color: #342e29;
-    color: #fdfbf7;
+.folio-date, .folio-deck {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.5;
 }
 
-.slide-copy.theme-dark .slide-subtitle {
-    color: #fdfbf7;
+.folio-page {
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     opacity: 0.8;
+    background: var(--text);
+    color: var(--bg);
+    padding: 2px 8px;
 }
 
-.slide-copy.theme-dark .full-transcription {
-    color: #fdfbf7;
+.slide-title {
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1.05;
+    margin-bottom: 32px;
+}
+
+.slide-content-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.slide-subtitle {
+    font-size: 1.5rem;
+    line-height: 1.4;
     opacity: 0.9;
+    font-family: var(--font-serif);
 }
 
-.slide-copy.theme-light .full-transcription {
-    color: var(--text);
-    opacity: 0.85;
+.full-transcription {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    opacity: 0.75;
+    max-width: 600px;
 }
 
 /* Scrubber */
@@ -1446,6 +1478,48 @@ h1, h2, h3, h4 {
 .wrapup-panel {
     margin-top: 40px;
     text-align: left;
+}
+
+.wrapup-actions {
+    margin: 32px 0;
+    display: flex;
+    justify-content: center;
+}
+
+.wrapup-mic {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 32px;
+    background: var(--accent-red);
+    color: #fff;
+    border: none;
+    border-radius: 40px;
+    cursor: pointer;
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 30px rgba(134, 49, 43, 0.3);
+}
+
+.wrapup-mic:hover {
+    background: var(--text);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+}
+
+.wrapup-mic.listening {
+    background: var(--text);
+    animation: pulse-red-bg 2s infinite;
+}
+
+.wrapup-mic-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .wrapup-header {

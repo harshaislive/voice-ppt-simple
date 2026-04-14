@@ -202,6 +202,7 @@ class VoicePPTApp {
         document.getElementById('restart-btn').addEventListener('click', () => location.reload());
         document.getElementById('interrupt-mic').addEventListener('click', () => this.handleInterruptMic());
         document.getElementById('slide-turn-mic').addEventListener('click', () => this.handleInterruptMic());
+        document.getElementById('wrapup-mic').addEventListener('click', () => this.handleInterruptMic());
         document.getElementById('slide-turn-continue').addEventListener('click', () => this.continuePresentationFlow());
         document.getElementById('footer-continue-btn').addEventListener('click', () => this.continuePresentationFlow());
         document.getElementById('slide-question-send').addEventListener('click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
