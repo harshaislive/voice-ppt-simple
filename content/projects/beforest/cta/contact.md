@@ -1,29 +1,30 @@
 # Call to Action
 
-## Primary CTA: Commit Now
-**Join the 10% Lifestyle** — ₹17.6 Lakhs for 10 years of access to all collectives.
+## Primary CTA: Experience Before Commitment
 
-What they get:
-- Immediate access to all 4 current collectives
-- Priority booking for new locations
-- Lock in current pricing
-- Join a community of 250 families who already made this choice
+**Book a stay at Blyton Bungalow, Coorg** — The land will explain this more clearly than we can.
 
-## Secondary CTA: Try First
-**Book Blyton Bungalow, Coorg** — Experience before you commit.
+The trial stay is the pilot. Most members started here. You spend a few nights in the collective, and if you join the 10% Lifestyle, the entire amount adjusts toward your membership. You do not lose anything by visiting first. You only gain certainty.
 
-The amount adjusts toward membership when they join. They don't lose anything by trying first.
+## Secondary CTA: Join the 10% Lifestyle
+
+**17.6 lakhs for 10 years of access to all collectives.**
+
+Immediate access. All four current collectives. Priority booking for new locations. Lock in introductory pricing. Join a community of 250 families who have already made this choice.
+
+Both paths end in the same place. One starts with a visit.
 
 ## Contact
+
 - Email: hello@beforest.co
 - Website: beforest.co
-- Investment inquiry: invest@beforest.co
-
-## Closing Line
-"You decide with your feet, not your eyes. Come feel what 10% life actually means. Come remember what you forgot you were missing. See you in the slow lane."
+- WhatsApp: +91 89779 45351 (10% Lifestyle membership)
+- Trial stay: hospitality.beforest.co
 
 ## Rules
-- Never rush the CTA — let them arrive at it
-- Always present both options honestly
-- No high-pressure language
-- End with conviction, not desperation
+
+- Never break down the price into per-night or per-day costs
+- Frame the trial stay as the pilot — the smart first step — not the backup option
+- Both paths are honest and valid
+- Close with conviction, not desperation
+- End with: You decide with your feet, not your eyes. See you in the slow lane.
