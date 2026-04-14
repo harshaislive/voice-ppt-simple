@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS slides (
     image TEXT,
     notes TEXT,
     custom_prompt TEXT,
+    narration_text TEXT,
+    narration_audio_path TEXT,
+    narration_audio_url TEXT,
+    narration_audio_duration_ms INTEGER,
+    narration_audio_source TEXT DEFAULT 'local',
+    narration_metadata_json TEXT,
+    narration_generated_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
     UNIQUE(session_id, slide_index)

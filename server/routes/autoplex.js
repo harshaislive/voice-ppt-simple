@@ -70,6 +70,28 @@ function hasRenderableAudio(result) {
     return Boolean(result && Number(result.totalPcmBytes || 0) > 0);
 }
 
+function pcm16ToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
+    const dataSize = pcmBuffer.length;
+    const buffer = Buffer.alloc(44 + dataSize);
+
+    buffer.write('RIFF', 0);
+    buffer.writeUInt32LE(36 + dataSize, 4);
+    buffer.write('WAVE', 8);
+    buffer.write('fmt ', 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(numChannels, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28);
+    buffer.writeUInt16LE(numChannels * bitsPerSample / 8, 32);
+    buffer.writeUInt16LE(bitsPerSample, 34);
+    buffer.write('data', 36);
+    buffer.writeUInt32LE(dataSize, 40);
+    pcmBuffer.copy(buffer, 44);
+
+    return buffer;
+}
+
 function shouldUseRealtimePresenter() {
     return realtimePresenter.isConfigured() && !ttsService.prefersManagedNarration();
 }
@@ -86,6 +108,105 @@ function syncSessionState(sessionId, updates) {
     supabaseSession.updateSession(sessionId, updates).catch((error) => {
         console.error('[AutoPlex] Failed to sync session state to Supabase:', error.message);
     });
+}
+
+async function persistSlideNarration({ db, sessionId, slideIndex, slide = null, narrationText = '', audioBuffer = null, pcmBuffer = null, sampleRate = 24000, channels = 1, bitsPerSample = 16, audioSource = 'local', wordBoundaries = [] }) {
+    if (!sessionId || slideIndex === undefined || slideIndex === null) {
+        return null;
+    }
+
+    const now = new Date().toISOString();
+    const slideTitle = slide?.title || '';
+    const wavBuffer = Buffer.isBuffer(audioBuffer) && audioBuffer.length > 0
+        ? audioBuffer
+        : (Buffer.isBuffer(pcmBuffer) && pcmBuffer.length > 0 ? pcm16ToWav(pcmBuffer, sampleRate, channels, bitsPerSample) : null);
+    const audioDurationMs = Buffer.isBuffer(pcmBuffer) && pcmBuffer.length > 0
+        ? Math.max(0, Math.round((pcmBuffer.length / ((sampleRate || 24000) * (channels || 1) * (bitsPerSample || 16) / 8)) * 1000))
+        : null;
+    const metadataJson = {
+        slideTitle,
+        slideIndex,
+        slideContent: slide?.content || '',
+        slideNotes: slide?.notes || '',
+        transcriptText: narrationText || '',
+        wordBoundaryCount: Array.isArray(wordBoundaries) ? wordBoundaries.length : 0
+    };
+
+    let narrationAudioPath = null;
+    let narrationAudioUrl = null;
+    let narrationAudioSource = audioSource || 'local';
+
+    if (wavBuffer) {
+        const localDir = path.join(__dirname, '..', '..', 'public', 'generated', 'slides', sessionId);
+        await fs.promises.mkdir(localDir, { recursive: true });
+        const fileName = `${String(slideIndex).padStart(2, '0')}.wav`;
+        const filePath = path.join(localDir, fileName);
+        await fs.promises.writeFile(filePath, wavBuffer);
+        narrationAudioPath = `generated/slides/${sessionId}/${fileName}`;
+        narrationAudioUrl = `/${narrationAudioPath}`;
+
+        if (supabaseSession.isConfigured()) {
+            try {
+                const upload = await supabaseSession.uploadSlideAudio({
+                    sessionId,
+                    slideIndex,
+                    slideTitle,
+                    audioBuffer: wavBuffer
+                });
+                narrationAudioPath = upload.objectPath;
+                narrationAudioUrl = upload.publicUrl;
+                narrationAudioSource = 'supabase';
+            } catch (error) {
+                console.warn('[AutoPlex] Failed to upload slide narration audio to Supabase, keeping local copy:', error.message);
+            }
+        }
+    }
+
+    db.run(`
+        UPDATE slides
+        SET narration_text = ?,
+            narration_audio_path = ?,
+            narration_audio_url = ?,
+            narration_audio_duration_ms = ?,
+            narration_audio_source = ?,
+            narration_metadata_json = ?,
+            narration_generated_at = ?
+        WHERE session_id = ? AND slide_index = ?
+    `, [
+        narrationText || '',
+        narrationAudioPath,
+        narrationAudioUrl,
+        audioDurationMs,
+        narrationAudioSource,
+        JSON.stringify(metadataJson),
+        now,
+        sessionId,
+        slideIndex
+    ]);
+
+    if (supabaseSession.isConfigured()) {
+        try {
+            await supabaseSession.updateSlideNarration(sessionId, slideIndex, {
+                narration_text: narrationText || '',
+                narration_audio_path: narrationAudioPath,
+                narration_audio_url: narrationAudioUrl,
+                narration_audio_duration_ms: audioDurationMs,
+                narration_audio_source: narrationAudioSource,
+                narration_metadata_json: metadataJson,
+                narration_generated_at: now
+            });
+        } catch (error) {
+            console.warn('[AutoPlex] Failed to persist slide narration metadata to Supabase:', error.message);
+        }
+    }
+
+    return {
+        narrationAudioPath,
+        narrationAudioUrl,
+        narrationAudioSource,
+        audioDurationMs,
+        metadataJson
+    };
 }
 
 function getPrewarmKey(sessionId, slideIndex) {
@@ -469,6 +590,21 @@ router.post('/prewarm', requireSessionControl(), async (req, res) => {
             totalPcmBytes: audioResult.pcmBuffer.length
         });
 
+        await persistSlideNarration({
+            db,
+            sessionId,
+            slideIndex,
+            slide: targetSlide,
+            narrationText,
+            audioBuffer: audioResult.audioBuffer,
+            pcmBuffer: audioResult.pcmBuffer,
+            sampleRate: audioResult.sampleRate,
+            channels: audioResult.channels,
+            bitsPerSample: audioResult.bitsPerSample,
+            audioSource: 'prewarmed',
+            wordBoundaries: audioResult.wordBoundaries || []
+        });
+
         res.json({
             success: true,
             prewarmed: true,
@@ -643,6 +779,21 @@ async function runPresentation(db, io, sessionId) {
                         wordBoundaries: nextAudioResult.wordBoundaries || [],
                         totalPcmBytes: nextAudioResult.pcmBuffer.length
                     });
+
+                    await persistSlideNarration({
+                        db,
+                        sessionId,
+                        slideIndex: nextSlideIndex,
+                        slide: nextSlide,
+                        narrationText: nextNarrationText,
+                        audioBuffer: nextAudioResult.audioBuffer,
+                        pcmBuffer: nextAudioResult.pcmBuffer,
+                        sampleRate: nextAudioResult.sampleRate,
+                        channels: nextAudioResult.channels,
+                        bitsPerSample: nextAudioResult.bitsPerSample,
+                        audioSource: 'prewarmed',
+                        wordBoundaries: nextAudioResult.wordBoundaries || []
+                    });
                     
                     console.log(`[AutoPlex] Pre-warm complete for slide ${nextSlideIndex + 1}`);
                 } catch (err) {
@@ -670,6 +821,20 @@ async function runPresentation(db, io, sessionId) {
                         wordBoundaries: audioResult.wordBoundaries || [],
                         totalPcmBytes: audioResult.pcmBuffer.length
                     });
+                    await persistSlideNarration({
+                        db,
+                        sessionId,
+                        slideIndex: slides.length,
+                        slide: { title: 'Wrap Up', content: promptText, notes: '' },
+                        narrationText: promptText,
+                        audioBuffer: audioResult.audioBuffer,
+                        pcmBuffer: audioResult.pcmBuffer,
+                        sampleRate: audioResult.sampleRate,
+                        channels: audioResult.channels,
+                        bitsPerSample: audioResult.bitsPerSample,
+                        audioSource: 'prewarmed',
+                        wordBoundaries: audioResult.wordBoundaries || []
+                    });
                     console.log(`[AutoPlex] Pre-warm complete for wrap-up phase`);
                 } catch (err) {
                     console.warn(`[AutoPlex] Background pre-warm failed for wrap-up phase:`, err.message);
@@ -686,7 +851,23 @@ async function runPresentation(db, io, sessionId) {
         if (narrationResult.prewarmedAudio) {
             await playPrewarmedAudio(io, sessionId, currentSlideIndex, narrationResult.prewarmedAudio, { isQA: false });
         } else if (!narrationResult.audioHandled) {
-            await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
+            const streamedAudio = await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
+            if (streamedAudio) {
+                await persistSlideNarration({
+                    db,
+                    sessionId,
+                    slideIndex: currentSlideIndex,
+                    slide,
+                    narrationText,
+                    audioBuffer: streamedAudio.audioBuffer,
+                    pcmBuffer: streamedAudio.pcmBuffer,
+                    sampleRate: streamedAudio.sampleRate,
+                    channels: streamedAudio.channels,
+                    bitsPerSample: streamedAudio.bitsPerSample,
+                    audioSource: 'streamed',
+                    wordBoundaries: streamedAudio.wordBoundaries || []
+                });
+            }
         }
 
         analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationText);
@@ -998,7 +1179,31 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                 });
                 const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
                 await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 3500, 6500));
-                return { text: narrationText, audioHandled: true };
+                const realtimePcmBuffer = Array.isArray(result.audioChunks) && result.audioChunks.length > 0
+                    ? Buffer.concat(result.audioChunks)
+                    : Buffer.alloc(0);
+                await persistSlideNarration({
+                    db,
+                    sessionId,
+                    slideIndex,
+                    slide,
+                    narrationText,
+                    pcmBuffer: realtimePcmBuffer,
+                    sampleRate: 24000,
+                    channels: 1,
+                    bitsPerSample: 16,
+                    audioSource: 'realtime'
+                });
+                return {
+                    text: narrationText,
+                    audioHandled: true,
+                    audioBuffer: pcm16ToWav(realtimePcmBuffer, 24000, 1, 16),
+                    pcmBuffer: realtimePcmBuffer,
+                    sampleRate: 24000,
+                    channels: 1,
+                    bitsPerSample: 16,
+                    wordBoundaries: []
+                };
             }
             console.warn('Realtime presenter returned no audio for slide narration; falling back to TTS stream');
         } catch (err) {
@@ -1108,6 +1313,17 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
                 totalPcmBytes: pcmBuffer.length
             });
         }
+
+        const pcmBuffer = collectedChunks.length > 0 ? Buffer.concat(collectedChunks) : Buffer.alloc(0);
+        return {
+            audioBuffer: pcmBuffer.length > 0 ? pcm16ToWav(pcmBuffer, 24000, 1, 16) : null,
+            pcmBuffer,
+            sampleRate: 24000,
+            channels: 1,
+            bitsPerSample: 16,
+            wordBoundaries: lastWordBoundaries || [],
+            totalPcmBytes: pcmBuffer.length
+        };
     } catch (err) {
         console.error('TTS stream failed for slide', slideIndex, err);
         io.to(sessionId).emit('audio-end', {
@@ -1116,6 +1332,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
             ...options
         });
         await sleep(options.isQA ? 700 : 500);
+        return null;
     }
 }
 

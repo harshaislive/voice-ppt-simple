@@ -20,6 +20,13 @@ CREATE TABLE IF NOT EXISTS public.vpp_session_slides (
     content TEXT NOT NULL DEFAULT '',
     image TEXT,
     notes TEXT,
+    narration_text TEXT,
+    narration_audio_path TEXT,
+    narration_audio_url TEXT,
+    narration_audio_duration_ms INTEGER,
+    narration_audio_source TEXT DEFAULT 'local',
+    narration_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    narration_generated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(session_id, slide_index)
 );

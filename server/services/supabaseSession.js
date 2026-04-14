@@ -153,7 +153,14 @@ class SupabaseSessionService {
             title: slide.title || '',
             content: slide.content || '',
             image: slide.image || null,
-            notes: slide.notes || null
+            notes: slide.notes || null,
+            narration_text: slide.narrationText || null,
+            narration_audio_path: slide.narrationAudioPath || null,
+            narration_audio_url: slide.narrationAudioUrl || null,
+            narration_audio_duration_ms: Number.isFinite(slide.narrationAudioDurationMs) ? slide.narrationAudioDurationMs : null,
+            narration_audio_source: slide.narrationAudioSource || 'local',
+            narration_metadata_json: slide.narrationMetadataJson || {},
+            narration_generated_at: slide.narrationGeneratedAt || null
         }));
 
         if (slideRows.length === 0) return [];
@@ -166,6 +173,42 @@ class SupabaseSessionService {
 
         console.log('[SupabaseSession] Created', result.length, 'slides for session:', sessionId);
         return result;
+    }
+
+    async updateSlideNarration(sessionId, slideIndex, updates) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const payload = {
+            narration_generated_at: new Date().toISOString()
+        };
+        const allowed = [
+            'narration_text',
+            'narration_audio_path',
+            'narration_audio_url',
+            'narration_audio_duration_ms',
+            'narration_audio_source',
+            'narration_metadata_json',
+            'narration_generated_at'
+        ];
+
+        for (const key of allowed) {
+            if (updates[key] !== undefined) {
+                payload[key] = updates[key];
+            }
+        }
+
+        const result = await this.request('vpp_session_slides', {
+            session_id: `eq.${sessionId}`,
+            slide_index: `eq.${slideIndex}`
+        }, {
+            method: 'PATCH',
+            body: payload,
+            prefer: 'return=representation'
+        });
+
+        return result && result.length > 0 ? result[0] : null;
     }
 
     async createQuestionAnswer(answerData) {
@@ -280,6 +323,43 @@ class SupabaseSessionService {
         };
     }
 
+    async uploadSlideAudio({ sessionId, slideIndex, slideTitle = '', audioBuffer, contentType = 'audio/wav' }) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        if (!audioBuffer || !Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+            throw new Error('Audio buffer is required');
+        }
+
+        const bucket = process.env.SUPABASE_SLIDE_AUDIO_BUCKET || 'slide-audio';
+        const safeTitle = String(slideTitle || 'slide').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'slide';
+        const objectPath = `sessions/${sessionId}/slides/${String(slideIndex).padStart(2, '0')}-${safeTitle}.wav`;
+        const uploadUrl = `${this.supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                apikey: this.supabaseServiceRoleKey,
+                Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+                'Content-Type': contentType,
+                'x-upsert': 'true'
+            },
+            body: audioBuffer
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Supabase slide audio upload failed: ${response.status} ${text}`);
+        }
+
+        const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+        return {
+            bucket,
+            objectPath,
+            publicUrl
+        };
+    }
+
     async getSlides(sessionId) {
         if (!this.isConfigured()) {
             throw new Error('Supabase not configured');
@@ -301,6 +381,21 @@ class SupabaseSessionService {
 
         const rows = await this.request('vpp_session_slides', {
             id: `eq.${slideId}`,
+            select: '*',
+            limit: '1'
+        });
+
+        return rows && rows.length > 0 ? rows[0] : null;
+    }
+
+    async getSlideByIndex(sessionId, slideIndex) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const rows = await this.request('vpp_session_slides', {
+            session_id: `eq.${sessionId}`,
+            slide_index: `eq.${slideIndex}`,
             select: '*',
             limit: '1'
         });

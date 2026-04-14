@@ -45,6 +45,13 @@ async function initializeDatabase() {
         db.run(migrations);
         ensureColumn('sessions', 'control_token_hash', 'TEXT');
         ensureColumn('slides', 'image', 'TEXT');
+        ensureColumn('slides', 'narration_text', 'TEXT');
+        ensureColumn('slides', 'narration_audio_path', 'TEXT');
+        ensureColumn('slides', 'narration_audio_url', 'TEXT');
+        ensureColumn('slides', 'narration_audio_duration_ms', 'INTEGER');
+        ensureColumn('slides', 'narration_audio_source', 'TEXT');
+        ensureColumn('slides', 'narration_metadata_json', 'TEXT');
+        ensureColumn('slides', 'narration_generated_at', 'DATETIME');
         ensureColumn('questions', 'answer_title', 'TEXT');
         ensureColumn('questions', 'answer_summary', 'TEXT');
         ensureColumn('questions', 'answer_details', 'TEXT');
