@@ -124,7 +124,13 @@ export class UIManager {
         phraseEl.className = 'transcript-reel-phrase';
         phraseEl.textContent = phrase;
 
-        wrap.append(meta, phraseEl);
+        const progressTrack = document.createElement('div');
+        progressTrack.className = 'transcript-reel-progress';
+        const progressFill = document.createElement('div');
+        progressFill.className = 'transcript-reel-progress-fill';
+        progressTrack.appendChild(progressFill);
+
+        wrap.append(meta, phraseEl, progressTrack);
         container.appendChild(wrap);
     }
 

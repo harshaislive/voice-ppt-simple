@@ -63,6 +63,7 @@ class VoicePPTApp {
         this.streamPlayer.onStreamStart = ({ startedAtMs }) => {
             this.pendingPlaybackStartAt = startedAtMs;
             this.syncTranscriptReelPlayback();
+            this.startTranscriptProgress();
         };
         this.loadSessionConfig();
         this.loadPresentationCatalog();
@@ -549,6 +550,7 @@ class VoicePPTApp {
     handleAudioEnd() {
         this.showTranscript(false);
         this.subtitleReady = false;
+        this.stopTranscriptProgress();
         this.waitForPlaybackFinish();
     }
 
@@ -556,6 +558,7 @@ class VoicePPTApp {
         const poll = () => {
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
             this.stopWaveform();
+            this.stopTranscriptProgress();
             this.clearTranscriptChunkTimers();
             if (this.transcriptChunks.length > 0) {
                 this.transcriptChunkIndex = this.transcriptChunks.length - 1;
@@ -628,6 +631,50 @@ class VoicePPTApp {
         this.transcriptChunkTimers = [];
     }
 
+    startTranscriptProgress() {
+        this.stopTranscriptProgress();
+        this._transcriptProgressRaf = requestAnimationFrame(() => this._updateTranscriptProgress());
+    }
+
+    stopTranscriptProgress() {
+        if (this._transcriptProgressRaf) {
+            cancelAnimationFrame(this._transcriptProgressRaf);
+            this._transcriptProgressRaf = null;
+        }
+    }
+
+    _updateTranscriptProgress() {
+        this.updateTranscriptProgress();
+        if (this.streamPlayer.isPlaying || this.pendingPlaybackStartAt) {
+            this._transcriptProgressRaf = requestAnimationFrame(() => this._updateTranscriptProgress());
+        }
+    }
+
+    updateTranscriptProgress() {
+        const container = document.getElementById('full-transcription');
+        if (!container) return;
+        const fill = container.querySelector('.transcript-reel-progress-fill');
+        if (!fill) return;
+
+        if (!this.pendingPlaybackStartAt || !this.transcriptChunks.length) {
+            fill.style.width = '0%';
+            return;
+        }
+
+        const now = performance.now();
+        const elapsed = now - this.pendingPlaybackStartAt;
+        const lastChunk = this.transcriptChunks[this.transcriptChunks.length - 1];
+        const totalDuration = lastChunk ? (lastChunk.endMs || 0) : 0;
+
+        if (totalDuration <= 0) {
+            fill.style.width = '0%';
+            return;
+        }
+
+        const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100;
+        fill.style.width = `${progress}%`;
+    }
+
     finalizeSubtitleText(text) {
         const clean = String(text || '').trim();
         if (clean) {
@@ -648,6 +695,7 @@ class VoicePPTApp {
         this.pendingPlaybackStartAt = null;
         this.transcriptChunkMode = 'waiting';
         this.clearTranscriptChunkTimers();
+        this.stopTranscriptProgress();
         this.ui.renderSubtitle('', false);
         this.renderFullTranscription();
     }
