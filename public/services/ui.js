@@ -97,16 +97,28 @@ export class UIManager {
         const statusText = document.getElementById('status-text');
         const statusDetail = document.getElementById('status-detail');
         const continueBtn = document.getElementById('footer-continue-btn');
+        const overlay = document.getElementById('slide-turn-overlay');
+        const turnDetail = document.getElementById('slide-turn-detail');
         if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
         if (statusDetail) statusDetail.textContent = 'Tap mic or continue';
-        if (continueBtn) continueBtn.classList.add('visible');
+        if (overlay) overlay.classList.remove('hidden');
+        if (turnDetail && data && data.pendingQuestionCount > 0) {
+            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — ask now or continue`;
+        }
+        if (continueBtn) {
+            continueBtn.classList.remove('hidden');
+            continueBtn.classList.add('visible');
+        }
     }
 
     closeSlideTurnOverlay() {
         const overlay = document.getElementById('slide-turn-overlay');
         const continueBtn = document.getElementById('footer-continue-btn');
         if (overlay) overlay.classList.add('hidden');
-        if (continueBtn) continueBtn.classList.remove('visible');
+        if (continueBtn) {
+            continueBtn.classList.remove('visible');
+            continueBtn.classList.add('hidden');
+        }
     }
 }

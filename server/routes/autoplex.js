@@ -505,7 +505,7 @@ async function runPresentation(db, io, sessionId) {
     setPaused(sessionId, false);
 
     const questionsAsked = db.get('SELECT COUNT(*) as c FROM questions WHERE session_id = ?', [sessionId])?.c || 0;
-    analyticsService.logSessionEnd(sessionId, questionsAsked);
+    await analyticsService.logSessionEnd(sessionId, questionsAsked);
 
     io.to(sessionId).emit('presentation-end', {
         totalSlides: slides.length,
@@ -654,11 +654,6 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
             await streamAudio(io, sessionId, closingLines, -1, { isWrapUp: true });
         }
     }
-
-    io.to(sessionId).emit('presentation-end', {
-        totalSlides: slides.length,
-        totalQuestionsAnswered: allQuestions.length
-    });
 }
 
 function buildWrapUpMcqs(deckId) {
