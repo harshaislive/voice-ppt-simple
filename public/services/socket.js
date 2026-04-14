@@ -67,7 +67,7 @@ export class SocketClient {
         });
 
         this.socket.on('audio-end', (data) => {
-            this.app.handleAudioEnd();
+            this.app.handleAudioEnd(data);
         });
 
         this.socket.on('qa-start', (data) => {

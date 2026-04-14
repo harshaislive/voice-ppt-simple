@@ -66,6 +66,7 @@ class VoicePPTApp {
         this.activeQuestionAudioButton = null;
         this.questionAudioPausedNarration = false;
         this.slideAudioStarted = false;
+        this.activeAudioSlideIndex = null;
 
         this.bindEvents();
         this.bindQuestionAudioControls();
@@ -655,6 +656,7 @@ class VoicePPTApp {
         this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, this.currentSlideIndex);
         this.currentSlide = data.slide || null;
         this.slideAudioStarted = false;
+        this.activeAudioSlideIndex = null;
         this.ui.closeSlideTurnOverlay();
         this.resetSubtitleState();
         this.fullNarrationTranscript = '';
@@ -699,6 +701,9 @@ class VoicePPTApp {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
         this.slideAudioStarted = true;
+        if (typeof data?.slideIndex === 'number') {
+            this.activeAudioSlideIndex = data.slideIndex;
+        }
         this.renderSubtitle();
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
         this.startWaveform();
@@ -721,14 +726,17 @@ class VoicePPTApp {
         this.syncTranscriptReelPlayback();
     }
 
-    handleAudioEnd() {
+    handleAudioEnd(data = {}) {
         this.showTranscript(false);
         this.subtitleReady = false;
         this.stopTranscriptProgress();
-        this.waitForPlaybackFinish();
+        this.waitForPlaybackFinish(data);
     }
 
-    waitForPlaybackFinish() {
+    waitForPlaybackFinish(data = {}) {
+        const completedSlideIndex = typeof data?.slideIndex === 'number'
+            ? data.slideIndex
+            : (typeof this.activeAudioSlideIndex === 'number' ? this.activeAudioSlideIndex : this.currentSlideIndex);
         const poll = () => {
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
             if (!this.slideAudioStarted) { setTimeout(poll, 120); return; }
@@ -742,6 +750,7 @@ class VoicePPTApp {
                 this.transcriptChunkIndex = -1;
             }
             this.pendingPlaybackStartAt = null;
+            this.activeAudioSlideIndex = null;
             
             // Set progress to 100% before rendering
             const container = document.getElementById('full-transcription');
@@ -751,7 +760,10 @@ class VoicePPTApp {
             }
             
             this.renderFullTranscription();
-            if (this.awaitingPlaybackComplete) { this.awaitingPlaybackComplete = false; this.socketClient.notifyPlaybackComplete(this.sessionId, this.currentSlideIndex); }
+            if (this.awaitingPlaybackComplete) {
+                this.awaitingPlaybackComplete = false;
+                this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+            }
         };
         setTimeout(poll, 120);
     }
@@ -880,6 +892,7 @@ class VoicePPTApp {
         this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
         this.slideAudioStarted = false;
+        this.activeAudioSlideIndex = null;
         this.clearTranscriptChunkTimers();
         this.stopTranscriptProgress();
         this.ui.renderSubtitle('', false);
@@ -1243,17 +1256,24 @@ class VoicePPTApp {
         header.appendChild(title);
         header.appendChild(controls);
 
+        const summaryText = String(payload.answerSummary || '').trim();
+        const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
+
         const summary = document.createElement('div');
         summary.className = 'qa-answer-thread-summary';
-        summary.textContent = payload.answerSummary || '';
+        summary.textContent = summaryText;
 
         const details = document.createElement('div');
         details.className = 'qa-answer-thread-details';
-        details.textContent = payload.answerDetails || payload.answerSummary || '';
+        details.textContent = detailsText;
 
         wrap.appendChild(header);
-        wrap.appendChild(summary);
-        wrap.appendChild(details);
+        if (summaryText && summaryText !== detailsText) {
+            wrap.appendChild(summary);
+        }
+        if (detailsText) {
+            wrap.appendChild(details);
+        }
         container.appendChild(wrap);
     }
 

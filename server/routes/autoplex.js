@@ -606,6 +606,7 @@ function buildKnowledgeContext(metadata = {}) {
 
 async function buildFullQAContext(sessionMetadata, slides) {
     const sections = [];
+    let knowledgeDocs = sessionMetadata.knowledgeDocs || {};
     
     try {
         const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
@@ -614,14 +615,25 @@ async function buildFullQAContext(sessionMetadata, slides) {
         }
     } catch {}
 
-    if (sessionMetadata.knowledgeDocs) {
-        const docs = sessionMetadata.knowledgeDocs;
-        if (docs.soul) sections.push(`PROJECT SOUL:\n${docs.soul}`);
-        if (docs.agents) sections.push(`PROJECT RULES:\n${docs.agents}`);
-        if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${docs.product}`);
-        if (docs.flow) sections.push(`PRESENTATION FLOW:\n${docs.flow}`);
-        if (docs.design) sections.push(`DESIGN CONTEXT:\n${docs.design}`);
-        if (docs.cta) sections.push(`CALL TO ACTION:\n${docs.cta}`);
+    if (!knowledgeDocs || Object.keys(knowledgeDocs).length === 0) {
+        const deckId = sessionMetadata.deckId || sessionMetadata.presentationSlug || sessionMetadata.projectSlug;
+        if (deckId) {
+            try {
+                const presentation = await cmsService.loadPresentation(deckId);
+                knowledgeDocs = presentation?.knowledgeDocs || {};
+            } catch (error) {
+                console.warn('[Autoplex] Failed to load QA knowledge docs from CMS:', error.message);
+            }
+        }
+    }
+
+    if (knowledgeDocs && Object.keys(knowledgeDocs).length > 0) {
+        if (knowledgeDocs.soul) sections.push(`PROJECT SOUL:\n${stringifyDoc(knowledgeDocs.soul)}`);
+        if (knowledgeDocs.agents) sections.push(`PROJECT RULES:\n${stringifyDoc(knowledgeDocs.agents)}`);
+        if (knowledgeDocs.product) sections.push(`PRODUCT KNOWLEDGE:\n${stringifyDoc(knowledgeDocs.product)}`);
+        if (knowledgeDocs.flow) sections.push(`PRESENTATION FLOW:\n${stringifyDoc(knowledgeDocs.flow)}`);
+        if (knowledgeDocs.design) sections.push(`DESIGN CONTEXT:\n${stringifyDoc(knowledgeDocs.design)}`);
+        if (knowledgeDocs.cta) sections.push(`CALL TO ACTION:\n${stringifyDoc(knowledgeDocs.cta)}`);
     }
 
     if (slides && slides.length > 0) {
