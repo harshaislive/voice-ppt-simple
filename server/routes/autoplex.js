@@ -465,13 +465,14 @@ function setReplayCache(sessionId, slideIndex, payload) {
 function waitForPlaybackCompletion(sessionId, fallbackMs, expectedSlideIndex = null) {
     return new Promise((resolve) => {
         let settled = false;
+        // Don't fire fallback before the caller-specified duration elapses
         const timeout = setTimeout(() => {
             if (!settled) {
                 settled = true;
                 playbackWaiters.delete(sessionId);
                 resolve(false);
             }
-        }, Math.max(fallbackMs || 0, 5000));
+        }, Math.max(fallbackMs || 12000, 12000));
 
         playbackWaiters.set(sessionId, (completedSlideIndex) => {
             if (expectedSlideIndex !== null && completedSlideIndex !== undefined && expectedSlideIndex !== completedSlideIndex) {
@@ -543,10 +544,19 @@ async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {
     });
 
     const audioDurationSec = Number(cached.totalPcmBytes || 0) / (((cached.sampleRate || 24000) * (cached.bitsPerSample || 16) / 8) * (cached.channels || 1));
-    const waitMs = Math.max(
-        Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
-        options.isQA ? 5000 : 6500
-    );
+    // Client audio player has ~170ms+ overhead (120ms buffer flush + 50ms scheduling + jitter)
+    // Prewarmed audio has word boundaries now, use accurate duration if available
+    let waitMs;
+    if (Array.isArray(cached.wordBoundaries) && cached.wordBoundaries.length > 0) {
+        const lastWord = cached.wordBoundaries[cached.wordBoundaries.length - 1];
+        const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
+        waitMs = Math.max(actualDurationMs + 2500, 8000);
+    } else {
+        waitMs = Math.max(
+            Math.ceil(audioDurationSec * 1000) + 5500,
+            options.isQA ? 8000 : 10000
+        );
+    }
     await waitForPlaybackCompletion(sessionId, waitMs);
 }
 
@@ -1153,7 +1163,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
                     isWrapUp: true
                 });
                 const durationFromAudio = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 3500, 6500));
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 5500, 10000));
             } else {
                 console.warn('Realtime presenter returned no audio for wrap-up; falling back to TTS stream');
                 await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
@@ -1336,7 +1346,7 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                     format: 'wav'
                 });
                 const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 3500, 6500));
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 5500, 10000));
                 const realtimePcmBuffer = Array.isArray(result.audioChunks) && result.audioChunks.length > 0
                     ? Buffer.concat(result.audioChunks)
                     : Buffer.alloc(0);
@@ -1453,10 +1463,17 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         });
 
         const audioDurationSec = totalPcmBytes / (24000 * 2);
-        const waitMs = Math.max(
-            Math.ceil(audioDurationSec * 1000) + (options.isQA ? 4000 : 4500),
-            options.isQA ? 6000 : 7500
-        );
+        let waitMs;
+        if (Array.isArray(lastWordBoundaries) && lastWordBoundaries.length > 0) {
+            const lastWord = lastWordBoundaries[lastWordBoundaries.length - 1];
+            const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
+            waitMs = Math.max(actualDurationMs + 2500, 8000);
+        } else {
+            waitMs = Math.max(
+                Math.ceil(audioDurationSec * 1000) + (options.isQA ? 5500 : 6500),
+                options.isQA ? 8000 : 10000
+            );
+        }
         await waitForPlaybackCompletion(sessionId, waitMs);
 
         if (slideIndex >= 0 && !options.isQA && !options.isWrapUp && collectedChunks.length > 0) {
