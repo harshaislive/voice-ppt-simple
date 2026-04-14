@@ -198,13 +198,24 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
         // Get current slide
         const currentSlide = slides.find(s => s.slide_index === session.current_slide_index) || null;
         
-        // Get pending questions (always from SQLite - questions aren't in Supabase)
-        const pendingQuestions = db.all(`
-            SELECT * FROM questions
-            WHERE session_id = ? AND status = 'pending'
-            ORDER BY priority DESC, created_at ASC
-            LIMIT 10
-        `, [id]);
+        // Get pending questions from Supabase first, then SQLite fallback.
+        let pendingQuestions = [];
+        if (supabaseSession.isConfigured()) {
+            try {
+                pendingQuestions = await supabaseSession.getQuestions(id, 'pending');
+            } catch (error) {
+                console.warn('[Session] Failed to load pending questions from Supabase:', error.message);
+            }
+        }
+
+        if (!pendingQuestions || pendingQuestions.length === 0) {
+            pendingQuestions = db.all(`
+                SELECT * FROM questions
+                WHERE session_id = ? AND status = 'pending'
+                ORDER BY priority DESC, created_at ASC
+                LIMIT 10
+            `, [id]);
+        }
 
         let participantName = '';
         try {

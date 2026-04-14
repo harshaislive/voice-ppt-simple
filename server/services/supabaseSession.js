@@ -249,6 +249,44 @@ class SupabaseSessionService {
         return result[0];
     }
 
+    async createQuestionRecord(questionData) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const now = new Date().toISOString();
+        const row = {
+            id: questionData.id || uuidv4(),
+            session_id: questionData.sessionId,
+            question_id: questionData.questionId || uuidv4(),
+            question_text: questionData.questionText || '',
+            submitted_by: questionData.submittedBy || null,
+            slide_index: typeof questionData.slideIndex === 'number' ? questionData.slideIndex : null,
+            status: questionData.status || 'pending',
+            priority: Number.isFinite(questionData.priority) ? questionData.priority : 0,
+            answer_title: questionData.answerTitle || null,
+            answer_summary: questionData.answerSummary || null,
+            answer_text: questionData.answerText || '',
+            answer_details: questionData.answerDetails || null,
+            answer_audio_path: questionData.answerAudioPath || null,
+            answer_audio_url: questionData.answerAudioUrl || null,
+            answer_audio_duration_ms: Number.isFinite(questionData.answerAudioDurationMs) ? questionData.answerAudioDurationMs : null,
+            audio_source: questionData.audioSource || 'local',
+            metadata_json: questionData.metadataJson || {},
+            created_at: now,
+            updated_at: now,
+            answered_at: questionData.answeredAt || null
+        };
+
+        const result = await this.request('vpp_session_questions', {}, {
+            method: 'POST',
+            body: [row],
+            prefer: 'return=representation'
+        });
+
+        return result[0];
+    }
+
     async updateQuestionAnswer(questionId, updates) {
         if (!this.isConfigured()) {
             throw new Error('Supabase not configured');
@@ -285,6 +323,44 @@ class SupabaseSessionService {
         });
 
         return result && result.length > 0 ? result[0] : null;
+    }
+
+    async getQuestions(sessionId, status = null) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const params = {
+            session_id: `eq.${sessionId}`,
+            select: '*'
+        };
+
+        if (status) {
+            params.status = `eq.${status}`;
+        }
+
+        if (status === 'pending') {
+            params.order = 'priority.desc,created_at.asc';
+        } else {
+            params.order = 'created_at.asc';
+        }
+
+        const rows = await this.request('vpp_session_questions', params);
+        return rows || [];
+    }
+
+    async getQuestionByQuestionId(questionId) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const rows = await this.request('vpp_session_questions', {
+            question_id: `eq.${questionId}`,
+            select: '*',
+            limit: '1'
+        });
+
+        return rows && rows.length > 0 ? rows[0] : null;
     }
 
     async uploadQuestionAudio({ sessionId, questionId, audioBuffer, contentType = 'audio/wav' }) {

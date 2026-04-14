@@ -139,6 +139,29 @@ async function loadQuestionAnswerContext(db, sessionId) {
     return context;
 }
 
+async function loadSessionForQuestions(db, sessionId) {
+    let session = db.get(`
+        SELECT id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata
+        FROM sessions
+        WHERE id = ?
+    `, [sessionId]);
+
+    if (session) {
+        return session;
+    }
+
+    if (!supabaseSession.isConfigured()) {
+        return null;
+    }
+
+    try {
+        return await supabaseSession.getSession(sessionId);
+    } catch (error) {
+        console.warn('[Questions] Failed to load session from Supabase:', error.message);
+        return null;
+    }
+}
+
 async function persistQuestionAnswer({ db, io, question, answerText, audioResult, sessionId }) {
     const meta = buildAnswerMeta(question.question_text, answerText);
     const answeredAt = new Date().toISOString();
@@ -252,7 +275,19 @@ async function persistQuestionAnswer({ db, io, question, answerText, audioResult
 
     if (supabaseSession.isConfigured()) {
         try {
-            await supabaseSession.createQuestionAnswer(questionAnswer);
+            await supabaseSession.updateQuestionAnswer(question.id, {
+                status: 'answered',
+                answer_title: questionAnswer.answerTitle,
+                answer_summary: questionAnswer.answerSummary,
+                answer_text: questionAnswer.answerText,
+                answer_details: questionAnswer.answerDetails,
+                answer_audio_path: questionAnswer.answerAudioPath,
+                answer_audio_url: questionAnswer.answerAudioUrl,
+                answer_audio_duration_ms: questionAnswer.answerAudioDurationMs,
+                audio_source: questionAnswer.audioSource,
+                metadata_json: questionAnswer.metadataJson,
+                answered_at: questionAnswer.answeredAt
+            }) || await supabaseSession.createQuestionAnswer(questionAnswer);
         } catch (error) {
             console.warn('[Questions] Failed to persist answer thread to Supabase:', error.message);
         }
@@ -288,10 +323,10 @@ router.post('/', async (req, res) => {
         const db = req.app.get('db');
         
         // Verify session exists and is active
-        const session = db.get(`
-            SELECT id, current_slide_index FROM sessions
-            WHERE id = ? AND status IN ('active', 'presenting', 'wrapup', 'completed')
-        `, [sessionId]);
+        let session = await loadSessionForQuestions(db, sessionId);
+        if (session && !['active', 'presenting', 'wrapup', 'completed'].includes(String(session.status || ''))) {
+            session = null;
+        }
         
         if (!session) {
             return res.status(404).json({ error: 'Session not found or not accepting questions' });
@@ -305,6 +340,20 @@ router.post('/', async (req, res) => {
             INSERT INTO questions (id, session_id, question_text, submitted_by, slide_index, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
         `, [questionId, sessionId, questionText, submittedBy || 'anonymous', session.current_slide_index, now]);
+
+        if (supabaseSession.isConfigured()) {
+            supabaseSession.createQuestionRecord({
+                sessionId,
+                questionId,
+                questionText,
+                submittedBy: submittedBy || 'anonymous',
+                slideIndex: session.current_slide_index,
+                status: 'pending',
+                priority: 0
+            }).catch((error) => {
+                console.warn('[Questions] Failed to persist pending question to Supabase:', error.message);
+            });
+        }
         
         // Analytics
         analyticsService.logEvent(sessionId, 'user_question', session.current_slide_index, questionText, { submittedBy: submittedBy || 'anonymous', questionId });
@@ -388,20 +437,31 @@ router.post('/', async (req, res) => {
 });
 
 // Get questions for a session
-router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), (req, res) => {
+router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), async (req, res) => {
     try {
         const { sessionId } = req.params;
         const { status = 'pending' } = req.query;
         const db = req.app.get('db');
-        
-        const questions = db.all(`
-            SELECT * FROM questions
-            WHERE session_id = ? AND status = ?
-            ORDER BY 
-                CASE WHEN status = 'pending' THEN priority END DESC,
-                created_at ASC
-        `, [sessionId, status]);
-        
+
+        let questions = [];
+        if (supabaseSession.isConfigured()) {
+            try {
+                questions = await supabaseSession.getQuestions(sessionId, status);
+            } catch (error) {
+                console.warn('[Questions] Failed to load questions from Supabase:', error.message);
+            }
+        }
+
+        if (!questions || questions.length === 0) {
+            questions = db.all(`
+                SELECT * FROM questions
+                WHERE session_id = ? AND status = ?
+                ORDER BY 
+                    CASE WHEN status = 'pending' THEN priority END DESC,
+                    created_at ASC
+            `, [sessionId, status]);
+        }
+
         res.json(questions);
     } catch (error) {
         console.error('Error getting questions:', error);
@@ -417,9 +477,12 @@ router.patch('/:questionId', async (req, res) => {
         const db = req.app.get('db');
         
         // Get current question
-        const question = db.get(`
+        let question = db.get(`
             SELECT * FROM questions WHERE id = ?
         `, [questionId]);
+        if (!question && supabaseSession.isConfigured()) {
+            question = await supabaseSession.getQuestionByQuestionId(questionId).catch(() => null);
+        }
         
         if (!question) {
             return res.status(404).json({ error: 'Question not found' });
@@ -463,6 +526,22 @@ router.patch('/:questionId', async (req, res) => {
             SET ${updates.join(', ')}
             WHERE id = ?
         `, values);
+
+        if (supabaseSession.isConfigured()) {
+            const questionKey = question.question_id || question.id;
+            const supabaseUpdates = {};
+            if (status !== undefined) supabaseUpdates.status = status;
+            if (priority !== undefined) supabaseUpdates.priority = priority;
+            if (status === 'answered') {
+                supabaseUpdates.answered_at = new Date().toISOString();
+                if (answerText) {
+                    supabaseUpdates.answer_text = answerText;
+                }
+            }
+            supabaseSession.updateQuestionAnswer(questionKey, supabaseUpdates).catch(err => {
+                console.error('[Questions] Failed to update Supabase question:', err.message);
+            });
+        }
         
         // Create event
         const event = {
@@ -537,6 +616,19 @@ router.post('/bulk-update', requireSessionControl(), async (req, res) => {
                         SET ${sets.join(', ')}
                         WHERE id = ?
                     `, values);
+
+                    if (supabaseSession.isConfigured()) {
+                        const supabaseUpdates = {};
+                        if (status !== undefined) supabaseUpdates.status = status;
+                        if (priority !== undefined) supabaseUpdates.priority = priority;
+                        if (status === 'answered' && answerText) {
+                            supabaseUpdates.answer_text = answerText;
+                            supabaseUpdates.answered_at = new Date().toISOString();
+                        }
+                        supabaseSession.updateQuestionAnswer(questionId, supabaseUpdates).catch(err => {
+                            console.error('[Questions] Failed to bulk update Supabase question:', err.message);
+                        });
+                    }
                 }
             }
             
