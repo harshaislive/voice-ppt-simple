@@ -177,7 +177,7 @@ class RealtimePresenterService {
 
     const userText = this._buildSafePrompt(context);
     return {
-      instructions: 'You are a calm, clear presenter. Speak naturally, stay grounded in the provided context, and do not invent facts.',
+      instructions: 'You are a direct, assertive live presenter. Make every sentence land. Short declarations, then a sentence with weight. No hedging, no filler, no "I think perhaps." Speak with the conviction of someone who believes every word. Stay grounded in the provided context and never invent facts.',
       userText
     };
   }
@@ -199,16 +199,15 @@ class RealtimePresenterService {
       `Title: ${slideTitle || ''}`,
       `Visible text: ${slideContent || ''}`,
       slideNotes ? `Presenter notes: ${slideNotes}` : '',
-      participantName ? `Primary attendee: ${participantName}. Address them naturally once in a while.` : '',
+      participantName ? `Primary attendee: ${participantName}. Address them directly once in a while.` : '',
       pendingQuestions && pendingQuestions.length
         ? `Pending audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
         : '',
       audienceContext && Object.keys(audienceContext).length
-        ? `Recent context: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => `${key}: ${value}`).join(' | ')}`
+        ? `What you just said on the previous slide: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
         : '',
-      'Speak 3 to 5 short sentences.',
-      'Stay grounded in the slide and notes.',
-      'Do not invent facts or numbers.'
+      'Deliver this with conviction. Short punchy sentences, then one that lands hard. No hedging. No reading the slide aloud.',
+      'Do not invent facts or numbers not in the slide or notes.'
     ].filter(Boolean);
 
     return lines.join('\n');
