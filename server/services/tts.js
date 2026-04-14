@@ -17,9 +17,9 @@ const DEFAULT_AUDIO_META = {
 };
 
 const VOICE_MAP_SDK = {
-  default: 'en-US-AvaMultilingualNeural',
-  female: 'en-US-AvaMultilingualNeural',
-  male: 'en-US-AndrewMultilingualNeural'
+  default: 'hi-IN-AartiNeural',
+  female: 'hi-IN-AartiNeural',
+  male: 'hi-IN-ArjunNeural'
 };
 
 const VOICE_MAP_REALTIME = {

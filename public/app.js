@@ -651,7 +651,7 @@ class VoicePPTApp {
         }
     }
 
-    chunkTranscriptText(text, maxWords = 9) {
+    chunkTranscriptText(text, maxWords = 20) {
         const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
         const chunks = [];
         let i = 0;
@@ -676,7 +676,7 @@ class VoicePPTApp {
         return chunks;
     }
 
-    chunkWordBoundaries(boundaries = [], maxWords = 9) {
+    chunkWordBoundaries(boundaries = [], maxWords = 20) {
         const words = boundaries.filter(Boolean);
         const chunks = [];
         for (let i = 0; i < words.length; i += maxWords) {
@@ -738,25 +738,45 @@ class VoicePPTApp {
 
         if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) return;
 
+        // Update Prev/Next buttons
+        const prevBtn = document.getElementById('scrubber-prev');
+        const nextBtn = document.getElementById('scrubber-next');
+        if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
+        // Next is only enabled for slides that are NOT future (i.e. already seen but before current, or current)
+        // Actually, if we are at current, next should be disabled because future is locked.
+        if (nextBtn) nextBtn.disabled = true; // We'll update this if we track a "viewed slide index"
+
         this.slideDeck.forEach((slide, index) => {
+            const isFuture = index > this.currentSlideIndex;
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'scrubber-thumb';
             if (index === this.currentSlideIndex) button.classList.add('active');
+            if (isFuture) button.classList.add('disabled');
+            
             if (slide?.image) {
                 button.style.backgroundImage = `url(${slide.image})`;
             } else {
                 button.classList.add('no-image');
             }
+            
             const slideTitle = slide?.title ? String(slide.title) : 'Untitled slide';
-            button.setAttribute('aria-label', `Replay slide ${index + 1}: ${slideTitle}`);
-            button.title = `Replay slide ${index + 1}: ${slideTitle}`;
+            const label = isFuture ? 'Locked' : (index === this.currentSlideIndex ? 'Current' : 'Review');
+            
+            button.setAttribute('aria-label', `${label} slide ${index + 1}: ${slideTitle}`);
+            button.title = isFuture ? 'Wait for narration' : `${label} slide ${index + 1}: ${slideTitle}`;
+            
             button.innerHTML = `
                 <span class="scrubber-thumb-index">${index + 1}</span>
                 <span class="scrubber-thumb-title">${this.escapeHtml(slideTitle)}</span>
-                <span class="scrubber-thumb-label">${index === this.currentSlideIndex ? 'Replay' : 'Jump'}</span>
+                <span class="scrubber-thumb-label">${label}</span>
             `;
-            button.addEventListener('click', () => this.handleScrubberSelect(index));
+            
+            if (!isFuture) {
+                button.addEventListener('click', () => this.handleScrubberSelect(index));
+            } else {
+                button.disabled = true;
+            }
             filmstrip.appendChild(button);
         });
     }
@@ -770,6 +790,14 @@ class VoicePPTApp {
             if (index !== this.currentSlideIndex) {
                 await this.jumpToSlide(index);
             }
+        }
+    }
+
+    async navigateScrubber(direction) {
+        const targetIndex = this.currentSlideIndex + direction;
+        // Navigation is only allowed for already reached slides
+        if (targetIndex >= 0 && targetIndex <= this.currentSlideIndex) {
+            await this.handleScrubberSelect(targetIndex);
         }
     }
 

@@ -132,6 +132,7 @@ export class UIManager {
         const statusText = document.getElementById('status-text');
         const statusDetail = document.getElementById('status-detail');
         const dot = document.getElementById('status-dot');
+        const app = document.getElementById('app');
 
         if (statusText) statusText.textContent = text;
         if (statusDetail) statusDetail.textContent = detail;
@@ -140,8 +141,10 @@ export class UIManager {
             dot.className = 'status-dot';
             if (state === 'live') {
                 dot.classList.add('live');
+                if (app) app.classList.add('narration-active');
             } else if (state === 'paused') {
                 dot.classList.add('paused');
+                if (app) app.classList.remove('narration-active');
             }
         }
     }

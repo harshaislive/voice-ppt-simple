@@ -574,6 +574,62 @@ async function runPresentation(db, io, sessionId) {
             });
         const narrationText = narrationResult.text;
 
+        // Background pre-warm for the NEXT slide
+        const nextSlideIndex = currentSlideIndex + 1;
+        if (nextSlideIndex < slides.length && !getPrewarmedSlide(sessionId, nextSlideIndex)) {
+            console.log(`[AutoPlex] Background pre-warming next slide ${nextSlideIndex + 1}/${slides.length}`);
+            const nextSlide = slides[nextSlideIndex];
+            
+            // Fire and forget pre-warm
+            (async () => {
+                try {
+                    const nextPendingQuestions = db.all(
+                        'SELECT question_text FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
+                        [sessionId]
+                    ).map(q => q.question_text);
+
+                    const nextContext = buildNarrationContext({
+                        db,
+                        sessionId,
+                        slide: nextSlide,
+                        slideIndex: nextSlideIndex,
+                        totalSlides: slides.length,
+                        pendingQuestions: nextPendingQuestions
+                    });
+
+                    // Check if we should use realtime or standard TTS for prewarm
+                    // Note: Realtime presenter usually streams, so prewarming it into a buffer 
+                    // is slightly different but we can still generate the narration text at least.
+                    const nextNarrationText = await modelService.generateNarration(nextContext);
+                    const nextAudioResult = await ttsService.synthesizeDetailed(nextNarrationText, 'default');
+
+                    setPrewarmedSlide(sessionId, nextSlideIndex, {
+                        text: nextNarrationText,
+                        pcmBase64: nextAudioResult.pcmBuffer.toString('base64'),
+                        sampleRate: nextAudioResult.sampleRate,
+                        channels: nextAudioResult.channels,
+                        bitsPerSample: nextAudioResult.bitsPerSample,
+                        wordBoundaries: nextAudioResult.wordBoundaries || [],
+                        totalPcmBytes: nextAudioResult.pcmBuffer.length
+                    });
+                    
+                    setReplayCache(sessionId, nextSlideIndex, {
+                        text: nextNarrationText,
+                        pcmBase64: nextAudioResult.pcmBuffer.toString('base64'),
+                        sampleRate: nextAudioResult.sampleRate,
+                        channels: nextAudioResult.channels,
+                        bitsPerSample: nextAudioResult.bitsPerSample,
+                        wordBoundaries: nextAudioResult.wordBoundaries || [],
+                        totalPcmBytes: nextAudioResult.pcmBuffer.length
+                    });
+                    
+                    console.log(`[AutoPlex] Pre-warm complete for slide ${nextSlideIndex + 1}`);
+                } catch (err) {
+                    console.warn(`[AutoPlex] Background pre-warm failed for slide ${nextSlideIndex + 1}:`, err.message);
+                }
+            })();
+        }
+
         updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
             [sessionId]
@@ -1100,8 +1156,8 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
 
         const audioDurationSec = totalPcmBytes / (24000 * 2);
         const waitMs = Math.max(
-            Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
-            options.isQA ? 5000 : 6500
+            Math.ceil(audioDurationSec * 1000) + (options.isQA ? 4000 : 4500),
+            options.isQA ? 6000 : 7500
         );
         await waitForPlaybackCompletion(sessionId, waitMs);
 
