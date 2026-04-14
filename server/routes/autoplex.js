@@ -638,7 +638,7 @@ async function runPresentation(db, io, sessionId) {
                     const promptText = [
                         participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
                         'I will stay with you for one more minute.',
-                        'If you want to ask anything live, hit the mic icon at the bottom.',
+                        'If you have any questions, type them in the questions panel.',
                         'You can also answer the quick prompts on screen while you think about your questions.'
                     ].join(' ');
                     
@@ -725,7 +725,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
     const promptText = [
         participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
         'I will stay with you for one more minute.',
-        'If you want to ask anything live, hit the mic icon at the bottom.',
+        'If you have any questions, type them in the questions panel.',
         'You can also answer the quick prompts on screen while you think about your questions.'
     ].join(' ');
 
@@ -760,7 +760,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
             const result = await realtimePresenter.generateNarrationAudio({
                 slideTitle: 'Wrap Up',
                 slideContent: promptText,
-                slideNotes: 'Invite the attendee to ask questions using the mic icon. Sound calm, warm, and clearly indicate they have one minute.',
+                slideNotes: 'Invite the attendee to ask questions using the questions panel. Sound calm, warm, and clearly indicate they have one minute.',
                 pendingQuestions: [],
                 audienceContext: audienceMemory,
                 participantName,
