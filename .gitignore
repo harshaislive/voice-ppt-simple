@@ -54,3 +54,4 @@ Thumbs.db
 tmp/
 temp/
 .codex
+public/generated/

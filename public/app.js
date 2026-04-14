@@ -759,7 +759,6 @@ class VoicePPTApp {
     handleAudioEnd(data = {}) {
         this.showTranscript(false);
         this.subtitleReady = false;
-        this.stopTranscriptProgress();
         this.waitForPlaybackFinish(data);
     }
 
@@ -957,10 +956,18 @@ class VoicePPTApp {
             this.transcriptChunkIndex = this.transcriptChunks.length - 1;
         }
         
-        // Lock in total duration once when chunks are first built
-        if (this.transcriptChunks.length > 0 && this.totalAudioDurationMs === 0) {
+        // Update total duration as more text/chunks arrive
+        if (this.transcriptChunks.length > 0) {
             const lastChunk = this.transcriptChunks[this.transcriptChunks.length - 1];
-            this.totalAudioDurationMs = lastChunk ? (lastChunk.endMs || 0) : 0;
+            const estimatedDuration = lastChunk ? (lastChunk.endMs || 0) : 0;
+            
+            // Only use estimate if we don't have accurate word boundaries yet,
+            // or if the estimate is significantly larger than what we have.
+            if (this.wordBoundaries.length === 0) {
+                if (estimatedDuration > this.totalAudioDurationMs) {
+                    this.totalAudioDurationMs = estimatedDuration;
+                }
+            }
         }
         
         this.renderFullTranscription();
