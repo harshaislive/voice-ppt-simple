@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
+const supabaseSession = require('../services/supabaseSession');
 const { requireSessionControl, requireSlideSessionControl } = require('../middleware/security');
 
 // Advance slide
@@ -183,7 +184,17 @@ router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), (req, 
             WHERE session_id = ?
             ORDER BY slide_index ASC
         `, [sessionId]);
-        
+
+        if ((!slides || slides.length === 0) && supabaseSession.isConfigured()) {
+            supabaseSession.getSlides(sessionId)
+                .then((remoteSlides) => res.json(Array.isArray(remoteSlides) ? remoteSlides : []))
+                .catch((error) => {
+                    console.warn('[Slides] Failed to load slides from Supabase:', error.message);
+                    res.json([]);
+                });
+            return;
+        }
+
         res.json(slides);
     } catch (error) {
         console.error('Error getting slides:', error);

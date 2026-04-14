@@ -28,6 +28,9 @@ class VoicePPTApp {
         this.votes = new Map();
         this.userReactions = [];
         this.userQuestions = [];
+        this.unreadAnswerCount = 0;
+        this.maxViewedSlideIndex = 0;
+        this.notifiedAnswerIds = new Set();
         
         this.wrapUpTimer = null;
         this.wrapUpEndsAt = 0;
@@ -59,8 +62,11 @@ class VoicePPTApp {
         this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
         this.waveformData = new Array(64).fill(0);
         this.waveformAnimFrame = null;
+        this.questionAudioPlayer = document.getElementById('audio-player');
+        this.activeQuestionAudioButton = null;
 
         this.bindEvents();
+        this.bindQuestionAudioControls();
         this.streamPlayer.onStreamStart = ({ startedAtMs }) => {
             this.pendingPlaybackStartAt = startedAtMs;
             this.syncTranscriptReelPlayback();
@@ -77,15 +83,42 @@ class VoicePPTApp {
         try {
             const res = await fetch('/api/cms/projects/beforest/loading-quotes');
             if (res.ok) {
-                this.loadingQuotes = await res.json();
+                const quotes = await res.json();
+                this.loadingQuotes = Array.isArray(quotes) && quotes.length > 0 ? quotes : [
+                    { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
+                    { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
+                ];
             } else {
                 this.loadingQuotes = [
-                    { text: "10% isn't about subtraction — it's about protection.", author: "Beforest" },
+                    { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
                     { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
                 ];
             }
         } catch (err) {
             console.warn('Failed to load loading quotes:', err);
+            this.loadingQuotes = [
+                { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
+                { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
+            ];
+        }
+    }
+
+    resetSessionRuntimeState() {
+        this.currentSlideIndex = 0;
+        this.currentSlide = null;
+        this.questions = new Map();
+        this.userQuestions = [];
+        this.unreadAnswerCount = 0;
+        this.maxViewedSlideIndex = 0;
+        this.notifiedAnswerIds.clear();
+        this.updateHistoryBadge();
+        const qaList = document.getElementById('qa-list');
+        if (qaList) {
+            qaList.innerHTML = '';
+        }
+        const filmstrip = document.getElementById('scrubber-filmstrip');
+        if (filmstrip) {
+            filmstrip.innerHTML = '';
         }
     }
 
@@ -165,20 +198,23 @@ class VoicePPTApp {
             
             const data = await res.json();
             console.log('[Session] Restore response data - status:', data.session?.status);
-            if (!data.session || !['active', 'presenting', 'wrapup'].includes(data.session.status)) {
+            if (!data.session || !['active', 'presenting', 'wrapup', 'completed'].includes(data.session.status)) {
                 console.log('[Session] Restore failed - bad status:', data.session?.status, '- clearing');
                 this.clearPersistedSession();
                 return false;
             }
+            this.resetSessionRuntimeState();
             this.sessionId = session.sessionId;
             this.controlToken = session.controlToken || '';
             this.participantName = session.participantName || data.participantName || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
+            this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, Number(data.session.current_slide_index || 0));
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
             await this.primeInitialSlide();
             await this.loadSessionSlides();
+            await this.loadSessionQuestions();
             this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
@@ -269,12 +305,18 @@ class VoicePPTApp {
 
         on('history-fab', 'click', () => {
             const scrubber = document.getElementById('scrubber-container');
-            if (scrubber) scrubber.classList.toggle('hidden');
+            if (scrubber) {
+                const willOpen = scrubber.classList.contains('hidden');
+                scrubber.classList.toggle('hidden');
+                if (willOpen) this.clearHistoryBadge();
+            }
         });
         on('scrubber-close', 'click', () => {
             const scrubber = document.getElementById('scrubber-container');
             if (scrubber) scrubber.classList.add('hidden');
         });
+        on('scrubber-prev', 'click', () => this.navigateScrubber(-1));
+        on('scrubber-next', 'click', () => this.navigateScrubber(1));
         on('scrubber-container', 'click', (e) => {
             if (e.target.id === 'scrubber-container') {
                 e.target.classList.add('hidden');
@@ -335,6 +377,24 @@ class VoicePPTApp {
         });
 
         window.addEventListener('resize', () => this.resizeWaveform());
+    }
+
+    bindQuestionAudioControls() {
+        if (!this.questionAudioPlayer) return;
+
+        this.questionAudioPlayer.addEventListener('play', () => {
+            this.updateQuestionAudioButtonState(this.activeQuestionAudioButton, true);
+        });
+        this.questionAudioPlayer.addEventListener('pause', () => {
+            this.updateQuestionAudioButtonState(this.activeQuestionAudioButton, false);
+        });
+        this.questionAudioPlayer.addEventListener('ended', () => {
+            this.updateQuestionAudioButtonState(this.activeQuestionAudioButton, false);
+            if (this.activeQuestionAudioButton) {
+                this.activeQuestionAudioButton.dataset.playing = 'false';
+            }
+            this.activeQuestionAudioButton = null;
+        });
     }
 
     // Proxy UI methods for cleaner access
@@ -421,15 +481,71 @@ class VoicePPTApp {
     async loadSessionSlides() {
         if (!this.sessionId) return;
         try {
-            const res = await this.apiFetch(`/api/slides/${this.sessionId}`);
+            const res = await this.apiFetch(`/api/session/${this.sessionId}`);
             if (!res.ok) return;
-            const slides = await res.json();
-            if (Array.isArray(slides)) {
-                this.slideDeck = slides;
+            const data = await res.json();
+            const slides = Array.isArray(data.slides) ? data.slides : [];
+            this.slideDeck = slides;
+            if (slides.length > 0) {
                 this.renderScrubber();
+            } else if (this.ui?.renderEmptyHistory) {
+                this.ui.renderEmptyHistory('scrubber-filmstrip');
             }
         } catch (err) {
             console.warn('Failed to load session slides:', err);
+        }
+    }
+
+    async loadSessionQuestions() {
+        if (!this.sessionId) return;
+        try {
+            const [sessionRes, answeredRes] = await Promise.all([
+                this.apiFetch(`/api/session/${this.sessionId}`),
+                this.apiFetch(`/api/questions/${this.sessionId}?status=answered`)
+            ]);
+
+            if (sessionRes.ok) {
+                const sessionData = await sessionRes.json();
+                const pending = Array.isArray(sessionData.pendingQuestions) ? sessionData.pendingQuestions : [];
+                pending.forEach((question) => {
+                    if (!this.questions.has(question.id)) {
+                        this.addQuestionToList(question.id, question.question_text, question.submitted_by || 'Audience', {
+                            status: question.status,
+                            answerTitle: question.answer_title,
+                            answerSummary: question.answer_summary,
+                            answerDetails: question.answer_details,
+                            answerAudioUrl: question.answer_audio_url,
+                            answerAudioPath: question.answer_audio_path,
+                            answerAudioDurationMs: question.answer_audio_duration_ms,
+                            audioSource: question.audio_source
+                        });
+                    }
+                });
+            }
+
+            if (answeredRes.ok) {
+                const answered = await answeredRes.json();
+                if (Array.isArray(answered)) {
+                    answered.forEach((question) => {
+                        this.handleQuestionAnswerReady({
+                            questionId: question.id,
+                            questionText: question.question_text,
+                            submittedBy: question.submitted_by,
+                            answerText: question.answer_text,
+                            answerTitle: question.answer_title,
+                            answerSummary: question.answer_summary,
+                            answerDetails: question.answer_details,
+                            answerAudioUrl: question.answer_audio_url,
+                            answerAudioPath: question.answer_audio_path,
+                            answerAudioDurationMs: question.answer_audio_duration_ms,
+                            audioSource: question.audio_source,
+                            suppressNotification: true
+                        });
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to load session questions:', err);
         }
     }
 
@@ -472,6 +588,7 @@ class VoicePPTApp {
 
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
+            this.resetSessionRuntimeState();
             this.persistSession({
                 sessionId: this.sessionId,
                 controlToken: this.controlToken,
@@ -482,6 +599,9 @@ class VoicePPTApp {
                 passcodeRequired: data.passcodeRequired
             });
             this.awaitingSlideContinue = false;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('present-view').classList.remove('hidden');
+            document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
             const prewarmPromise = this.apiFetch('/api/autoplex/prewarm', {
                 method: 'POST',
                 body: JSON.stringify({ sessionId: this.sessionId, slideIndex: 0 })
@@ -499,10 +619,7 @@ class VoicePPTApp {
 
             // Wait for both the visible loading breath and the first-slide AI prewarm.
             await Promise.all([loadingPromise, prewarmPromise]);
-
-            document.getElementById('start-screen').classList.add('hidden');
-            document.getElementById('present-view').classList.remove('hidden');
-            document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
+            await this.loadSessionQuestions();
             
             this.setStatus('Ready', 'live', 'Type questions anytime');
             this.syncQuestionCount();
@@ -518,6 +635,10 @@ class VoicePPTApp {
             let meta = {};
             try { meta = JSON.parse(data?.session?.metadata || '{}'); } catch {}
             this.participantName = data?.participantName || meta.participantName || this.participantName;
+            if (Array.isArray(data?.slides) && data.slides.length > 0) {
+                this.slideDeck = data.slides;
+                this.renderScrubber();
+            }
             if (data?.currentSlide) this.updateSlide({ slideIndex: data.session?.current_slide_index || 0, totalSlides: data.session?.slide_count || this.totalSlides, slide: data.currentSlide });
         } catch (err) { console.error('Initial slide fetch failed:', err); }
     }
@@ -529,6 +650,7 @@ class VoicePPTApp {
     updateSlide(data) {
         this.currentSlideIndex = data.slideIndex;
         this.totalSlides = data.totalSlides || this.totalSlides;
+        this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, this.currentSlideIndex);
         this.currentSlide = data.slide || null;
         this.ui.closeSlideTurnOverlay();
         this.resetSubtitleState();
@@ -662,7 +784,10 @@ class VoicePPTApp {
 
     syncTranscriptReelPlayback() {
         if (!this.transcriptChunks.length || !this.pendingPlaybackStartAt) {
-            this.transcriptChunkMode = 'waiting';
+            this.transcriptChunkMode = this.transcriptChunks.length ? 'complete' : 'waiting';
+            if (this.transcriptChunks.length) {
+                this.transcriptChunkIndex = this.transcriptChunks.length - 1;
+            }
             this.renderFullTranscription();
             return;
         }
@@ -761,7 +886,10 @@ class VoicePPTApp {
             this.transcriptChunks = [];
         }
         this.transcriptChunkIndex = -1;
-        this.transcriptChunkMode = this.pendingPlaybackStartAt ? 'live' : 'waiting';
+        this.transcriptChunkMode = this.pendingPlaybackStartAt ? 'live' : (this.transcriptChunks.length ? 'complete' : 'waiting');
+        if (!this.pendingPlaybackStartAt && this.transcriptChunks.length > 0) {
+            this.transcriptChunkIndex = this.transcriptChunks.length - 1;
+        }
         
         // Lock in total duration once when chunks are first built
         if (this.transcriptChunks.length > 0 && this.totalAudioDurationMs === 0) {
@@ -850,20 +978,32 @@ class VoicePPTApp {
             if (!(await res.json()).success) throw new Error('Failed');
             input.value = ''; this.pendingQuestionText = null;
             this.setStatus('Question queued', 'paused', 'Answered after the current slide');
-            this.userQuestions.push({ text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
+            this.userQuestions.push({ id: null, text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true);
         } catch (err) { console.error(err); this.setStatus('Question failed', 'paused', 'Retry'); }
     }
 
     renderScrubber() {
         const filmstrip = document.getElementById('scrubber-filmstrip');
+        const prevBtn = document.getElementById('scrubber-prev');
+        const nextBtn = document.getElementById('scrubber-next');
         if (!filmstrip) return;
         filmstrip.innerHTML = '';
 
-        if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) return;
+        if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) {
+            if (this.ui?.renderEmptyHistory) {
+                this.ui.renderEmptyHistory('scrubber-filmstrip');
+            }
+            if (prevBtn) prevBtn.disabled = true;
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
 
+        const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
+        if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
+        if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
         this.slideDeck.forEach((slide, index) => {
-            const isFuture = index > this.currentSlideIndex;
+            const isFuture = index > accessibleIndex;
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'scrubber-thumb';
@@ -921,8 +1061,7 @@ class VoicePPTApp {
 
     async navigateScrubber(direction) {
         const targetIndex = this.currentSlideIndex + direction;
-        // Navigation is only allowed for already reached slides
-        if (targetIndex >= 0 && targetIndex <= this.currentSlideIndex) {
+        if (targetIndex >= 0 && targetIndex <= this.maxViewedSlideIndex) {
             await this.handleScrubberSelect(targetIndex);
         }
     }
@@ -955,9 +1094,9 @@ class VoicePPTApp {
         }
     }
 
-    addQuestionToList(id, text, by) {
+    addQuestionToList(id, text, by, meta = {}) {
         if (this.questions.has(id)) return;
-        this.questions.set(id, { id, text, status: 'pending' });
+        this.questions.set(id, { id, text, status: 'pending', meta: { ...meta } });
         this.syncQuestionCount();
         const list = document.getElementById('qa-list');
         const empty = list.querySelector('.qa-empty-state'); if (empty) empty.remove();
@@ -972,14 +1111,170 @@ class VoicePPTApp {
         list.appendChild(item); list.scrollTop = list.scrollHeight;
     }
 
-    markQuestionAnswered(id, ans, txt) {
-        if (!this.questions.has(id)) this.addQuestionToList(id, txt, 'Audience');
+    markQuestionAnswered(id, ans, txt, meta = {}) {
+        if (!this.questions.has(id)) this.addQuestionToList(id, txt, 'Audience', meta);
         const target = document.getElementById(`q-${id}`); if (!target) return;
-        const q = this.questions.get(id); if (q) q.status = 'answered';
+        const q = this.questions.get(id); if (q) { q.status = 'answered'; q.meta = { ...(q.meta || {}), ...meta }; }
         target.classList.remove('is-pending'); target.classList.add('is-answered');
-        let node = target.querySelector('.qa-card-answer'); if (!node) { node = document.createElement('div'); node.className = 'qa-card-answer'; target.appendChild(node); }
-        this.ui.renderAnswerReel(node, ans);
+        let node = target.querySelector('.qa-card-answer');
+        if (!node) {
+            node = document.createElement('div');
+            node.className = 'qa-card-answer';
+            target.appendChild(node);
+        }
+
+        const answerTitle = meta.answerTitle || this.getQuestionAnswerMeta(id)?.answerTitle || 'Answer';
+        const answerSummary = meta.answerSummary || this.getQuestionAnswerMeta(id)?.answerSummary || ans;
+        const answerDetails = meta.answerDetails || ans;
+        const answerAudioUrl = meta.answerAudioUrl || this.getQuestionAnswerMeta(id)?.answerAudioUrl || '';
+        this.renderQuestionAnswer(node, {
+            questionId: id,
+            answerTitle,
+            answerSummary,
+            answerDetails,
+            answerAudioUrl
+        });
         this.syncQuestionCount();
+        this.registerQuestionAnswerNotification(id, meta.suppressNotification);
+    }
+
+    handleQuestionAnswerReady(data) {
+        const questionId = data?.questionId;
+        if (!questionId) return;
+        const meta = {
+            answerTitle: data.answerTitle,
+            answerSummary: data.answerSummary,
+            answerDetails: data.answerDetails,
+            answerAudioUrl: data.answerAudioUrl,
+            answerAudioPath: data.answerAudioPath,
+            answerAudioDurationMs: data.answerAudioDurationMs,
+            audioSource: data.audioSource,
+            suppressNotification: data.suppressNotification
+        };
+
+        if (!this.questions.has(questionId)) {
+            this.addQuestionToList(questionId, data.questionText || 'Question', data.submittedBy || 'Audience', meta);
+        }
+        this.markQuestionAnswered(questionId, data.answerText || '', data.questionText || '', meta);
+        if (this.sessionId && !this.userQuestions.some((item) => item.id === questionId)) {
+            this.userQuestions.push({
+                id: questionId,
+                questionText: data.questionText || '',
+                answerText: data.answerText || '',
+                answerTitle: data.answerTitle || '',
+                answerSummary: data.answerSummary || '',
+                answerAudioUrl: data.answerAudioUrl || '',
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    registerQuestionAnswerNotification(questionId, suppressNotification = false) {
+        if (!questionId || this.notifiedAnswerIds.has(questionId)) return;
+        this.notifiedAnswerIds.add(questionId);
+        if (suppressNotification) return;
+        this.incrementHistoryBadge();
+    }
+
+    incrementHistoryBadge() {
+        this.unreadAnswerCount = Math.min((this.unreadAnswerCount || 0) + 1, 9);
+        this.updateHistoryBadge();
+    }
+
+    clearHistoryBadge() {
+        this.unreadAnswerCount = 0;
+        this.updateHistoryBadge();
+    }
+
+    updateHistoryBadge() {
+        const badge = document.getElementById('history-badge');
+        if (!badge) return;
+        const count = Number(this.unreadAnswerCount || 0);
+        badge.textContent = count >= 9 ? '9+' : String(count);
+        badge.classList.toggle('hidden', count <= 0);
+        badge.setAttribute('aria-hidden', count <= 0 ? 'true' : 'false');
+    }
+
+    getQuestionAnswerMeta(id) {
+        return this.questions.get(id)?.meta || {};
+    }
+
+    renderQuestionAnswer(target, payload = {}) {
+        const container = typeof target === 'string' ? document.getElementById(target) : target;
+        if (!container) return;
+        container.innerHTML = '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'qa-answer-thread';
+
+        const header = document.createElement('div');
+        header.className = 'qa-answer-thread-header';
+
+        const title = document.createElement('div');
+        title.className = 'qa-answer-thread-title';
+        title.textContent = payload.answerTitle || 'Answer';
+
+        const controls = document.createElement('button');
+        controls.type = 'button';
+        controls.className = 'qa-answer-audio-btn';
+        controls.dataset.questionId = payload.questionId || '';
+        controls.dataset.audioUrl = payload.answerAudioUrl || '';
+        controls.dataset.playing = 'false';
+        controls.innerHTML = `
+            <svg class="qa-answer-audio-icon qa-answer-audio-play" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg class="qa-answer-audio-icon qa-answer-audio-pause" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        `;
+        controls.disabled = !payload.answerAudioUrl;
+        controls.addEventListener('click', () => this.toggleQuestionAnswerAudio(controls));
+
+        header.appendChild(title);
+        header.appendChild(controls);
+
+        const summary = document.createElement('div');
+        summary.className = 'qa-answer-thread-summary';
+        summary.textContent = payload.answerSummary || '';
+
+        const details = document.createElement('div');
+        details.className = 'qa-answer-thread-details';
+        details.textContent = payload.answerDetails || payload.answerSummary || '';
+
+        wrap.appendChild(header);
+        wrap.appendChild(summary);
+        wrap.appendChild(details);
+        container.appendChild(wrap);
+    }
+
+    toggleQuestionAnswerAudio(button) {
+        if (!this.questionAudioPlayer || !button) return;
+        const audioUrl = button.dataset.audioUrl;
+        if (!audioUrl) return;
+
+        const isActive = this.activeQuestionAudioButton === button && !this.questionAudioPlayer.paused;
+        if (isActive) {
+            this.questionAudioPlayer.pause();
+            return;
+        }
+
+        if (this.activeQuestionAudioButton && this.activeQuestionAudioButton !== button) {
+            this.updateQuestionAudioButtonState(this.activeQuestionAudioButton, false);
+        }
+
+        this.activeQuestionAudioButton = button;
+        this.questionAudioPlayer.src = audioUrl;
+        this.questionAudioPlayer.currentTime = 0;
+        this.questionAudioPlayer.play().catch((err) => {
+            console.warn('Question answer audio failed:', err);
+            this.updateQuestionAudioButtonState(button, false);
+        });
+    }
+
+    updateQuestionAudioButtonState(button, playing) {
+        if (!button) return;
+        button.dataset.playing = playing ? 'true' : 'false';
+        const play = button.querySelector('.qa-answer-audio-play');
+        const pause = button.querySelector('.qa-answer-audio-pause');
+        if (play) play.style.display = playing ? 'none' : 'block';
+        if (pause) pause.style.display = playing ? 'block' : 'none';
     }
 
     handleQueueUpdate(data) {
@@ -1108,6 +1403,7 @@ class VoicePPTApp {
         document.getElementById('completion-overlay').classList.remove('hidden');
         this.stopWaveform();
         this.loadCtaBlocks();
+        this.ui.toggleQuestionDrawer(true);
     }
 
     async loadCtaBlocks() {

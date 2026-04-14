@@ -8,6 +8,7 @@ const { createCorsOptions, validateRuntimeConfig } = require('./server/config/ru
 const {
     createRateLimiter,
     hasValidSessionControl,
+    hasValidSessionControlAsync,
     requireAdminApiKey,
     securityHeaders
 } = require('./server/middleware/security');
@@ -182,12 +183,12 @@ setInterval(() => {
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
-    socket.on('join-session', (payload) => {
+    socket.on('join-session', async (payload) => {
         const sessionId = typeof payload === 'string' ? payload : payload?.sessionId;
         const controlToken = typeof payload === 'object' ? String(payload?.controlToken || '') : '';
         const db = app.get('db');
 
-        if (!hasValidSessionControl(db, sessionId, controlToken)) {
+        if (!(await hasValidSessionControlAsync(db, sessionId, controlToken))) {
             socket.emit('session-join-error', { error: 'Valid session control token required' });
             return;
         }

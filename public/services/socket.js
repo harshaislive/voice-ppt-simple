@@ -110,6 +110,10 @@ export class SocketClient {
             }
         });
 
+        this.socket.on('question-answer-ready', (data) => {
+            this.app.handleQuestionAnswerReady(data);
+        });
+
         this.socket.on('queue-update', (data) => {
             this.app.handleQueueUpdate(data);
         });

@@ -1,12 +1,172 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs').promises;
+const path = require('path');
 const analyticsService = require('../services/analytics');
+const ttsService = require('../services/tts');
+const supabaseSession = require('../services/supabaseSession');
 const {
     extractSessionControlToken,
     hasValidSessionControl,
     requireSessionControl
 } = require('../middleware/security');
+
+const GENERATED_QA_DIR = path.join(__dirname, '..', '..', 'public', 'generated', 'qa');
+
+function buildAnswerMeta(questionText, answerText) {
+    const trimmedQuestion = String(questionText || '').trim();
+    const trimmedAnswer = String(answerText || '').trim();
+    const firstSentence = trimmedAnswer.split(/(?<=[.!?])\s+/)[0] || trimmedAnswer;
+    const summary = trimmedAnswer.length > 220 ? `${trimmedAnswer.slice(0, 217).trimEnd()}...` : trimmedAnswer;
+
+    return {
+        answerTitle: firstSentence || 'Answer',
+        answerSummary: summary,
+        answerDetails: trimmedAnswer,
+        metadataJson: {
+            question_length: trimmedQuestion.length,
+            answer_length: trimmedAnswer.length
+        }
+    };
+}
+
+async function persistQuestionAnswer({ db, io, question, answerText, audioResult, sessionId }) {
+    const meta = buildAnswerMeta(question.question_text, answerText);
+    const answeredAt = new Date().toISOString();
+    const audioBuffer = audioResult?.audioBuffer || null;
+    const audioDurationMs = audioResult?.pcmBuffer
+        ? Math.max(0, Math.round((audioResult.pcmBuffer.length / ((audioResult.sampleRate || 24000) * (audioResult.channels || 1) * (audioResult.bitsPerSample || 16) / 8)) * 1000))
+        : null;
+
+    let answerAudioPath = null;
+    let answerAudioUrl = null;
+    let audioSource = 'none';
+
+    if (audioBuffer && audioBuffer.length > 0) {
+        const relativeDir = path.join(GENERATED_QA_DIR, sessionId);
+        await fs.mkdir(relativeDir, { recursive: true });
+        const fileName = `${question.id}.wav`;
+        const filePath = path.join(relativeDir, fileName);
+        await fs.writeFile(filePath, audioBuffer);
+        answerAudioPath = `generated/qa/${sessionId}/${fileName}`;
+        answerAudioUrl = `/${answerAudioPath}`;
+        audioSource = 'local';
+
+        if (supabaseSession.isConfigured()) {
+            try {
+                const upload = await supabaseSession.uploadQuestionAudio({
+                    sessionId,
+                    questionId: question.id,
+                    audioBuffer
+                });
+                answerAudioUrl = upload.publicUrl;
+                audioSource = 'supabase';
+            } catch (error) {
+                console.warn('[Questions] Supabase audio upload failed, using local file:', error.message);
+            }
+        }
+    }
+
+    db.run(`
+        UPDATE questions
+        SET status = 'answered',
+            answered_at = ?,
+            answer_text = ?,
+            answer_title = ?,
+            answer_summary = ?,
+            answer_details = ?,
+            answer_audio_path = ?,
+            answer_audio_url = ?,
+            answer_audio_duration_ms = ?
+        WHERE id = ?
+    `, [
+        answeredAt,
+        answerText,
+        meta.answerTitle,
+        meta.answerSummary,
+        meta.answerDetails,
+        answerAudioPath,
+        answerAudioUrl,
+        audioDurationMs,
+        question.id
+    ]);
+
+    const questionAnswer = {
+        id: uuidv4(),
+        sessionId,
+        questionId: question.id,
+        questionText: question.question_text,
+        submittedBy: question.submitted_by,
+        slideIndex: question.slide_index,
+        status: 'answered',
+        priority: question.priority || 0,
+        answerTitle: meta.answerTitle,
+        answerSummary: meta.answerSummary,
+        answerText,
+        answerDetails: meta.answerDetails,
+        answerAudioPath,
+        answerAudioUrl,
+        answerAudioDurationMs: audioDurationMs,
+        audioSource,
+        metadataJson: meta.metadataJson,
+        answeredAt
+    };
+
+    db.run(`
+        INSERT OR REPLACE INTO question_answers (
+            id, session_id, question_id, question_text, submitted_by, slide_index, status,
+            answer_title, answer_summary, answer_text, answer_details,
+            answer_audio_path, answer_audio_url, answer_audio_duration_ms, audio_source,
+            metadata_json, created_at, updated_at, answered_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+        questionAnswer.id,
+        questionAnswer.sessionId,
+        questionAnswer.questionId,
+        questionAnswer.questionText,
+        questionAnswer.submittedBy,
+        questionAnswer.slideIndex,
+        questionAnswer.status,
+        questionAnswer.answerTitle,
+        questionAnswer.answerSummary,
+        questionAnswer.answerText,
+        questionAnswer.answerDetails,
+        questionAnswer.answerAudioPath,
+        questionAnswer.answerAudioUrl,
+        questionAnswer.answerAudioDurationMs,
+        questionAnswer.audioSource,
+        JSON.stringify(questionAnswer.metadataJson || {}),
+        answeredAt,
+        answeredAt,
+        answeredAt
+    ]);
+
+    if (supabaseSession.isConfigured()) {
+        try {
+            await supabaseSession.createQuestionAnswer(questionAnswer);
+        } catch (error) {
+            console.warn('[Questions] Failed to persist answer thread to Supabase:', error.message);
+        }
+    }
+
+    io.to(sessionId).emit('question-answer-ready', {
+        questionId: question.id,
+        questionText: question.question_text,
+        submittedBy: question.submitted_by,
+        answerText,
+        answerTitle: meta.answerTitle,
+        answerSummary: meta.answerSummary,
+        answerDetails: meta.answerDetails,
+        answerAudioUrl,
+        answerAudioPath,
+        answerAudioDurationMs: audioDurationMs,
+        audioSource,
+        status: 'answered'
+    });
+
+    return questionAnswer;
+}
 
 // Submit a question
 router.post('/', async (req, res) => {
@@ -22,7 +182,7 @@ router.post('/', async (req, res) => {
         // Verify session exists and is active
         const session = db.get(`
             SELECT id, current_slide_index FROM sessions
-            WHERE id = ? AND status IN ('active', 'presenting', 'wrapup')
+            WHERE id = ? AND status IN ('active', 'presenting', 'wrapup', 'completed')
         `, [sessionId]);
         
         if (!session) {
@@ -79,8 +239,27 @@ router.post('/', async (req, res) => {
                     style: 'conversational'
                 }, () => {}); // ignoring stream deltas
 
-                // Save answer and mark as answered so it's ready at the end
-                db.run(`UPDATE questions SET answer_text = ?, status = 'answered', answered_at = CURRENT_TIMESTAMP WHERE id = ?`, [answer, questionId]);
+                let audioResult = null;
+                try {
+                    audioResult = await ttsService.synthesizeDetailed(answer, 'default');
+                } catch (ttsErr) {
+                    console.warn('[Background AI] Failed to synthesize answer audio:', ttsErr.message);
+                }
+
+                await persistQuestionAnswer({
+                    db,
+                    io,
+                    question: {
+                        id: questionId,
+                        question_text: questionText,
+                        submitted_by: submittedBy || 'anonymous',
+                        slide_index: session.current_slide_index,
+                        priority: 0
+                    },
+                    answerText: answer,
+                    audioResult,
+                    sessionId
+                });
             } catch (err) {
                 console.error('[Background AI] Failed to generate answer for question:', questionId, err);
             }

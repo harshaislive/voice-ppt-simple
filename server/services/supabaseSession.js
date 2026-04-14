@@ -168,6 +168,118 @@ class SupabaseSessionService {
         return result;
     }
 
+    async createQuestionAnswer(answerData) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const now = new Date().toISOString();
+        const row = {
+            id: answerData.id || uuidv4(),
+            session_id: answerData.sessionId,
+            question_id: answerData.questionId,
+            question_text: answerData.questionText || '',
+            submitted_by: answerData.submittedBy || null,
+            slide_index: typeof answerData.slideIndex === 'number' ? answerData.slideIndex : null,
+            status: answerData.status || 'answered',
+            priority: Number.isFinite(answerData.priority) ? answerData.priority : 0,
+            answer_title: answerData.answerTitle || null,
+            answer_summary: answerData.answerSummary || null,
+            answer_text: answerData.answerText || '',
+            answer_details: answerData.answerDetails || null,
+            answer_audio_path: answerData.answerAudioPath || null,
+            answer_audio_url: answerData.answerAudioUrl || null,
+            answer_audio_duration_ms: Number.isFinite(answerData.answerAudioDurationMs) ? answerData.answerAudioDurationMs : null,
+            audio_source: answerData.audioSource || 'local',
+            metadata_json: answerData.metadataJson || {},
+            created_at: now,
+            updated_at: now,
+            answered_at: answerData.answeredAt || now
+        };
+
+        const result = await this.request('vpp_session_questions', {}, {
+            method: 'POST',
+            body: [row],
+            prefer: 'return=representation'
+        });
+
+        return result[0];
+    }
+
+    async updateQuestionAnswer(questionId, updates) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const payload = { updated_at: new Date().toISOString() };
+        const allowed = [
+            'status',
+            'answer_title',
+            'answer_summary',
+            'answer_text',
+            'answer_details',
+            'answer_audio_path',
+            'answer_audio_url',
+            'answer_audio_duration_ms',
+            'audio_source',
+            'answered_at',
+            'priority',
+            'metadata_json'
+        ];
+
+        for (const key of allowed) {
+            if (updates[key] !== undefined) {
+                payload[key] = updates[key];
+            }
+        }
+
+        const result = await this.request('vpp_session_questions', {
+            question_id: `eq.${questionId}`
+        }, {
+            method: 'PATCH',
+            body: payload,
+            prefer: 'return=representation'
+        });
+
+        return result && result.length > 0 ? result[0] : null;
+    }
+
+    async uploadQuestionAudio({ sessionId, questionId, audioBuffer, contentType = 'audio/wav' }) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        if (!audioBuffer || !Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+            throw new Error('Audio buffer is required');
+        }
+
+        const bucket = process.env.SUPABASE_QA_AUDIO_BUCKET || 'qa-audio';
+        const objectPath = `sessions/${sessionId}/${questionId}.wav`;
+        const uploadUrl = `${this.supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`;
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                apikey: this.supabaseServiceRoleKey,
+                Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+                'Content-Type': contentType,
+                'x-upsert': 'true'
+            },
+            body: audioBuffer
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Supabase storage upload failed: ${response.status} ${text}`);
+        }
+
+        const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+        return {
+            bucket,
+            objectPath,
+            publicUrl
+        };
+    }
+
     async getSlides(sessionId) {
         if (!this.isConfigured()) {
             throw new Error('Supabase not configured');
@@ -180,6 +292,20 @@ class SupabaseSessionService {
         });
 
         return rows || [];
+    }
+
+    async getSlide(slideId) {
+        if (!this.isConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        const rows = await this.request('vpp_session_slides', {
+            id: `eq.${slideId}`,
+            select: '*',
+            limit: '1'
+        });
+
+        return rows && rows.length > 0 ? rows[0] : null;
     }
 
     async getSessionWithSlides(sessionId) {

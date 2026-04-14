@@ -7,7 +7,11 @@ export class UIManager {
     }
 
     async showLoadingScreen(quotes) {
-        this.loadingQuotes = quotes;
+        const fallbackQuotes = [
+            { text: "10% isn't about subtraction - it's about protection.", author: 'Beforest' },
+            { text: 'Nature does not hurry, yet everything is accomplished.', author: 'Lao Tzu' }
+        ];
+        this.loadingQuotes = Array.isArray(quotes) && quotes.length > 0 ? quotes : fallbackQuotes;
         const overlay = document.getElementById('loading-overlay');
         const quoteText = document.getElementById('loading-quote-text');
         const quoteAuthor = document.getElementById('loading-quote-author');
@@ -53,6 +57,7 @@ export class UIManager {
         const quoteText = document.getElementById('loading-quote-text');
         const quoteAuthor = document.getElementById('loading-quote-author');
         const quote = this.loadingQuotes[this.currentQuoteIndex];
+        if (!quote) return;
         
         if (quoteText) {
             quoteText.style.opacity = 0;
@@ -258,6 +263,17 @@ export class UIManager {
             const input = document.getElementById('question-input');
             if (input) input.focus();
         }
+    }
+
+    renderEmptyHistory(containerId, message = 'No slide history is available yet.') {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        const empty = document.createElement('div');
+        empty.className = 'scrubber-empty-state';
+        empty.textContent = message;
+        container.appendChild(empty);
     }
 
     syncQuestionCount(total, pending) {

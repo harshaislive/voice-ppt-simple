@@ -219,7 +219,8 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             currentSlide,
             pendingQuestions,
             participantName,
-            slideCount: slides.length
+            slideCount: slides.length,
+            slides
         });
     } catch (error) {
         console.error('Error getting session:', error);

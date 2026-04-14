@@ -40,7 +40,36 @@ CREATE TABLE IF NOT EXISTS questions (
     slide_index INTEGER,
     answered_at DATETIME,
     answer_text TEXT,
+    answer_title TEXT,
+    answer_summary TEXT,
+    answer_details TEXT,
+    answer_audio_path TEXT,
+    answer_audio_url TEXT,
+    answer_audio_duration_ms INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS question_answers (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    question_id TEXT NOT NULL UNIQUE,
+    question_text TEXT NOT NULL,
+    submitted_by TEXT,
+    slide_index INTEGER,
+    status TEXT DEFAULT 'answered',
+    answer_title TEXT,
+    answer_summary TEXT,
+    answer_text TEXT NOT NULL,
+    answer_details TEXT,
+    answer_audio_path TEXT,
+    answer_audio_url TEXT,
+    answer_audio_duration_ms INTEGER,
+    audio_source TEXT DEFAULT 'local',
+    metadata_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    answered_at DATETIME,
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
@@ -95,6 +124,8 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_slides_session ON slides(session_id);
 CREATE INDEX IF NOT EXISTS idx_questions_session ON questions(session_id);
 CREATE INDEX IF NOT EXISTS idx_questions_status ON questions(session_id, status);
+CREATE INDEX IF NOT EXISTS idx_question_answers_session ON question_answers(session_id);
+CREATE INDEX IF NOT EXISTS idx_question_answers_question ON question_answers(question_id);
 CREATE INDEX IF NOT EXISTS idx_audience_memory_session ON audience_memory(session_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_doc ON document_chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);

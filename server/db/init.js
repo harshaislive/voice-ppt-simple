@@ -45,7 +45,13 @@ async function initializeDatabase() {
         db.run(migrations);
         ensureColumn('sessions', 'control_token_hash', 'TEXT');
         ensureColumn('slides', 'image', 'TEXT');
-        
+        ensureColumn('questions', 'answer_title', 'TEXT');
+        ensureColumn('questions', 'answer_summary', 'TEXT');
+        ensureColumn('questions', 'answer_details', 'TEXT');
+        ensureColumn('questions', 'answer_audio_path', 'TEXT');
+        ensureColumn('questions', 'answer_audio_url', 'TEXT');
+        ensureColumn('questions', 'answer_audio_duration_ms', 'INTEGER');
+
         // Create database helper
         dbHelper = new DatabaseHelper(db);
         

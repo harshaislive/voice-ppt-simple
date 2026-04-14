@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const supabaseSession = require('../services/supabaseSession');
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -69,8 +70,29 @@ function hasValidSessionControl(db, sessionId, providedToken) {
     return timingSafeCompare(session.control_token_hash, hashToken(providedToken));
 }
 
+async function hasValidSessionControlAsync(db, sessionId, providedToken) {
+    if (hasValidSessionControl(db, sessionId, providedToken)) {
+        return true;
+    }
+
+    if (!supabaseSession.isConfigured() || !sessionId || !providedToken) {
+        return false;
+    }
+
+    try {
+        const session = await supabaseSession.getSession(sessionId);
+        if (!session || !session.control_token_hash) {
+            return false;
+        }
+
+        return timingSafeCompare(session.control_token_hash, hashToken(providedToken));
+    } catch {
+        return false;
+    }
+}
+
 function requireSessionControl(options = {}) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         try {
             const db = req.app.get('db');
             const sessionId = resolveSessionId(req, options);
@@ -80,7 +102,7 @@ function requireSessionControl(options = {}) {
                 return res.status(400).json({ error: 'Session ID is required' });
             }
 
-            if (!hasValidSessionControl(db, sessionId, providedToken)) {
+            if (!(await hasValidSessionControlAsync(db, sessionId, providedToken))) {
                 console.log(`[Security] Session control failed for ${sessionId}, token provided: ${!!providedToken}`);
                 const session = db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]);
                 console.log(`[Security] Session exists: ${!!session}, has hash: ${!!session?.control_token_hash}`);
@@ -96,7 +118,7 @@ function requireSessionControl(options = {}) {
 }
 
 function requireSlideSessionControl() {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         try {
             const db = req.app.get('db');
             const slideId = req.params.slideId;
@@ -104,10 +126,24 @@ function requireSlideSessionControl() {
             const slide = db.get('SELECT session_id FROM slides WHERE id = ?', [slideId]);
 
             if (!slide) {
-                return res.status(404).json({ error: 'Slide not found' });
+                if (!supabaseSession.isConfigured()) {
+                    return res.status(404).json({ error: 'Slide not found' });
+                }
+
+                const remoteSlide = await supabaseSession.getSlide(slideId).catch(() => null);
+                if (!remoteSlide) {
+                    return res.status(404).json({ error: 'Slide not found' });
+                }
+
+                if (!(await hasValidSessionControlAsync(db, remoteSlide.session_id, providedToken))) {
+                    return res.status(403).json({ error: 'Valid session control token required' });
+                }
+
+                req.sessionId = remoteSlide.session_id;
+                return next();
             }
 
-            if (!hasValidSessionControl(db, slide.session_id, providedToken)) {
+            if (!(await hasValidSessionControlAsync(db, slide.session_id, providedToken))) {
                 return res.status(403).json({ error: 'Valid session control token required' });
             }
 
@@ -182,6 +218,7 @@ module.exports = {
     generateSessionControlToken,
     hashToken,
     hasValidSessionControl,
+    hasValidSessionControlAsync,
     requireAdminApiKey,
     requireSessionControl,
     requireSlideSessionControl,

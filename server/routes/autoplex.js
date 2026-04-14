@@ -9,6 +9,7 @@ const slideEngine = require('../services/slideEngine');
 const realtimePresenter = require('../services/realtimePresenter');
 const analyticsService = require('../services/analytics');
 const cmsService = require('../services/cms');
+const supabaseSession = require('../services/supabaseSession');
 const { requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
@@ -75,6 +76,16 @@ function shouldUseRealtimePresenter() {
 
 function shouldStreamNarrationText() {
     return !ttsService.prefersManagedNarration();
+}
+
+function syncSessionState(sessionId, updates) {
+    if (!supabaseSession.isConfigured() || !sessionId || !updates) {
+        return;
+    }
+
+    supabaseSession.updateSession(sessionId, updates).catch((error) => {
+        console.error('[AutoPlex] Failed to sync session state to Supabase:', error.message);
+    });
 }
 
 function getPrewarmKey(sessionId, slideIndex) {
@@ -495,6 +506,7 @@ router.post('/replay-slide', requireSessionControl(), async (req, res) => {
         }
 
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [resolvedSlideIndex, sessionId]);
+        syncSessionState(sessionId, { current_slide_index: resolvedSlideIndex });
         io.to(sessionId).emit('slide-change', {
             slideIndex: resolvedSlideIndex,
             totalSlides: db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [sessionId])?.count || 0,
@@ -530,6 +542,7 @@ async function runPresentation(db, io, sessionId) {
     }
 
     db.run('UPDATE sessions SET status = \'presenting\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+    syncSessionState(sessionId, { status: 'presenting', current_slide_index: 0 });
 
     io.to(sessionId).emit('presentation-start', {
         totalSlides: slides.length,
@@ -548,6 +561,7 @@ async function runPresentation(db, io, sessionId) {
         console.log(`[AutoPlex] Narrating slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
 
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [currentSlideIndex, sessionId]);
+        syncSessionState(sessionId, { current_slide_index: currentSlideIndex, status: 'presenting' });
 
         io.to(sessionId).emit('slide-change', {
             slideIndex: currentSlideIndex,
@@ -707,6 +721,7 @@ async function runPresentation(db, io, sessionId) {
     }
 
     db.run('UPDATE sessions SET status = \'completed\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+    syncSessionState(sessionId, { status: 'completed', current_slide_index: Math.max(0, slides.length - 1) });
     setPaused(sessionId, false);
 
     const questionsAsked = db.get('SELECT COUNT(*) as c FROM questions WHERE session_id = ?', [sessionId])?.c || 0;
@@ -738,6 +753,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
     }, {});
 
     db.run('UPDATE sessions SET status = \'wrapup\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+    syncSessionState(sessionId, { status: 'wrapup' });
 
     io.to(sessionId).emit('presentation-wrapup', {
         endsAt: deadline,
@@ -821,9 +837,20 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
     await sleep(300);
 
     if (ctaContent) {
+        const ctaText = typeof ctaContent === 'string'
+            ? ctaContent
+            : typeof ctaContent?.content === 'string'
+                ? ctaContent.content
+                : typeof ctaContent?.text === 'string'
+                    ? ctaContent.text
+                    : '';
+        const trimmedCta = ctaText.trim();
+        if (!trimmedCta) {
+            return;
+        }
         const closingLines = [
             `That's our story. Thank you for your time and attention, ${participantName || 'everyone'}.`,
-            ctaContent.trim()
+            trimmedCta
         ].join(' ');
         io.to(sessionId).emit('narration-text', { text: closingLines, slideIndex: -1, isWrapUp: true });
 
