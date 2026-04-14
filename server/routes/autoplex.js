@@ -96,23 +96,13 @@ function markPlaybackComplete(sessionId) {
     }
 }
 
-function waitForContinue(sessionId, io, payload = {}) {
-    return new Promise((resolve) => {
-        continueWaiters.set(sessionId, () => {
-            continueWaiters.delete(sessionId);
-            resolve(true);
-        });
-
-        io.to(sessionId).emit('slide-turn-ready', payload);
-    });
-}
-
 function markContinue(sessionId) {
     const waiter = continueWaiters.get(sessionId);
     if (waiter) {
         waiter();
     }
 }
+
 
 function getParticipantName(db, sessionId) {
     return getSessionMetadata(db, sessionId).participantName || '';
@@ -278,6 +268,21 @@ router.post('/continue', requireSessionControl(), (req, res) => {
     res.json({ success: true, continued: true });
 });
 
+router.post('/jump', requireSessionControl(), (req, res) => {
+    const { sessionId, slideIndex } = req.body;
+    if (!sessionId || typeof slideIndex !== 'number') {
+        return res.status(400).json({ error: 'Session ID and slideIndex are required' });
+    }
+
+    const db = req.app.get('db');
+    db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [slideIndex, sessionId]);
+    
+    // Also clear interrupt if we're jumping, as it usually means we're resuming at a new point
+    clearInterrupt(sessionId);
+    
+    res.json({ success: true, jumpedTo: slideIndex });
+});
+
 async function runPresentation(db, io, sessionId) {
     const session = db.get('SELECT * FROM sessions WHERE id = ? AND status IN (\'active\', \'presenting\')', [sessionId]);
     if (!session) {
@@ -308,6 +313,16 @@ async function runPresentation(db, io, sessionId) {
 
     while (currentSlideIndex < slides.length) {
         await waitWhilePaused(db, io, sessionId);
+        await waitWhileInterrupted(db, io, sessionId);
+
+        // Check if currentSlideIndex was changed externally (via /jump)
+        const currentSession = db.get('SELECT current_slide_index FROM sessions WHERE id = ?', [sessionId]);
+        if (currentSession && currentSession.current_slide_index !== currentSlideIndex) {
+            console.log(`[AutoPlex] Jumping from ${currentSlideIndex} to ${currentSession.current_slide_index}`);
+            currentSlideIndex = currentSession.current_slide_index;
+            if (currentSlideIndex >= slides.length) break;
+        }
+
         const slide = slides[currentSlideIndex];
         console.log(`[AutoPlex] Narrating slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
 
@@ -344,7 +359,9 @@ async function runPresentation(db, io, sessionId) {
         );
 
         await waitWhilePaused(db, io, sessionId);
-        if (!narrationResult.audioHandled) {
+        await waitWhileInterrupted(db, io, sessionId);
+
+        if (!isInterrupted(sessionId) && !narrationResult.audioHandled) {
             await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
         }
 
@@ -357,15 +374,32 @@ async function runPresentation(db, io, sessionId) {
 
         await sleep(900);
 
-        // Auto-advance after a brief pause — no "Your Turn" popup
-        await sleep(2000);
-
+        // Check for questions asked during narration or just after
         updatedPendingQuestions = db.all(
             'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
             [sessionId]
         );
+        
+        if (updatedPendingQuestions.length > 0 && !isInterrupted(sessionId)) {
+            await answerQuestionsInline({
+                db,
+                io,
+                sessionId,
+                slides,
+                currentSlideIndex,
+                questionIds: updatedPendingQuestions.map(q => q.id)
+            });
+        }
+
+        // Auto-advance after a brief pause — no "Your Turn" popup
+        await sleep(2000);
+
+        await waitWhilePaused(db, io, sessionId);
+        await waitWhileInterrupted(db, io, sessionId);
 
         currentSlideIndex += 1;
+        // Ensure DB is in sync for next iteration or if we stop
+        db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [currentSlideIndex, sessionId]);
     }
 
     await runWrapUp(db, io, sessionId, session.deck_id, participantName);
@@ -599,6 +633,23 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
 
     while (Date.now() < deadline) {
         await waitWhilePaused(db, io, sessionId);
+        
+        // Check for questions during wrap-up
+        const wrapUpQuestions = db.all(
+            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
+            [sessionId]
+        );
+        if (wrapUpQuestions.length > 0) {
+            await answerQuestionsInline({
+                db,
+                io,
+                sessionId,
+                slides,
+                currentSlideIndex: -1, // Special index for wrap-up
+                questionIds: wrapUpQuestions.map(q => q.id)
+            });
+        }
+
         await sleep(250);
     }
 
@@ -862,6 +913,233 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
     }
 }
 
+const wrapupFinishedFlags = new Map();
+
+function markWrapupFinished(sessionId) {
+    wrapupFinishedFlags.set(sessionId, true);
+}
+
+function isWrapupFinished(sessionId) {
+    return wrapupFinishedFlags.has(sessionId);
+}
+
+router.post('/wrapup-finish', requireSessionControl(), (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    markWrapupFinished(sessionId);
+    res.json({ success: true, finished: true });
+});
+
+async function runWrapUp(db, io, sessionId, deckId, participantName) {
+    wrapupFinishedFlags.delete(sessionId);
+    const mcqs = buildWrapUpMcqs(deckId, participantName);
+    const durationMs = 60000;
+    const deadline = Date.now() + durationMs;
+    const promptText = [
+        participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
+        'I will stay with you for one more minute.',
+        'If you want to ask anything live, hit the mic icon at the bottom.',
+        'You can also answer the quick prompts on screen while you think about your questions.'
+    ].join(' ');
+
+    const audienceMemory = db.all(
+        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
+        [sessionId]
+    ).reduce((acc, item) => {
+        acc[item.key] = item.value;
+        return acc;
+    }, {});
+
+    db.run('UPDATE sessions SET status = \'wrapup\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+
+    io.to(sessionId).emit('presentation-wrapup', {
+        endsAt: deadline,
+        durationMs,
+        promptText,
+        mcqs
+    });
+
+    io.to(sessionId).emit('narration-text', {
+        text: promptText,
+        slideIndex: -1,
+        isWrapUp: true
+    });
+
+    if (realtimePresenter.isConfigured()) {
+        try {
+            const result = await realtimePresenter.generateNarrationAudio({
+                slideTitle: 'Wrap Up',
+                slideContent: promptText,
+                slideNotes: 'Invite the attendee to ask questions using the mic icon. Sound calm, warm, and clearly indicate they have one minute.',
+                pendingQuestions: [],
+                audienceContext: audienceMemory,
+                participantName,
+                slideIndex: 0,
+                totalSlides: 1,
+                style: 'conversational'
+            }, {
+                onTranscriptDelta: (delta, full) => {
+                    io.to(sessionId).emit('narration-delta', {
+                        delta,
+                        full,
+                        slideIndex: -1,
+                        isWrapUp: true
+                    });
+                },
+                onAudioChunk: (chunk) => {
+                    io.to(sessionId).emit('audio-chunk', {
+                        chunk: chunk.toString('base64'),
+                        slideIndex: -1,
+                        sampleRate: 24000,
+                        channels: 1,
+                        bitsPerSample: 16,
+                        isWrapUp: true
+                    });
+                }
+            });
+            if (hasRenderableAudio(result)) {
+                io.to(sessionId).emit('audio-end', {
+                    slideIndex: -1,
+                    format: 'wav',
+                    isWrapUp: true
+                });
+                const durationFromAudio = result.totalPcmBytes / (24000 * 2);
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 2000, 3000));
+            } else {
+                console.warn('Realtime presenter returned no audio for wrap-up; falling back to TTS stream');
+                await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
+            }
+        } catch (error) {
+            await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
+        }
+    } else {
+        await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
+    }
+
+    while (Date.now() < deadline && !isWrapupFinished(sessionId)) {
+        await waitWhilePaused(db, io, sessionId);
+        
+        // Check for questions during wrap-up
+        const wrapUpQuestions = db.all(
+            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
+            [sessionId]
+        );
+        if (wrapUpQuestions.length > 0) {
+            await answerQuestionsInline({
+                db,
+                io,
+                sessionId,
+                slides: [],
+                currentSlideIndex: -1, // Special index for wrap-up
+                questionIds: wrapUpQuestions.map(q => q.id)
+            });
+        }
+
+        await sleep(250);
+    }
+
+    const sessionMetadata = getSessionMetadata(db, sessionId);
+    const ctaContent = sessionMetadata?.knowledgeDocs?.cta || null;
+
+    io.to(sessionId).emit('presentation-wrapup-ended', {
+        endedAt: Date.now()
+    });
+
+    await sleep(300);
+
+    if (ctaContent) {
+        const closingLines = [
+            `That's our story. Thank you for your time and attention, ${participantName || 'everyone'}.`,
+            ctaContent.trim()
+        ].join(' ');
+        io.to(sessionId).emit('narration-text', { text: closingLines, slideIndex: -1, isWrapUp: true });
+
+        if (realtimePresenter.isConfigured()) {
+            try {
+                const result = await realtimePresenter.generateNarrationAudio({
+                    slideTitle: 'Closing',
+                    slideContent: closingLines,
+                    slideNotes: 'Speak this closing with warmth and gratitude. Then clearly state the CTA.',
+                    pendingQuestions: [],
+                    audienceContext: {},
+                    participantName,
+                    slideIndex: 0,
+                    totalSlides: 1,
+                    style: 'closer'
+                }, {
+                    onTranscriptDelta: (delta, full) => {
+                        io.to(sessionId).emit('narration-delta', { delta, full, slideIndex: -1, isWrapUp: true });
+                    },
+                    onAudioChunk: (chunk) => {
+                        io.to(sessionId).emit('audio-chunk', {
+                            chunk: chunk.toString('base64'),
+                            slideIndex: -1,
+                            sampleRate: 24000,
+                            channels: 1,
+                            bitsPerSample: 16,
+                            isWrapUp: true
+                        });
+                    }
+                });
+                if (hasRenderableAudio(result)) {
+                    io.to(sessionId).emit('audio-end', { slideIndex: -1, format: 'wav', isWrapUp: true });
+                }
+            } catch {}
+        } else {
+            await streamAudio(io, sessionId, closingLines, -1, { isWrapUp: true });
+        }
+    }
+}
+
+function buildWrapUpMcqs(deckId, participantName) {
+    const trimmedName = String(participantName || '').trim();
+    const isNamedParticipant = !!trimmedName;
+    const displayName = isNamedParticipant ? trimmedName : 'you';
+    const possessiveName = isNamedParticipant
+        ? `${trimmedName}${trimmedName.endsWith('s') ? '\'' : '\'s'}`
+        : 'your';
+    const shared = [
+        {
+            id: 'confidence',
+            prompt: `How clear does the core idea feel to ${displayName} right now?`,
+            options: ['Very clear', 'Mostly clear', 'Still fuzzy']
+        },
+        {
+            id: 'next_step',
+            prompt: `What would ${displayName} want to explore next?`,
+            options: ['Market opportunity', 'Business model', 'Execution plan', 'Risks']
+        },
+        {
+            id: 'action',
+            prompt: `What feels like ${possessiveName} next move after this?`,
+            options: ['Ask follow-up questions', 'Review the deck again', 'Discuss with team', 'Pass for now']
+        }
+    ];
+
+    if (deckId === 'ten_percent_club') {
+        return [
+            {
+                id: 'resonance',
+                prompt: `What resonated most in ${possessiveName} view of the 10% Club?`,
+                options: ['The mission', 'The member experience', 'The growth angle', 'The community angle']
+            },
+            ...shared
+        ];
+    }
+
+    return [
+        {
+            id: 'resonance',
+            prompt: `What resonated most with ${displayName} in this deck?`,
+            options: ['The vision', 'The problem framing', 'The solution', 'The traction']
+        },
+        ...shared
+    ];
+}
+
 async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIndex, questionIds }) {
     if (!questionIds || questionIds.length === 0) {
         return;
@@ -1050,5 +1328,12 @@ async function waitWhilePaused(db, io, sessionId) {
 
     if (emitted) {
         io.to(sessionId).emit('presentation-resumed', { sessionId });
+    }
+}
+
+async function waitWhileInterrupted(db, io, sessionId) {
+    while (isInterrupted(sessionId)) {
+        db.run('UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
+        await sleep(250);
     }
 }

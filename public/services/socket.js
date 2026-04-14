@@ -46,10 +46,6 @@ export class SocketClient {
             this.app.updateSlide(data);
         });
 
-        this.socket.on('slide-turn-ready', (data) => {
-            // Auto-advance: no overlay popup, slides transition seamlessly
-        });
-
         this.socket.on('narration-delta', (data) => {
             this.app.handleNarrationDelta({ delta: data.delta, append: true });
         });

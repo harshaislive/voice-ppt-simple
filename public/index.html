@@ -123,37 +123,6 @@
                         </div>
                     </footer>
 
-                    <div id="slide-turn-overlay" class="slide-turn-overlay hidden">
-                        <div class="slide-turn-backdrop"></div>
-                        <div class="slide-turn-card">
-                            <div class="slide-turn-copy">
-                                <span class="slide-turn-eyebrow">Pause</span>
-                                <h2 class="slide-turn-title">Next Step?</h2>
-                                <p id="slide-turn-detail" class="slide-turn-detail">Ask the presenter a question or continue the story.</p>
-                            </div>
-                            
-                            <div class="slide-turn-actions">
-                                <button id="slide-turn-mic" class="slide-turn-mic btn-primary" type="button">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                                    <span id="slide-turn-mic-label">Ask a Question</span>
-                                </button>
-                                <button id="slide-turn-continue" class="slide-turn-continue btn-secondary" type="button">
-                                    <span>Continue</span>
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                </button>
-                            </div>
-
-                            <div class="slide-turn-qa">
-                                <div class="slide-turn-input-row">
-                                    <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question...">
-                                    <button id="slide-question-send" class="slide-turn-send" aria-label="Save question">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div id="mic-permission-modal" class="modal-overlay hidden">
                         <div class="modal-card">
                             <div class="modal-icon alert">
@@ -204,7 +173,10 @@
 
                     <div class="qa-footer">
                         <div class="qa-input-container">
-                            <textarea id="question-input" class="qa-textarea" placeholder="Type your question..." rows="1" disabled></textarea>
+                            <div class="input-with-clear flex-1">
+                                <textarea id="question-input" class="qa-textarea" placeholder="Type your question..." rows="1" disabled></textarea>
+                                <button id="question-clear" class="input-clear-btn hidden" type="button" aria-label="Clear text">✕</button>
+                            </div>
                             <button id="submit-question" class="qa-send-btn" disabled aria-label="Send question">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                             </button>

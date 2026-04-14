@@ -39,8 +39,6 @@ export class UIManager {
     updateMicState(isListening, voiceModeEnabled, azureConnected) {
         const button = document.getElementById('interrupt-mic');
         const label = document.getElementById('interrupt-label');
-        const slideTurnMic = document.getElementById('slide-turn-mic');
-        const slideTurnMicLabel = document.getElementById('slide-turn-mic-label');
         const wrapupMic = document.getElementById('wrapup-mic');
         const wrapupMicLabel = document.getElementById('wrapup-mic-label');
 
@@ -53,14 +51,6 @@ export class UIManager {
         
         if (label) {
             label.textContent = voiceModeEnabled ? 'End Voice' : isListening ? 'Listening...' : 'Interrupt';
-        }
-
-        if (slideTurnMic) {
-            slideTurnMic.classList.toggle('is-live', active);
-        }
-        
-        if (slideTurnMicLabel) {
-            slideTurnMicLabel.textContent = voiceModeEnabled ? 'End Voice Session' : 'Talk To Presenter';
         }
 
         if (wrapupMic) {
@@ -99,36 +89,6 @@ export class UIManager {
         }
         if (dockCount) {
             dockCount.textContent = `${pending} queued`;
-        }
-    }
-
-    openSlideTurnOverlay(data = {}) {
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        const statusDetail = document.getElementById('status-detail');
-        const continueBtn = document.getElementById('footer-continue-btn');
-        const overlay = document.getElementById('slide-turn-overlay');
-        const turnDetail = document.getElementById('slide-turn-detail');
-        if (statusDot) statusDot.className = 'status-dot your-turn';
-        if (statusText) statusText.textContent = 'Your Turn';
-        if (statusDetail) statusDetail.textContent = 'Tap mic or continue';
-        if (overlay) overlay.classList.remove('hidden');
-        if (turnDetail && data && data.pendingQuestionCount > 0) {
-            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — ask now or continue`;
-        }
-        if (continueBtn) {
-            continueBtn.classList.remove('hidden');
-            continueBtn.classList.add('visible');
-        }
-    }
-
-    closeSlideTurnOverlay() {
-        const overlay = document.getElementById('slide-turn-overlay');
-        const continueBtn = document.getElementById('footer-continue-btn');
-        if (overlay) overlay.classList.add('hidden');
-        if (continueBtn) {
-            continueBtn.classList.remove('visible');
-            continueBtn.classList.add('hidden');
         }
     }
 }

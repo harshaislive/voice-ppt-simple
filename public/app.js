@@ -34,13 +34,13 @@ class VoicePPTApp {
         this.wrapUpSelections = {};
         this.wrapUpMcqs = [];
         this.wrapUpIndex = 0;
+        this.wrapUpSubmitted = false;
         
         this.subtitleBuffer = '';
         this.subtitleReady = false;
         this.fullNarrationTranscript = '';
         this.presentationCatalog = [];
         this.awaitingPlaybackComplete = false;
-        this.awaitingSlideContinue = false;
 
         this.waveformCanvas = document.getElementById('waveform');
         this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
@@ -201,19 +201,32 @@ class VoicePPTApp {
         document.getElementById('qa-scrim').addEventListener('click', () => this.ui.toggleQuestionDrawer(false));
         document.getElementById('restart-btn').addEventListener('click', () => location.reload());
         document.getElementById('interrupt-mic').addEventListener('click', () => this.handleInterruptMic());
-        document.getElementById('slide-turn-mic').addEventListener('click', () => this.handleInterruptMic());
         document.getElementById('wrapup-mic').addEventListener('click', () => this.handleInterruptMic());
-        document.getElementById('slide-turn-continue').addEventListener('click', () => this.continuePresentationFlow());
         document.getElementById('footer-continue-btn').addEventListener('click', () => this.continuePresentationFlow());
-        document.getElementById('slide-question-send').addEventListener('click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
-        document.getElementById('slide-question-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
-            }
-        });
         document.getElementById('wrapup-prev').addEventListener('click', () => this.changeWrapUpCard(-1));
         document.getElementById('wrapup-next').addEventListener('click', () => this.changeWrapUpCard(1));
+
+        // Clear buttons logic
+        const setupClearBtn = (inputId, clearBtnId) => {
+            const input = document.getElementById(inputId);
+            const clearBtn = document.getElementById(clearBtnId);
+            if (!input || !clearBtn) return;
+            
+            const updateVisibility = () => {
+                if (input.value.length > 0) clearBtn.classList.remove('hidden');
+                else clearBtn.classList.add('hidden');
+            };
+            
+            input.addEventListener('input', updateVisibility);
+            clearBtn.addEventListener('click', () => {
+                input.value = '';
+                updateVisibility();
+                input.focus();
+            });
+        };
+
+        setupClearBtn('question-input', 'question-clear');
+        setupClearBtn('slide-question-input', 'slide-question-clear');
 
         document.getElementById('mic-retry-btn').addEventListener('click', () => {
             document.getElementById('mic-permission-modal').classList.add('hidden');
@@ -416,7 +429,6 @@ class VoicePPTApp {
         this.currentSlideIndex = data.slideIndex;
         this.totalSlides = data.totalSlides || this.totalSlides;
         this.currentSlide = data.slide || null;
-        this.ui.closeSlideTurnOverlay();
         this.resetSubtitleState();
         this.fullNarrationTranscript = '';
         this.ui.updateFullTranscriptionDisplay('');
@@ -511,7 +523,7 @@ class VoicePPTApp {
     handleMicPermissionError() { document.getElementById('mic-permission-modal').classList.remove('hidden'); }
 
     async submitQuestion(forcedText, options = {}) {
-        const input = options.source === 'slide-turn' ? document.getElementById('slide-question-input') : document.getElementById('question-input');
+        const input = document.getElementById('question-input');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) return;
         if (options.interrupt) { await this.requestInterrupt(); this.setStatus('Thinking', 'paused', 'Routing interruption'); }
@@ -524,6 +536,11 @@ class VoicePPTApp {
             else this.setStatus('Question queued', 'paused', 'Answered shortly');
             this.userQuestions.push({ text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true);
+
+            // Clear interrupt if we were in fallback voice mode (not Azure Realtime)
+            if (options.interrupt && !this.voiceModeEnabled) {
+                await this.pauseAutoplex(false);
+            }
         } catch (err) { console.error(err); this.setStatus('Question failed', 'paused', 'Retry'); }
     }
 
@@ -570,13 +587,69 @@ class VoicePPTApp {
     async handleInterruptMic() {
         if (this.voiceModeEnabled) { await this.stopVoiceMode(); return; }
         await this.requestInterrupt(); await this.pauseAutoplex(true);
-        if (await this.azureVoice.connect()) { this.voiceModeEnabled = true; this.updateMicState(); return; }
-        await this.pauseAutoplex(false);
-        if (!this.recognition) { document.getElementById('question-input').focus(); this.setStatus('Type interruption', 'paused', 'Voice unavailable'); return; }
-        try { this.recognition.start(); } catch (err) { console.error(err); this.setStatus('Mic unavailable', 'paused', 'Type question'); }
+        if (await this.azureVoice.connect()) { 
+            this.voiceModeEnabled = true; 
+            this.updateMicState(); 
+            return; 
+        }
+        
+        // Fallback to browser recognition
+        if (!this.recognition) { 
+            await this.pauseAutoplex(false);
+            document.getElementById('question-input').focus(); 
+            this.setStatus('Type interruption', 'paused', 'Voice unavailable'); 
+            return; 
+        }
+        try { 
+            this.recognition.start(); 
+        } catch (err) { 
+            console.error(err); 
+            await this.pauseAutoplex(false);
+            this.setStatus('Mic unavailable', 'paused', 'Type question'); 
+        }
     }
 
-    async stopVoiceMode() { this.voiceModeEnabled = false; await this.azureVoice.disconnect(); await this.pauseAutoplex(false); this.updateMicState(); this.restorePresentationStatus(); }
+    async stopVoiceMode() { 
+        this.voiceModeEnabled = false; 
+        await this.azureVoice.disconnect(); 
+        await this.pauseAutoplex(false); 
+        this.updateMicState(); 
+        this.restorePresentationStatus(); 
+    }
+
+    async advanceSlideByVoice(direction) {
+        const targetIndex = direction === 'next' ? this.currentSlideIndex + 1 : this.currentSlideIndex - 1;
+        if (targetIndex < 0 || targetIndex >= this.totalSlides) return false;
+        
+        try {
+            const res = await this.apiFetch('/api/autoplex/jump', {
+                method: 'POST',
+                body: JSON.stringify({ sessionId: this.sessionId, slideIndex: targetIndex })
+            });
+            const data = await res.json();
+            return !!data.success;
+        } catch (err) {
+            console.error('Jump failed:', err);
+            return false;
+        }
+    }
+
+    async goToSlideByVoice(pageNumber) {
+        const targetIndex = pageNumber - 1;
+        if (targetIndex < 0 || targetIndex >= this.totalSlides) return false;
+
+        try {
+            const res = await this.apiFetch('/api/autoplex/jump', {
+                method: 'POST',
+                body: JSON.stringify({ sessionId: this.sessionId, slideIndex: targetIndex })
+            });
+            const data = await res.json();
+            return !!data.success;
+        } catch (err) {
+            console.error('Jump failed:', err);
+            return false;
+        }
+    }
 
     async continuePresentationFlow() {
         if (!this.sessionId) return;
@@ -606,18 +679,15 @@ class VoicePPTApp {
         };
     }
 
-    openSlideTurnOverlay(data = {}) { this.awaitingSlideContinue = true; this.ui.openSlideTurnOverlay(data); this.updateMicState(); }
-
     restorePresentationStatus() {
         if (this.voiceModeEnabled) { this.setStatus('Mic live', 'paused', 'Ask question or tap mic to resume'); return; }
         if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Use mic or prompts'); return; }
-        if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Ask now or continue'); return; }
         if (this.isQAPhase) { this.setStatus('Q&A', 'paused', 'Answering questions'); return; }
         this.setStatus('Presenting', 'live', 'Narration live');
     }
 
     startWrapUp(data = {}) {
-        this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0;
+        this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0; this.wrapUpSubmitted = false;
         this.wrapUpEndsAt = Number(data.endsAt) || (Date.now() + 60000);
         this.renderWrapUpMcqs();
         document.getElementById('wrapup-message').textContent = data.promptText || 'One minute for questions.';
@@ -684,24 +754,103 @@ class VoicePPTApp {
     renderWrapUpMcqs() {
         const container = document.getElementById('wrapup-mcqs'); container.innerHTML = '';
         const mcq = this.wrapUpMcqs[this.wrapUpIndex];
-        document.getElementById('wrapup-progress').textContent = this.wrapUpMcqs.length ? `${this.wrapUpIndex+1}/${this.wrapUpMcqs.length}` : '0/0';
+        const isLast = this.wrapUpIndex === this.wrapUpMcqs.length - 1;
+        const totalQuestions = this.wrapUpMcqs.length;
+        const answeredCount = this.wrapUpMcqs.filter(item => !!this.wrapUpSelections[item.id]).length;
+        const allQuestionsAnswered = totalQuestions > 0 && answeredCount === totalQuestions;
+        
+        document.getElementById('wrapup-progress').textContent = totalQuestions ? `Question ${this.wrapUpIndex + 1} of ${totalQuestions}` : 'No questions';
         document.getElementById('wrapup-prev').disabled = this.wrapUpIndex <= 0;
-        document.getElementById('wrapup-next').disabled = this.wrapUpIndex >= this.wrapUpMcqs.length - 1;
+        document.getElementById('wrapup-next').disabled = this.wrapUpSubmitted || this.wrapUpIndex >= totalQuestions - 1;
+        
         if (!mcq) return;
         const card = document.createElement('div'); card.className = 'wrapup-card';
         const title = document.createElement('div'); title.className = 'wrapup-card-title'; title.textContent = mcq.prompt; card.appendChild(title);
+        const meta = document.createElement('div'); meta.className = 'wrapup-card-meta';
+        meta.textContent = this.wrapUpSubmitted
+            ? 'Submitted privately.'
+            : isLast
+                ? 'Review your picks, then submit.'
+                : 'Choose the answer that fits you best.';
+        card.appendChild(meta);
         const options = document.createElement('div'); options.className = 'wrapup-options';
-        const votes = this.votes.get(mcq.id) || {}; const total = Object.values(votes).reduce((s,v)=>s+v,0);
-        (mcq.options || []).forEach((opt, idx) => {
+        const hasSelection = !!this.wrapUpSelections[mcq.id];
+
+        (mcq.options || []).forEach((opt) => {
             const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'wrapup-option';
-            const count = votes[opt] || 0; const pct = total > 0 ? (count/total)*100 : 0;
-            const colors = ['#344736', '#86312b', '#ffc083', '#002140'];
-            btn.innerHTML = `<span class="option-text">${opt}</span><div class="option-bar-bg"><div class="option-bar" style="width:${pct}%;background:${colors[idx%colors.length]}"></div></div><span class="option-count">${count}</span>`;
             if (this.wrapUpSelections[mcq.id] === opt) btn.classList.add('is-selected');
-            btn.addEventListener('click', () => { if (this.wrapUpSelections[mcq.id] === opt) return; this.wrapUpSelections[mcq.id] = opt; this.socketClient.submitVote(mcq.id, opt); this.renderWrapUpMcqs(); });
+            if (this.wrapUpSubmitted) btn.disabled = true;
+            btn.innerHTML = `<span class="option-text">${opt}</span>`;
+            btn.addEventListener('click', () => {
+                if (this.wrapUpSubmitted || this.wrapUpSelections[mcq.id] === opt) return;
+                this.wrapUpSelections[mcq.id] = opt;
+                this.renderWrapUpMcqs();
+            });
             options.appendChild(btn);
         });
-        card.appendChild(options); container.appendChild(card);
+        card.appendChild(options);
+
+        const actions = document.createElement('div');
+        actions.className = 'wrapup-card-actions';
+
+        if (isLast && !this.wrapUpSubmitted) {
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'button';
+            submitBtn.className = 'story-btn';
+            submitBtn.disabled = !allQuestionsAnswered || !hasSelection;
+            submitBtn.innerHTML = '<span>Submit Responses</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            submitBtn.addEventListener('click', () => this.submitWrapUpResponses());
+            actions.appendChild(submitBtn);
+        }
+
+        if (isLast && this.wrapUpSubmitted) {
+            const submittedNote = document.createElement('p');
+            submittedNote.className = 'wrapup-submit-note';
+            submittedNote.textContent = 'Thanks. Your responses are in.';
+            actions.appendChild(submittedNote);
+
+            const finishBtn = document.createElement('button');
+            finishBtn.type = 'button';
+            finishBtn.className = 'story-btn';
+            finishBtn.innerHTML = '<span>Finish Presentation</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            finishBtn.addEventListener('click', () => this.finishWrapUpEarly());
+            actions.appendChild(finishBtn);
+        }
+
+        if (actions.childElementCount > 0) {
+            card.appendChild(actions);
+        }
+
+        container.appendChild(card);
+    }
+
+    async submitWrapUpResponses() {
+        if (this.wrapUpSubmitted || !this.wrapUpMcqs.length) return;
+        const answers = this.wrapUpMcqs
+            .map(mcq => ({ mcqId: mcq.id, option: this.wrapUpSelections[mcq.id] }))
+            .filter(item => !!item.option);
+        if (answers.length !== this.wrapUpMcqs.length) {
+            this.setStatus('Complete each response', 'paused', 'Select one answer for every prompt');
+            return;
+        }
+
+        answers.forEach(answer => this.socketClient.submitVote(answer.mcqId, answer.option));
+        this.wrapUpSubmitted = true;
+        this.setStatus('Responses submitted', 'paused', 'Finish whenever you are ready');
+        this.renderWrapUpMcqs();
+    }
+
+    async finishWrapUpEarly() {
+        if (!this.sessionId) return;
+        try {
+            await this.apiFetch('/api/autoplex/wrapup-finish', {
+                method: 'POST',
+                body: JSON.stringify({ sessionId: this.sessionId })
+            });
+            this.setStatus('Ending...', 'paused', 'Closing session');
+        } catch (err) {
+            console.error('Failed to finish wrap-up:', err);
+        }
     }
 
     changeWrapUpCard(dir) { if (!this.wrapUpMcqs.length) return; const next = this.wrapUpIndex + dir; if (next >= 0 && next < this.wrapUpMcqs.length) { this.wrapUpIndex = next; this.renderWrapUpMcqs(); } }
