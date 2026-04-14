@@ -45,6 +45,7 @@ class VoicePPTApp {
         this.transcriptChunkTimers = [];
         this.pendingPlaybackStartAt = null;
         this.transcriptChunkMode = 'waiting';
+        this.slideDeck = [];
         this.presentationCatalog = [];
         this.loadingQuotes = [];
         this.awaitingPlaybackComplete = false;
@@ -153,6 +154,7 @@ class VoicePPTApp {
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
             await this.primeInitialSlide();
+            await this.loadSessionSlides();
             this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
@@ -360,6 +362,21 @@ class VoicePPTApp {
         } catch (err) { console.error('Catalog load failed:', err); }
     }
 
+    async loadSessionSlides() {
+        if (!this.sessionId) return;
+        try {
+            const res = await this.apiFetch(`/api/slides/${this.sessionId}`);
+            if (!res.ok) return;
+            const slides = await res.json();
+            if (Array.isArray(slides)) {
+                this.slideDeck = slides;
+                this.renderScrubber();
+            }
+        } catch (err) {
+            console.warn('Failed to load session slides:', err);
+        }
+    }
+
     setupSpeechRecognitionFallback() {
         this.recognition = null;
     }
@@ -419,6 +436,7 @@ class VoicePPTApp {
             
             // Prime initial slide while loading
             await this.primeInitialSlide();
+            await this.loadSessionSlides();
             this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
@@ -430,7 +448,7 @@ class VoicePPTApp {
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
             
-            this.setStatus('Ready', 'live', 'Ask anytime');
+            this.setStatus('Ready', 'live', 'Type questions anytime');
             this.syncQuestionCount();
             setTimeout(() => this.triggerAutoPlex(), 250);
         } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience'; }
@@ -479,6 +497,7 @@ class VoicePPTApp {
         if (!this.voiceModeEnabled) { this.streamPlayer.reset(); this.stopWaveform(); }
         if (this.azureVoice.connected) this.azureVoice.syncSlideContext();
         this.updateFolio();
+        this.renderScrubber();
     }
 
     handleNarrationDelta(data) {
@@ -710,6 +729,76 @@ class VoicePPTApp {
             this.userQuestions.push({ text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true);
         } catch (err) { console.error(err); this.setStatus('Question failed', 'paused', 'Retry'); }
+    }
+
+    renderScrubber() {
+        const filmstrip = document.getElementById('scrubber-filmstrip');
+        if (!filmstrip) return;
+        filmstrip.innerHTML = '';
+
+        if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) return;
+
+        this.slideDeck.forEach((slide, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'scrubber-thumb';
+            if (index === this.currentSlideIndex) button.classList.add('active');
+            if (slide?.image) {
+                button.style.backgroundImage = `url(${slide.image})`;
+            } else {
+                button.classList.add('no-image');
+            }
+            const slideTitle = slide?.title ? String(slide.title) : 'Untitled slide';
+            button.setAttribute('aria-label', `Replay slide ${index + 1}: ${slideTitle}`);
+            button.title = `Replay slide ${index + 1}: ${slideTitle}`;
+            button.innerHTML = `
+                <span class="scrubber-thumb-index">${index + 1}</span>
+                <span class="scrubber-thumb-title">${this.escapeHtml(slideTitle)}</span>
+                <span class="scrubber-thumb-label">${index === this.currentSlideIndex ? 'Replay' : 'Jump'}</span>
+            `;
+            button.addEventListener('click', () => this.handleScrubberSelect(index));
+            filmstrip.appendChild(button);
+        });
+    }
+
+    async handleScrubberSelect(index) {
+        if (!this.sessionId || index < 0 || index >= this.slideDeck.length) return;
+        try {
+            await this.replaySlide(index);
+        } catch (err) {
+            console.warn('Replay request failed, falling back to direct jump:', err);
+            if (index !== this.currentSlideIndex) {
+                await this.jumpToSlide(index);
+            }
+        }
+    }
+
+    async replaySlide(index) {
+        const res = await this.apiFetch('/api/autoplex/replay-slide', {
+            method: 'POST',
+            body: JSON.stringify({ sessionId: this.sessionId, slideIndex: index })
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+            throw new Error(data?.error || 'Replay failed');
+        }
+        this.setStatus(data.cached ? 'Replaying' : 'Jumped', data.cached ? 'live' : 'paused', `Slide ${index + 1}`);
+        return data;
+    }
+
+    async jumpToSlide(index) {
+        try {
+            await this.apiFetch('/api/slide/advance', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    targetSlide: index
+                })
+            });
+            this.setStatus('Jumped', 'paused', `Slide ${index + 1}`);
+        } catch (err) {
+            console.error('Failed to jump to slide:', err);
+        }
     }
 
     addQuestionToList(id, text, by) {

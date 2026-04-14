@@ -21,7 +21,7 @@
                 <div class="start-header-group">
                     <p class="start-sub">Beforest Presentation Console</p>
                     <h1 id="home-start-title" class="start-title">THE 10% LIFE</h1>
-                    <p id="home-start-sub" class="start-intro">A voice-led presentation that speaks, listens, and answers live.</p>
+                    <p id="home-start-sub" class="start-intro">A narrated presentation that answers typed questions between slides or at the end.</p>
                 </div>
 
                 <div class="start-actions">
@@ -70,7 +70,7 @@
                                 <span id="status-dot" class="status-dot"></span>
                                 <div class="status-copy">
                                     <span id="status-text">Connecting</span>
-                                    <span id="status-detail" class="status-detail">Preparing voice session</span>
+                                    <span id="status-detail" class="status-detail">Preparing presentation</span>
                                 </div>
                             </div>
                         </div>
@@ -107,6 +107,10 @@
 
                         <!-- Visual Index (Scrubber) -->
                         <div id="scrubber-container" class="scrubber-container">
+                            <div class="scrubber-header">
+                                <span class="scrubber-eyebrow">Replay deck</span>
+                                <p class="scrubber-copy">Tap any slide to replay it with cached narration, audio, and visual assets.</p>
+                            </div>
                             <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
                         </div>
 
@@ -153,9 +157,9 @@
                             <div class="slide-turn-copy">
                                 <span class="slide-turn-eyebrow">Pause</span>
                                 <h2 class="slide-turn-title">Next Step?</h2>
-                                <p id="slide-turn-detail" class="slide-turn-detail">Ask the presenter a question or continue the story.</p>
+                                <p id="slide-turn-detail" class="slide-turn-detail">Type a question to queue it. The answer will appear between slides.</p>
                             </div>
-                            
+
                             <div class="slide-turn-actions">
                                 <button id="slide-turn-mic" class="slide-turn-mic btn-primary" type="button">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
@@ -207,7 +211,7 @@
                                 <div class="qa-empty-icon">
                                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                 </div>
-                                <p>The floor is open. Ask anything about the collective, the 10% life, or the restoration work.</p>
+                                <p>The floor is open. Type a question about the collective, the 10% life, or the restoration work.</p>
                             </div>
                         </div>
                     </div>
@@ -219,7 +223,7 @@
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                             </button>
                         </div>
-                        <p class="qa-input-hint">The presenter will address your question live.</p>
+                        <p class="qa-input-hint">The presenter will answer after the current slide or in the final Q&A.</p>
                     </div>
                 </div>
             </aside>
@@ -244,8 +248,8 @@
                                     <span id="wrapup-timer" class="wrapup-timer">1:00</span>
                                 </div>
                                 <p id="wrapup-message" class="wrapup-message"></p>
-                                
-                            <div class="wrapup-actions">
+
+                                <div class="wrapup-actions">
                                     <button id="wrapup-mic" class="wrapup-mic" type="button" aria-label="Open questions">
                                         <span class="wrapup-mic-icon">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
@@ -253,6 +257,7 @@
                                         <span id="wrapup-mic-label">Questions</span>
                                     </button>
                                 </div>
+                                <p class="wrapup-question-copy">Type a question and watch the answer animate in real time while it is being narrated.</p>
 
                                 <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
                                 <div class="wrapup-slider-nav">
@@ -260,8 +265,8 @@
                                     <div id="wrapup-progress" class="wrapup-progress">1 / 1</div>
                                     <button id="wrapup-next" class="wrapup-nav-btn" type="button" aria-label="Next question">Next</button>
                                 </div>
+                                <button id="restart-btn" class="btn-start">Start Over</button>
                             </div>
-                            <button id="restart-btn" class="btn-start">Start Over</button>
                         </div>
                     </div>
         </div>
@@ -275,7 +280,7 @@
         <div class="help-modal">
             <button id="help-modal-close" class="help-modal-close" type="button" aria-label="Close">✕</button>
             <h2>How it works</h2>
-            <p class="help-modal-subtitle">You're in a live conversation with a presenter. Here's how to participate.</p>
+            <p class="help-modal-subtitle">You're in a narrated presentation. Type questions to join the dialogue.</p>
 
             <div class="guideline-item">
                 <div class="guideline-icon">
@@ -293,7 +298,7 @@
                 </div>
                 <div class="guideline-text">
                     <h4>Type your question</h4>
-                    <p>Open the chat panel and type a question. The presenter will address it after the current slide.</p>
+                    <p>Open the question panel and type a question. The presenter will answer it after the current slide or at the end.</p>
                 </div>
             </div>
 

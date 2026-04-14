@@ -17,6 +17,7 @@ const playbackWaiters = new Map();
 const continueWaiters = new Map();
 const presentationStartTimes = new Map();
 const prewarmedSlides = new Map();
+const replayCache = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
@@ -100,6 +101,21 @@ function consumePrewarmedSlide(sessionId, slideIndex) {
     return value;
 }
 
+function getReplayKey(sessionId, slideIndex) {
+    return `${sessionId}:${slideIndex}`;
+}
+
+function getReplayCache(sessionId, slideIndex) {
+    return replayCache.get(getReplayKey(sessionId, slideIndex)) || null;
+}
+
+function setReplayCache(sessionId, slideIndex, payload) {
+    replayCache.set(getReplayKey(sessionId, slideIndex), {
+        ...payload,
+        createdAt: Date.now()
+    });
+}
+
 function waitForPlaybackCompletion(sessionId, fallbackMs) {
     return new Promise((resolve) => {
         let settled = false;
@@ -145,6 +161,44 @@ function markContinue(sessionId) {
     if (waiter) {
         waiter();
     }
+}
+
+async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {}) {
+    io.to(sessionId).emit('narration-text', {
+        text: cached.text,
+        slideIndex,
+        ...options
+    });
+
+    if (Array.isArray(cached.wordBoundaries) && cached.wordBoundaries.length > 0) {
+        io.to(sessionId).emit('word-boundaries', {
+            slideIndex,
+            words: cached.wordBoundaries,
+            ...options
+        });
+    }
+
+    io.to(sessionId).emit('audio-chunk', {
+        chunk: cached.pcmBase64,
+        slideIndex,
+        sampleRate: cached.sampleRate || 24000,
+        channels: cached.channels || 1,
+        bitsPerSample: cached.bitsPerSample || 16,
+        ...options
+    });
+
+    io.to(sessionId).emit('audio-end', {
+        slideIndex,
+        format: 'wav',
+        ...options
+    });
+
+    const audioDurationSec = Number(cached.totalPcmBytes || 0) / (((cached.sampleRate || 24000) * (cached.bitsPerSample || 16) / 8) * (cached.channels || 1));
+    const waitMs = Math.max(
+        Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
+        options.isQA ? 5000 : 6500
+    );
+    await waitForPlaybackCompletion(sessionId, waitMs);
 }
 
 function getParticipantName(db, sessionId) {
@@ -391,6 +445,16 @@ router.post('/prewarm', requireSessionControl(), async (req, res) => {
             totalPcmBytes: audioResult.pcmBuffer.length
         });
 
+        setReplayCache(sessionId, slideIndex, {
+            text: narrationText,
+            pcmBase64: audioResult.pcmBuffer.toString('base64'),
+            sampleRate: audioResult.sampleRate,
+            channels: audioResult.channels,
+            bitsPerSample: audioResult.bitsPerSample,
+            wordBoundaries: audioResult.wordBoundaries || [],
+            totalPcmBytes: audioResult.pcmBuffer.length
+        });
+
         res.json({
             success: true,
             prewarmed: true,
@@ -400,6 +464,50 @@ router.post('/prewarm', requireSessionControl(), async (req, res) => {
     } catch (error) {
         console.error('Prewarm failed:', error);
         res.status(500).json({ error: 'Failed to prewarm slide' });
+    }
+});
+
+router.post('/replay-slide', requireSessionControl(), async (req, res) => {
+    const { sessionId, slideIndex } = req.body;
+    if (!sessionId && !req.body.sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    const resolvedSlideIndex = Number.isInteger(slideIndex) ? slideIndex : parseInt(slideIndex, 10);
+    if (Number.isNaN(resolvedSlideIndex) || resolvedSlideIndex < 0) {
+        return res.status(400).json({ error: 'Valid slideIndex is required' });
+    }
+
+    try {
+        const db = req.app.get('db');
+        const io = req.app.get('io');
+        const session = db.get('SELECT * FROM sessions WHERE id = ?', [sessionId]);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const slide = db.get('SELECT * FROM slides WHERE session_id = ? AND slide_index = ?', [sessionId, resolvedSlideIndex]);
+        if (!slide) {
+            return res.status(404).json({ error: 'Slide not found' });
+        }
+
+        db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [resolvedSlideIndex, sessionId]);
+        io.to(sessionId).emit('slide-change', {
+            slideIndex: resolvedSlideIndex,
+            totalSlides: db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [sessionId])?.count || 0,
+            slide,
+            reason: 'replay'
+        });
+
+        const cached = getReplayCache(sessionId, resolvedSlideIndex) || getPrewarmedSlide(sessionId, resolvedSlideIndex);
+        if (cached) {
+            await emitCachedPlayback(io, sessionId, resolvedSlideIndex, cached, { isReplay: true });
+        }
+
+        return res.json({ success: true, cached: !!cached, slideIndex: resolvedSlideIndex });
+    } catch (error) {
+        console.error('Replay slide failed:', error);
+        res.status(500).json({ error: 'Failed to replay slide' });
     }
 });
 
@@ -950,6 +1058,8 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
 async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
     try {
         let totalPcmBytes = 0;
+        const collectedChunks = [];
+        let lastWordBoundaries = [];
 
         await ttsService.synthesizeStream(text, 'default', (pcmChunk, audioMeta = {}) => {
             if (isInterrupted(sessionId)) {
@@ -957,6 +1067,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
             }
 
             totalPcmBytes += pcmChunk.length;
+            collectedChunks.push(Buffer.from(pcmChunk));
             io.to(sessionId).emit('audio-chunk', {
                 chunk: pcmChunk.toString('base64'),
                 slideIndex,
@@ -970,6 +1081,8 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
                 if (isInterrupted(sessionId) || !Array.isArray(wordBoundaries) || wordBoundaries.length === 0) {
                     return;
                 }
+
+                lastWordBoundaries = wordBoundaries;
 
                 io.to(sessionId).emit('word-boundaries', {
                     slideIndex,
@@ -991,6 +1104,19 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
             options.isQA ? 5000 : 6500
         );
         await waitForPlaybackCompletion(sessionId, waitMs);
+
+        if (slideIndex >= 0 && !options.isQA && !options.isWrapUp && collectedChunks.length > 0) {
+            const pcmBuffer = Buffer.concat(collectedChunks);
+            setReplayCache(sessionId, slideIndex, {
+                text,
+                pcmBase64: pcmBuffer.toString('base64'),
+                sampleRate: 24000,
+                channels: 1,
+                bitsPerSample: 16,
+                wordBoundaries: lastWordBoundaries || [],
+                totalPcmBytes: pcmBuffer.length
+            });
+        }
     } catch (err) {
         console.error('TTS stream failed for slide', slideIndex, err);
         io.to(sessionId).emit('audio-end', {
@@ -1003,41 +1129,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
 }
 
 async function playPrewarmedAudio(io, sessionId, slideIndex, prewarmed, options = {}) {
-    io.to(sessionId).emit('narration-text', {
-        text: prewarmed.text,
-        slideIndex,
-        ...options
-    });
-
-    if (Array.isArray(prewarmed.wordBoundaries) && prewarmed.wordBoundaries.length > 0) {
-        io.to(sessionId).emit('word-boundaries', {
-            slideIndex,
-            words: prewarmed.wordBoundaries,
-            ...options
-        });
-    }
-
-    io.to(sessionId).emit('audio-chunk', {
-        chunk: prewarmed.pcmBase64,
-        slideIndex,
-        sampleRate: prewarmed.sampleRate || 24000,
-        channels: prewarmed.channels || 1,
-        bitsPerSample: prewarmed.bitsPerSample || 16,
-        ...options
-    });
-
-    io.to(sessionId).emit('audio-end', {
-        slideIndex,
-        format: 'wav',
-        ...options
-    });
-
-    const audioDurationSec = Number(prewarmed.totalPcmBytes || 0) / (((prewarmed.sampleRate || 24000) * (prewarmed.bitsPerSample || 16) / 8) * (prewarmed.channels || 1));
-    const waitMs = Math.max(
-        Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
-        options.isQA ? 5000 : 6500
-    );
-    await waitForPlaybackCompletion(sessionId, waitMs);
+    await emitCachedPlayback(io, sessionId, slideIndex, prewarmed, options);
 }
 
 async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIndex, questionIds }) {

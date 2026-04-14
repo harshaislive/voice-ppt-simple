@@ -261,10 +261,12 @@ export class UIManager {
         const turnDetail = document.getElementById('slide-turn-detail');
         if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
-        if (statusDetail) statusDetail.textContent = 'Type a question or continue';
+        if (statusDetail) statusDetail.textContent = 'Type a question to queue it';
         if (overlay) overlay.classList.remove('hidden');
         if (turnDetail && data && data.pendingQuestionCount > 0) {
             turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — they will be answered after the slide`;
+        } else if (turnDetail) {
+            turnDetail.textContent = 'Type a question. The answer will appear between slides.';
         }
         if (continueBtn) {
             continueBtn.classList.remove('hidden');
