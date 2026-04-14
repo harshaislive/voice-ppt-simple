@@ -430,7 +430,7 @@ class VoicePPTApp {
         document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
         const notesEl = document.getElementById('slide-notes');
-        if (notesEl) notesEl.innerHTML = data.slide && data.slide.notes ? `<p>${data.slide.notes.replace(/\n/g, '<br>')}</p>` : '';
+        if (notesEl) notesEl.textContent = '';
         const stage = document.querySelector('.slide-visual-shell');
         const imageUrl = data.slide && data.slide.image ? data.slide.image : null;
         if (stage) {
