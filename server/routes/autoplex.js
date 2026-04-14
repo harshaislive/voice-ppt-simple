@@ -628,6 +628,32 @@ async function runPresentation(db, io, sessionId) {
                     console.warn(`[AutoPlex] Background pre-warm failed for slide ${nextSlideIndex + 1}:`, err.message);
                 }
             })();
+        } else if (nextSlideIndex === slides.length && !getPrewarmedSlide(sessionId, 'wrapup')) {
+            console.log(`[AutoPlex] Background pre-warming wrap-up phase`);
+            (async () => {
+                try {
+                    const promptText = [
+                        participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
+                        'I will stay with you for one more minute.',
+                        'If you want to ask anything live, hit the mic icon at the bottom.',
+                        'You can also answer the quick prompts on screen while you think about your questions.'
+                    ].join(' ');
+                    
+                    const audioResult = await ttsService.synthesizeDetailed(promptText, 'default');
+                    setPrewarmedSlide(sessionId, 'wrapup', {
+                        text: promptText,
+                        pcmBase64: audioResult.pcmBuffer.toString('base64'),
+                        sampleRate: audioResult.sampleRate,
+                        channels: audioResult.channels,
+                        bitsPerSample: audioResult.bitsPerSample,
+                        wordBoundaries: audioResult.wordBoundaries || [],
+                        totalPcmBytes: audioResult.pcmBuffer.length
+                    });
+                    console.log(`[AutoPlex] Pre-warm complete for wrap-up phase`);
+                } catch (err) {
+                    console.warn(`[AutoPlex] Background pre-warm failed for wrap-up phase:`, err.message);
+                }
+            })();
         }
 
         updatedPendingQuestions = db.all(
@@ -717,13 +743,16 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
         mcqs
     });
 
-    io.to(sessionId).emit('narration-text', {
-        text: promptText,
-        slideIndex: -1,
-        isWrapUp: true
-    });
+    const prewarmed = consumePrewarmedSlide(sessionId, 'wrapup');
 
-    if (shouldUseRealtimePresenter()) {
+    if (prewarmed) {
+        io.to(sessionId).emit('narration-text', {
+            text: prewarmed.text,
+            slideIndex: -1,
+            isWrapUp: true
+        });
+        await playPrewarmedAudio(io, sessionId, -1, prewarmed, { isWrapUp: true });
+    } else if (shouldUseRealtimePresenter()) {
         try {
             const result = await realtimePresenter.generateNarrationAudio({
                 slideTitle: 'Wrap Up',
