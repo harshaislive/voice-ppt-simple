@@ -62,6 +62,29 @@ router.post('/', async (req, res) => {
             submittedBy,
             pendingCount
         });
+
+        // Run parallel thread to generate answer
+        setImmediate(async () => {
+            try {
+                const modelService = require('../services/model');
+                // Give basic context to model service. For full context we'd need session metadata, but this provides a quick answer.
+                const answer = await modelService.generateNarrationStream({
+                    slideTitle: 'Audience Question',
+                    slideContent: questionText,
+                    slideNotes: 'Answer concisely, honestly, and directly. Keep it under 3 sentences. Explain the reasoning clearly.',
+                    pendingQuestions: [],
+                    participantName: submittedBy,
+                    slideIndex: session.current_slide_index,
+                    totalSlides: session.current_slide_index + 10, // arbitrary
+                    style: 'conversational'
+                }, () => {}); // ignoring stream deltas
+
+                // Save answer and mark as answered so it's ready at the end
+                db.run(`UPDATE questions SET answer_text = ?, status = 'answered', answered_at = CURRENT_TIMESTAMP WHERE id = ?`, [answer, questionId]);
+            } catch (err) {
+                console.error('[Background AI] Failed to generate answer for question:', questionId, err);
+            }
+        });
         
         res.json({
             success: true,

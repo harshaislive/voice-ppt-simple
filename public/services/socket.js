@@ -124,6 +124,10 @@ export class SocketClient {
             this.app.startWrapUp(data);
         });
 
+        this.socket.on('qa-slides-ready', (data) => {
+            this.app.renderQASlides(data.questions);
+        });
+
         this.socket.on('presentation-wrapup-ended', () => {
             this.app.finishWrapUp();
         });

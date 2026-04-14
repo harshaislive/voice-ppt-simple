@@ -993,25 +993,66 @@ class VoicePPTApp {
 
     renderWrapUpMcqs() {
         const container = document.getElementById('wrapup-mcqs'); container.innerHTML = '';
-        const mcq = this.wrapUpMcqs[this.wrapUpIndex];
-        document.getElementById('wrapup-progress').textContent = this.wrapUpMcqs.length ? `${this.wrapUpIndex+1}/${this.wrapUpMcqs.length}` : '0/0';
-        document.getElementById('wrapup-prev').disabled = this.wrapUpIndex <= 0;
-        document.getElementById('wrapup-next').disabled = this.wrapUpIndex >= this.wrapUpMcqs.length - 1;
-        if (!mcq) return;
-        const card = document.createElement('div'); card.className = 'wrapup-card';
-        const title = document.createElement('div'); title.className = 'wrapup-card-title'; title.textContent = mcq.prompt; card.appendChild(title);
-        const options = document.createElement('div'); options.className = 'wrapup-options';
-        const votes = this.votes.get(mcq.id) || {}; const total = Object.values(votes).reduce((s,v)=>s+v,0);
-        (mcq.options || []).forEach((opt, idx) => {
-            const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'wrapup-option';
-            const count = votes[opt] || 0; const pct = total > 0 ? (count/total)*100 : 0;
-            const colors = ['#344736', '#86312b', '#ffc083', '#002140'];
-            btn.innerHTML = `<span class="option-text">${opt}</span><div class="option-bar-bg"><div class="option-bar" style="width:${pct}%;background:${colors[idx%colors.length]}"></div></div><span class="option-count">${count}</span>`;
-            if (this.wrapUpSelections[mcq.id] === opt) btn.classList.add('is-selected');
-            btn.addEventListener('click', () => { if (this.wrapUpSelections[mcq.id] === opt) return; this.wrapUpSelections[mcq.id] = opt; this.socketClient.submitVote(mcq.id, opt); this.renderWrapUpMcqs(); });
-            options.appendChild(btn);
+        document.getElementById('wrapup-progress').textContent = '';
+        document.getElementById('wrapup-prev').style.display = 'none';
+        document.getElementById('wrapup-next').style.display = 'none';
+        
+        if (!this.wrapUpMcqs || !this.wrapUpMcqs.length) return;
+        
+        // Compact list of all MCQs
+        this.wrapUpMcqs.forEach((mcq) => {
+            const card = document.createElement('div'); card.className = 'wrapup-card compact-mcq';
+            const title = document.createElement('div'); title.className = 'wrapup-card-title compact-title'; title.textContent = mcq.prompt; card.appendChild(title);
+            const options = document.createElement('div'); options.className = 'wrapup-options compact-options';
+            const votes = this.votes.get(mcq.id) || {}; const total = Object.values(votes).reduce((s,v)=>s+v,0);
+            
+            (mcq.options || []).forEach((opt, idx) => {
+                const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'wrapup-option compact-option';
+                const count = votes[opt] || 0; const pct = total > 0 ? (count/total)*100 : 0;
+                btn.innerHTML = `<span class="option-text">${opt}</span><div class="option-bar-bg"><div class="option-bar" style="width:${pct}%;"></div></div><span class="option-count">${count > 0 ? count : ''}</span>`;
+                if (this.wrapUpSelections[mcq.id] === opt) btn.classList.add('is-selected');
+                btn.addEventListener('click', () => { if (this.wrapUpSelections[mcq.id] === opt) return; this.wrapUpSelections[mcq.id] = opt; this.socketClient.submitVote(mcq.id, opt); this.renderWrapUpMcqs(); });
+                options.appendChild(btn);
+            });
+            card.appendChild(options); container.appendChild(card);
         });
-        card.appendChild(options); container.appendChild(card);
+    }
+
+    renderQASlides(questions) {
+        const container = document.getElementById('wrapup-qa-slides');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        if (!questions || !questions.length) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'block';
+        
+        // Create a horizontal scrollable list of QA cards
+        const scrollArea = document.createElement('div');
+        scrollArea.className = 'qa-slides-scroll';
+        
+        questions.forEach((q, idx) => {
+            if (!q.answer_text) return; // Only show answered ones
+            const card = document.createElement('div');
+            card.className = 'qa-slide-card';
+            card.innerHTML = `
+                <div class="qa-slide-header"><span class="qa-eyebrow">Question ${idx + 1}</span></div>
+                <div class="qa-slide-q">"${this.escapeHtml(q.question_text)}"</div>
+                <div class="qa-slide-a">${this.escapeHtml(q.answer_text)}</div>
+            `;
+            scrollArea.appendChild(card);
+        });
+        
+        if (scrollArea.children.length > 0) {
+            const title = document.createElement('h3');
+            title.className = 'qa-slides-title';
+            title.textContent = 'Audience Questions';
+            container.appendChild(title);
+            container.appendChild(scrollArea);
+        }
     }
 
     changeWrapUpCard(dir) { if (!this.wrapUpMcqs.length) return; const next = this.wrapUpIndex + dir; if (next >= 0 && next < this.wrapUpMcqs.length) { this.wrapUpIndex = next; this.renderWrapUpMcqs(); } }

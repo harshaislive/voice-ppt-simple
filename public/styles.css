@@ -2220,3 +2220,18 @@ h1, h2, h3, h4 {
         font-size: 0.9rem;
     }
 }
+
+
+/* Compact MCQ & QA Slides */
+.compact-mcq { gap: 12px; margin-bottom: 24px; }
+.compact-title { font-size: 1.1rem; margin-bottom: 4px; }
+.compact-options { gap: 6px; }
+.compact-option { padding: 8px 12px; font-size: 0.95rem; }
+.wrapup-qa-slides { margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px; }
+.qa-slides-title { font-family: var(--font-serif); font-size: 1.2rem; margin-bottom: 16px; }
+.qa-slides-scroll { display: flex; overflow-x: auto; gap: 16px; padding-bottom: 16px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.qa-slides-scroll::-webkit-scrollbar { display: none; }
+.qa-slide-card { flex: 0 0 85%; min-width: 280px; max-width: 400px; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; scroll-snap-align: center; display: flex; flex-direction: column; gap: 12px; }
+.qa-slide-header { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.qa-slide-q { font-weight: 600; font-size: 1.05rem; }
+.qa-slide-a { font-size: 0.95rem; line-height: 1.5; color: var(--text-dim); }
