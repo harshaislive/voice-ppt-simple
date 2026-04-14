@@ -233,6 +233,10 @@ class VoicePPTApp {
             const scrubber = document.getElementById('scrubber-container');
             if (scrubber) scrubber.classList.toggle('hidden');
         });
+        on('scrubber-close', 'click', () => {
+            const scrubber = document.getElementById('scrubber-container');
+            if (scrubber) scrubber.classList.add('hidden');
+        });
 
         on('start-presentation', 'click', () => this.startSession());
         on('participant-name', 'keypress', (e) => {

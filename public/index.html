@@ -115,23 +115,22 @@
                         </div>
                     </main>
 
-                    <!-- Visual Index (Scrubber) -->
-                    <div id="scrubber-container" class="scrubber-container hidden">
-                        <div class="scrubber-header">
-                            <div class="scrubber-header-left">
-                                <span class="scrubber-eyebrow">Slide History</span>
-                                <p class="scrubber-copy">Review already presented slides and replay their narration.</p>
+                    <!-- Visual Index (Scrubber) - Slide History Carousel -->
+                    <div id="scrubber-container" class="scrubber-container hidden" role="dialog" aria-modal="true" aria-label="Slide History">
+                        <div class="scrubber-modal">
+                            <div class="scrubber-header">
+                                <div class="scrubber-header-left">
+                                    <span class="scrubber-eyebrow">Slide History</span>
+                                    <p class="scrubber-copy">Click any slide to replay its narration.</p>
+                                </div>
+                                <button id="scrubber-close" class="qa-close-circle" type="button" aria-label="Close slide history">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
                             </div>
-                            <div class="scrubber-nav">
-                                <button id="scrubber-prev" class="scrubber-nav-btn" type="button" aria-label="Previous slide">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                                </button>
-                                <button id="scrubber-next" class="scrubber-nav-btn" type="button" aria-label="Next slide">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                </button>
+                            <div class="scrubber-inner">
+                                <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
                             </div>
                         </div>
-                        <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
                     </div>
 
                     <footer class="presentation-footer">
