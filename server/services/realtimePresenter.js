@@ -159,25 +159,23 @@ class RealtimePresenterService {
   _buildPrompt(context, safeMode = false) {
     if (!safeMode) {
       const messages = narrationPrompt.buildMessages(context);
-      const instructions = typeof messages[0]?.content === 'string'
-        ? messages[0].content
-        : 'You are a natural spoken presenter.';
 
-      const promptSections = messages.slice(1).map((message) => {
-        const role = message.role || 'user';
+      const userSections = [];
+      for (const message of messages) {
+        if (message.role === 'system') continue;
         const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
-        return `${role.toUpperCase()}:\n${content}`;
-      });
+        userSections.push(content);
+      }
 
       return {
-        instructions,
-        userText: promptSections.join('\n\n')
+        instructions: 'You are a confident, direct presenter speaking live. Use a single consistent voice throughout — calm, assured, conversational. Do not change vocal style, emphasis, or register mid-speech. Speak in short declarative sentences with occasional longer ones for weight. Never sound theatrical, breathless, or like you are switching between characters. One voice, one tone, from start to finish.',
+        userText: userSections.join('\n\n')
       };
     }
 
     const userText = this._buildSafePrompt(context);
     return {
-      instructions: 'You are a direct, assertive live presenter. Make every sentence land. Short declarations, then a sentence with weight. No hedging, no filler, no "I think perhaps." Speak with the conviction of someone who believes every word. Stay grounded in the provided context and never invent facts.',
+      instructions: 'You are a direct, assertive presenter. One consistent voice throughout. Short declarative sentences, then one that lands. No hedging, no filler, no voice changes mid-speech. Stay grounded in the provided context and never invent facts.',
       userText
     };
   }
@@ -199,7 +197,7 @@ class RealtimePresenterService {
       `Title: ${slideTitle || ''}`,
       `Visible text: ${slideContent || ''}`,
       slideNotes ? `Presenter notes: ${slideNotes}` : '',
-      participantName ? `Primary attendee: ${participantName}. Address them directly once in a while.` : '',
+      participantName ? `Attendee: ${participantName}. Use their name at most once, naturally.` : '',
       pendingQuestions && pendingQuestions.length
         ? `Pending audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
         : '',
