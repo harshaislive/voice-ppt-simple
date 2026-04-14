@@ -203,10 +203,11 @@ io.on('connection', (socket) => {
 
     socket.on('presentation-audio-complete', (payload) => {
         const sessionId = payload?.sessionId;
+        const slideIndex = payload?.slideIndex;
         if (!sessionId) {
             return;
         }
-        autoplexRoutes.markPlaybackComplete?.(sessionId);
+        autoplexRoutes.markPlaybackComplete?.(sessionId, slideIndex);
     });
 
     socket.on('send-reaction', (payload) => {

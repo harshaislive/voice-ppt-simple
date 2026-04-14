@@ -116,7 +116,7 @@ function setReplayCache(sessionId, slideIndex, payload) {
     });
 }
 
-function waitForPlaybackCompletion(sessionId, fallbackMs) {
+function waitForPlaybackCompletion(sessionId, fallbackMs, expectedSlideIndex = null) {
     return new Promise((resolve) => {
         let settled = false;
         const timeout = setTimeout(() => {
@@ -127,7 +127,10 @@ function waitForPlaybackCompletion(sessionId, fallbackMs) {
             }
         }, Math.max(fallbackMs || 0, 5000));
 
-        playbackWaiters.set(sessionId, () => {
+        playbackWaiters.set(sessionId, (completedSlideIndex) => {
+            if (expectedSlideIndex !== null && completedSlideIndex !== undefined && expectedSlideIndex !== completedSlideIndex) {
+                return;
+            }
             if (!settled) {
                 settled = true;
                 clearTimeout(timeout);
@@ -138,10 +141,10 @@ function waitForPlaybackCompletion(sessionId, fallbackMs) {
     });
 }
 
-function markPlaybackComplete(sessionId) {
+function markPlaybackComplete(sessionId, slideIndex) {
     const waiter = playbackWaiters.get(sessionId);
     if (waiter) {
-        waiter();
+        waiter(slideIndex);
     }
 }
 

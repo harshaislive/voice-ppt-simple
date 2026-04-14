@@ -183,11 +183,11 @@ export class SocketClient {
         }
     }
 
-    notifyPlaybackComplete(sessionId) {
+    notifyPlaybackComplete(sessionId, slideIndex) {
         if (!this.socket || !this.isConnected || !sessionId) {
             return;
         }
-        this.socket.emit('presentation-audio-complete', { sessionId });
+        this.socket.emit('presentation-audio-complete', { sessionId, slideIndex });
     }
 
     async goToSlide(index) {

@@ -821,8 +821,7 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-thumb-index,
-.scrubber-thumb-title,
-.scrubber-thumb-label {
+.scrubber-thumb-title {
     position: relative;
     z-index: 1;
     font-family: 'JetBrains Mono', monospace;
@@ -832,15 +831,14 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-thumb.disabled {
-    opacity: 0.4;
-    filter: grayscale(1);
+    opacity: 0.5;
+    filter: grayscale(1) contrast(0.8);
     cursor: not-allowed;
-    border-color: rgba(52, 46, 41, 0.05);
+    border-color: rgba(52, 46, 41, 0.15);
 }
 
 .scrubber-thumb.disabled:hover {
     transform: none;
-    background-color: var(--bg-muted);
 }
 
 .scrubber-thumb-index {
@@ -862,10 +860,43 @@ h1, h2, h3, h4 {
     -webkit-box-orient: vertical;
 }
 
-.scrubber-thumb-label {
-    font-size: 0.62rem;
-    opacity: 0.8;
-    align-self: flex-end;
+.scrubber-thumb-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    background: rgba(0,0,0,0.3);
+}
+
+.scrubber-thumb:hover .scrubber-thumb-overlay,
+.scrubber-thumb.active .scrubber-thumb-overlay {
+    opacity: 1;
+}
+
+.scrubber-thumb.disabled .scrubber-thumb-overlay {
+    opacity: 1;
+    background: transparent;
+}
+
+.scrubber-action-icon {
+    width: 24px;
+    height: 24px;
+    color: white;
+    drop-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.scrubber-icon-pulse {
+    animation: pulse-icon 2s infinite;
+}
+
+@keyframes pulse-icon {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .wrapup-question-copy {

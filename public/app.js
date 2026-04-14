@@ -552,7 +552,7 @@ class VoicePPTApp {
             }
             this.pendingPlaybackStartAt = null;
             this.renderFullTranscription();
-            if (this.awaitingPlaybackComplete) { this.awaitingPlaybackComplete = false; this.socketClient.notifyPlaybackComplete(this.sessionId); }
+            if (this.awaitingPlaybackComplete) { this.awaitingPlaybackComplete = false; this.socketClient.notifyPlaybackComplete(this.sessionId, this.currentSlideIndex); }
         };
         setTimeout(poll, 120);
     }
@@ -743,13 +743,8 @@ class VoicePPTApp {
 
         if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) return;
 
-        // Update Prev/Next buttons
-        const prevBtn = document.getElementById('scrubber-prev');
-        const nextBtn = document.getElementById('scrubber-next');
-        if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
-        // Next is only enabled for slides that are NOT future (i.e. already seen but before current, or current)
-        // Actually, if we are at current, next should be disabled because future is locked.
-        if (nextBtn) nextBtn.disabled = true; // We'll update this if we track a "viewed slide index"
+        const nav = document.querySelector('.scrubber-nav');
+        if (nav) nav.style.display = 'none';
 
         this.slideDeck.forEach((slide, index) => {
             const isFuture = index > this.currentSlideIndex;
@@ -766,15 +761,25 @@ class VoicePPTApp {
             }
             
             const slideTitle = slide?.title ? String(slide.title) : 'Untitled slide';
-            const label = isFuture ? 'Locked' : (index === this.currentSlideIndex ? 'Current' : 'Review');
             
-            button.setAttribute('aria-label', `${label} slide ${index + 1}: ${slideTitle}`);
-            button.title = isFuture ? 'Wait for narration' : `${label} slide ${index + 1}: ${slideTitle}`;
+            let actionIcon = '';
+            if (isFuture) {
+                actionIcon = '<svg class="scrubber-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+            } else if (index === this.currentSlideIndex) {
+                actionIcon = '<svg class="scrubber-action-icon scrubber-icon-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
+            } else {
+                actionIcon = '<svg class="scrubber-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
+            }
+
+            button.setAttribute('aria-label', `Slide ${index + 1}: ${slideTitle}`);
+            button.title = isFuture ? 'Locked' : `Replay slide ${index + 1}: ${slideTitle}`;
             
             button.innerHTML = `
+                <div class="scrubber-thumb-overlay">
+                    ${actionIcon}
+                </div>
                 <span class="scrubber-thumb-index">${index + 1}</span>
                 <span class="scrubber-thumb-title">${this.escapeHtml(slideTitle)}</span>
-                <span class="scrubber-thumb-label">${label}</span>
             `;
             
             if (!isFuture) {
