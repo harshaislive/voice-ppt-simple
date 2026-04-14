@@ -75,6 +75,9 @@
                             </div>
                         </div>
                         <div class="topbar-right">
+                            <button id="history-fab" class="help-fab" type="button" aria-label="Slide History" title="Slide History">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                            </button>
                             <span id="slide-counter" class="slide-counter">0 / 0</span>
                             <button id="help-fab" class="help-fab" type="button" aria-label="Help">?</button>
                         </div>
@@ -99,31 +102,31 @@
                             </div>
                         </div>
 
-                        <!-- Visual Index (Scrubber) -->
-                        <div id="scrubber-container" class="scrubber-container">
-                            <div class="scrubber-header">
-                                <div class="scrubber-header-left">
-                                    <span class="scrubber-eyebrow">Slide History</span>
-                                    <p class="scrubber-copy">Review already presented slides and replay their narration.</p>
-                                </div>
-                                <div class="scrubber-nav">
-                                    <button id="scrubber-prev" class="scrubber-nav-btn" type="button" aria-label="Previous slide">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                                    </button>
-                                    <button id="scrubber-next" class="scrubber-nav-btn" type="button" aria-label="Next slide">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
-                        </div>
-
                         <!-- Poll Container -->
                         <div id="poll-container" class="poll-container hidden">
                             <h3 id="poll-question"></h3>
                             <div id="poll-options" class="poll-options"></div>
                         </div>
                     </main>
+
+                    <!-- Visual Index (Scrubber) -->
+                    <div id="scrubber-container" class="scrubber-container hidden">
+                        <div class="scrubber-header">
+                            <div class="scrubber-header-left">
+                                <span class="scrubber-eyebrow">Slide History</span>
+                                <p class="scrubber-copy">Review already presented slides and replay their narration.</p>
+                            </div>
+                            <div class="scrubber-nav">
+                                <button id="scrubber-prev" class="scrubber-nav-btn" type="button" aria-label="Previous slide">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                                </button>
+                                <button id="scrubber-next" class="scrubber-nav-btn" type="button" aria-label="Next slide">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
+                    </div>
 
                     <footer class="presentation-footer">
                         <div class="footer-block footer-left">

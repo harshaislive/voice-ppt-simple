@@ -319,6 +319,7 @@ h1, h2, h3, h4 {
     transition: background 0.2s, transform 0.15s;
     box-shadow: none;
     position: static;
+    padding: 0;
 }
 
 .help-fab:hover {
@@ -713,14 +714,6 @@ h1, h2, h3, h4 {
     flex-direction: column;
     gap: 12px;
     transition: opacity 0.4s ease;
-}
-
-.narration-active .scrubber-container {
-    opacity: 0.15;
-}
-
-.narration-active .scrubber-container:hover {
-    opacity: 1;
 }
 
 .scrubber-header {

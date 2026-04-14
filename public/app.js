@@ -226,6 +226,11 @@ class VoicePPTApp {
             return el;
         };
 
+        on('history-fab', 'click', () => {
+            const scrubber = document.getElementById('scrubber-container');
+            if (scrubber) scrubber.classList.toggle('hidden');
+        });
+
         on('start-presentation', 'click', () => this.startSession());
         on('participant-name', 'keypress', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); this.startSession(); }
