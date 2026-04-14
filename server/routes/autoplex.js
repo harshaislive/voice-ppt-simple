@@ -109,7 +109,7 @@ function waitForPlaybackCompletion(sessionId, fallbackMs) {
                 playbackWaiters.delete(sessionId);
                 resolve(false);
             }
-        }, Math.max(fallbackMs || 0, 1500));
+        }, Math.max(fallbackMs || 0, 5000));
 
         playbackWaiters.set(sessionId, () => {
             if (!settled) {
@@ -568,7 +568,7 @@ async function runPresentation(db, io, sessionId) {
                             questionIndex: q + 1
                         });
                         const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-                        await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 1800, 2500));
+                        await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 3000, 5000));
                     } else {
                         console.warn('Realtime presenter returned no audio for queued QA; falling back to TTS stream');
                     }
@@ -726,7 +726,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
                     isWrapUp: true
                 });
                 const durationFromAudio = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 2000, 3000));
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 3500, 6500));
             } else {
                 console.warn('Realtime presenter returned no audio for wrap-up; falling back to TTS stream');
                 await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
@@ -898,7 +898,7 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                     format: 'wav'
                 });
                 const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 1800, 2500));
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 3500, 6500));
                 return { text: narrationText, audioHandled: true };
             }
             console.warn('Realtime presenter returned no audio for slide narration; falling back to TTS stream');
@@ -986,7 +986,10 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         });
 
         const audioDurationSec = totalPcmBytes / (24000 * 2);
-        const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + (options.isQA ? 2200 : 2000), options.isQA ? 2600 : 2400);
+        const waitMs = Math.max(
+            Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
+            options.isQA ? 5000 : 6500
+        );
         await waitForPlaybackCompletion(sessionId, waitMs);
     } catch (err) {
         console.error('TTS stream failed for slide', slideIndex, err);
@@ -1030,7 +1033,10 @@ async function playPrewarmedAudio(io, sessionId, slideIndex, prewarmed, options 
     });
 
     const audioDurationSec = Number(prewarmed.totalPcmBytes || 0) / (((prewarmed.sampleRate || 24000) * (prewarmed.bitsPerSample || 16) / 8) * (prewarmed.channels || 1));
-    const waitMs = Math.max(Math.ceil(audioDurationSec * 1000) + (options.isQA ? 2200 : 2000), options.isQA ? 2600 : 2400);
+    const waitMs = Math.max(
+        Math.ceil(audioDurationSec * 1000) + (options.isQA ? 3000 : 3500),
+        options.isQA ? 5000 : 6500
+    );
     await waitForPlaybackCompletion(sessionId, waitMs);
 }
 
@@ -1127,7 +1133,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                         questionIndex: q + 1
                     });
                     const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-                    await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 1800, 2400));
+                    await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 3000, 5000));
                 } else {
                     console.warn('Realtime presenter returned no audio for inline QA; falling back to TTS stream');
                 }
