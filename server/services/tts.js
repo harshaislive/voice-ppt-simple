@@ -444,10 +444,18 @@ class TTSService {
             const audioBuffer = Buffer.from(result.audioData);
             const { pcmBuffer, sampleRate, channels, bitsPerSample } = extractPcmFromWav(audioBuffer);
 
+            // Calculate audio duration from PCM buffer for accurate last-word duration
+            const audioDurationMs = Math.round((pcmBuffer.length / (sampleRate * channels * bitsPerSample / 8)) * 1000);
+            
             for (let i = 0; i < wordBoundaries.length; i++) {
               const current = wordBoundaries[i];
               const next = wordBoundaries[i + 1];
-              current.durationMs = Math.max(0, (next?.offsetMs || current.offsetMs) - current.offsetMs);
+              if (next) {
+                current.durationMs = Math.max(0, next.offsetMs - current.offsetMs);
+              } else {
+                // Last word: duration extends to end of audio
+                current.durationMs = Math.max(0, audioDurationMs - current.offsetMs);
+              }
             }
 
             resolve({

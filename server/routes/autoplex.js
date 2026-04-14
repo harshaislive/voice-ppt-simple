@@ -471,14 +471,14 @@ function setReplayCache(sessionId, slideIndex, payload) {
 function waitForPlaybackCompletion(sessionId, fallbackMs, expectedSlideIndex = null) {
     return new Promise((resolve) => {
         let settled = false;
-        // Don't fire fallback before the caller-specified duration elapses
+        // Fallback timeout - use caller's duration or minimum 3s (not 12s - too slow)
         const timeout = setTimeout(() => {
             if (!settled) {
                 settled = true;
                 playbackWaiters.delete(sessionId);
                 resolve(false);
             }
-        }, Math.max(fallbackMs || 12000, 12000));
+        }, Math.max(fallbackMs || 3000, 3000));
 
         playbackWaiters.set(sessionId, (completedSlideIndex) => {
             if (expectedSlideIndex !== null && completedSlideIndex !== undefined && expectedSlideIndex !== completedSlideIndex) {

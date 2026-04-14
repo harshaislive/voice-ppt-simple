@@ -713,6 +713,12 @@ class VoicePPTApp {
 
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
+        
+        // Reset audio player when slide changes to avoid stale state issues
+        if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.activeAudioSlideIndex) {
+            this.streamPlayer.reset();
+        }
+        
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
         this.slideAudioStarted = true;
         if (typeof data?.slideIndex === 'number') {
