@@ -6,7 +6,7 @@ export class UIManager {
         this.loadingTimer = null;
     }
 
-    async showLoadingScreen(quotes) {
+    showLoadingScreen(quotes) {
         const fallbackQuotes = [
             { text: "10% isn't about subtraction - it's about protection.", author: 'Beforest' },
             { text: 'Nature does not hurry, yet everything is accomplished.', author: 'Lao Tzu' }
@@ -23,34 +23,37 @@ export class UIManager {
         this.currentQuoteIndex = Math.floor(Math.random() * this.loadingQuotes.length);
         this._updateQuote();
 
-        // Start progress bar animation (simulated for 12 seconds)
+        // Start progress bar animation until the deck is actually ready.
         let progress = 0;
-        const duration = 12000;
         const interval = 100;
-        const step = (interval / duration) * 100;
+        const step = 1.5;
 
         if (this.loadingTimer) clearInterval(this.loadingTimer);
-        
-        return new Promise((resolve) => {
-            this.loadingTimer = setInterval(() => {
-                progress += step;
-                if (progressFill) progressFill.style.width = `${Math.min(progress, 100)}%`;
-                
-                // Switch quote every 4 seconds
-                if (Math.floor(progress) % 33 === 0 && progress > 5 && progress < 90) {
-                    this.currentQuoteIndex = (this.currentQuoteIndex + 1) % this.loadingQuotes.length;
-                    this._updateQuote();
-                }
+        this.loadingTimer = setInterval(() => {
+            progress = Math.min(progress + step, 92);
+            if (progressFill) progressFill.style.width = `${progress}%`;
 
-                if (progress >= 100) {
-                    clearInterval(this.loadingTimer);
-                    setTimeout(() => {
-                        overlay.classList.add('hidden');
-                        resolve();
-                    }, 500);
-                }
-            }, interval);
-        });
+            // Switch quote every few seconds while we wait for the deck to become ready.
+            if (Math.floor(progress) % 30 === 0 && progress > 5 && progress < 90) {
+                this.currentQuoteIndex = (this.currentQuoteIndex + 1) % this.loadingQuotes.length;
+                this._updateQuote();
+            }
+        }, interval);
+    }
+
+    hideLoadingScreen() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressFill = document.getElementById('loading-progress-fill');
+        if (this.loadingTimer) {
+            clearInterval(this.loadingTimer);
+            this.loadingTimer = null;
+        }
+        if (progressFill) {
+            progressFill.style.width = '100%';
+        }
+        if (overlay) {
+            setTimeout(() => overlay.classList.add('hidden'), 160);
+        }
     }
 
     _updateQuote() {

@@ -585,7 +585,7 @@ class VoicePPTApp {
             }
 
             // Start the loading experience (The 10% Breath)
-            const loadingPromise = this.ui.showLoadingScreen(this.loadingQuotes);
+            this.ui.showLoadingScreen(this.loadingQuotes);
 
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
@@ -618,8 +618,9 @@ class VoicePPTApp {
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
 
-            // Wait for both the visible loading breath and the first-slide AI prewarm.
-            await Promise.all([loadingPromise, prewarmPromise]);
+            // Hide the loading screen as soon as the first slide and initial prewarm are ready.
+            await prewarmPromise;
+            this.ui.hideLoadingScreen();
             await this.loadSessionQuestions();
             
             this.setStatus('Ready', 'live', 'Type questions anytime');
