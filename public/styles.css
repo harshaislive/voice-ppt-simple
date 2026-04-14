@@ -235,12 +235,8 @@ h1, h2, h3, h4 {
 
 /* Help Icon — floating bottom right */
 .help-fab {
-    position: fixed;
-    bottom: 32px;
-    right: 32px;
-    z-index: 250;
-    width: 48px;
-    height: 48px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--accent-green);
     color: #fff;
@@ -250,15 +246,17 @@ h1, h2, h3, h4 {
     justify-content: center;
     cursor: pointer;
     font-family: var(--font-serif);
-    font-size: 1.4rem;
-    font-weight: normal;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    transition: transform 0.2s, background 0.2s;
+    font-size: 0.95rem;
+    font-weight: bold;
+    flex-shrink: 0;
+    transition: background 0.2s, transform 0.15s;
+    box-shadow: none;
+    position: static;
 }
 
 .help-fab:hover {
     background: #2a3a2b;
-    transform: scale(1.08);
+    transform: scale(1.1);
 }
 
 /* Help Modal */
@@ -1428,16 +1426,6 @@ h1, h2, h3, h4 {
         height: 56px;
     }
 
-    .help-fab {
-        bottom: auto;
-        top: 16px;
-        right: 16px;
-        left: auto;
-        width: 44px;
-        height: 44px;
-        z-index: 260;
-    }
-
     .help-modal {
         padding: 36px 28px;
     }
@@ -1448,6 +1436,16 @@ h1, h2, h3, h4 {
 
     .topbar {
         padding: 12px 16px;
+    }
+
+    .topbar-right {
+        gap: 12px;
+    }
+
+    .help-fab {
+        width: 28px;
+        height: 28px;
+        font-size: 0.85rem;
     }
 
     .topbar-label {
