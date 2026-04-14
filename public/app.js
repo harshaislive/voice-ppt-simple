@@ -747,9 +747,6 @@ class VoicePPTApp {
 
         if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) return;
 
-        const nav = document.querySelector('.scrubber-nav');
-        if (nav) nav.style.display = 'none';
-
         this.slideDeck.forEach((slide, index) => {
             const isFuture = index > this.currentSlideIndex;
             const button = document.createElement('button');

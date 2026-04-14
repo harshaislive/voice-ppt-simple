@@ -150,9 +150,7 @@ h1, h2, h3, h4 {
     content: '';
     position: absolute;
     inset: 0;
-    background:
-        linear-gradient(to top, rgba(253, 251, 247, 0.85) 0%, rgba(253, 251, 247, 0) 26%),
-        linear-gradient(to right, rgba(0, 0, 0, 0.2), transparent 40%);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.2), transparent 40%);
     pointer-events: none;
 }
 
