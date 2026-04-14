@@ -312,12 +312,14 @@ class VoicePPTApp {
         on('scrubber-close', 'click', () => {
             const scrubber = document.getElementById('scrubber-container');
             if (scrubber) scrubber.classList.add('hidden');
+            this.resumePresentationAfterHistory();
         });
         on('scrubber-prev', 'click', () => this.navigateScrubber(-1));
         on('scrubber-next', 'click', () => this.navigateScrubber(1));
         on('scrubber-container', 'click', (e) => {
             if (e.target.id === 'scrubber-container') {
                 e.target.classList.add('hidden');
+                this.resumePresentationAfterHistory();
             }
         });
 
@@ -1341,6 +1343,16 @@ class VoicePPTApp {
     }
 
     async pauseAutoplex(p) { if (!this.sessionId) return; try { await this.apiFetch(`/api/autoplex/${p ? 'pause' : 'resume'}`, { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error(err); } }
+
+    async resumePresentationAfterHistory() {
+        if (!this.sessionId) return;
+        try {
+            await this.pauseAutoplex(false);
+            this.restorePresentationStatus();
+        } catch (err) {
+            console.error('Failed to resume after history:', err);
+        }
+    }
 
     toggleAudioPause() {
         if (!this.streamPlayer || !this.streamPlayer.audioContext) return;

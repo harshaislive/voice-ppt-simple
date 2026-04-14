@@ -505,6 +505,10 @@ router.post('/replay-slide', requireSessionControl(), async (req, res) => {
             return res.status(404).json({ error: 'Slide not found' });
         }
 
+        // Freeze the live flow while the audience is inspecting history.
+        setPaused(sessionId, true);
+        markInterrupted(sessionId);
+
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [resolvedSlideIndex, sessionId]);
         syncSessionState(sessionId, { current_slide_index: resolvedSlideIndex });
         io.to(sessionId).emit('slide-change', {
