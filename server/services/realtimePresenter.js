@@ -204,8 +204,8 @@ class RealtimePresenterService {
       audienceContext && Object.keys(audienceContext).length
         ? `Previous scene narration: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
         : '',
-      'Four beats: Hook (1 sentence, grab attention) → Insight (2-3 sentences, what the slide MEANS) → Implication (1-2 sentences, why it matters) → Bridge (1 sentence, momentum forward).',
-      'Specific over vague. No filler phrases. No recapping. One consistent voice.',
+      'Four beats: Hook (2-3 sentences, grab attention) → Insight (4-8 sentences, what the slide MEANS, be specific and thorough) → Implication (2-4 sentences, why it matters) → Bridge (1-2 sentences, momentum forward). Aim for 200-300 words total.',
+      'Specific over vague. No filler phrases. No recapping. One consistent voice. Documentary narrator, not stage actor.',
       'Do not invent facts or numbers not in the slide or notes.'
     ].filter(Boolean);
 

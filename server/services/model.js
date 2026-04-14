@@ -34,7 +34,7 @@ class ModelService {
                 model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
                 messages,
                 temperature: 0.9,
-                max_completion_tokens: 1000
+                max_completion_tokens: 2000
             });
             
             const raw = response.choices[0].message.content;
@@ -66,7 +66,7 @@ class ModelService {
                 model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.4',
                 messages,
                 temperature: 0.9,
-                max_completion_tokens: 1000,
+                max_completion_tokens: 2000,
                 stream: true
             });
             
