@@ -51,7 +51,7 @@ export class StreamAudioPlayer {
                 this.isBuffering = false;
                 this.bufferTimer = null;
                 this._flushQueue();
-            }, 120);
+            }, 60);
         }
 
         if (this.isBuffering) {
@@ -62,8 +62,8 @@ export class StreamAudioPlayer {
     }
 
     _flushQueue() {
-        // Add a small scheduling buffer (50ms) to ensure smooth transition from buffering to playing
-        const schedulingBuffer = 0.05;
+        // Minimal scheduling buffer for faster first-byte playback
+        const schedulingBuffer = 0.03;
         this.nextStartTime = this.audioContext.currentTime + schedulingBuffer;
         if (!this._streamStartNotified) {
             this._streamStartNotified = true;

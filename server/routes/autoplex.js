@@ -22,9 +22,9 @@ const prewarmTasks = new Map();
 const replayCache = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
-const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 250;
-const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 80;
-const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 300;
+const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 100;
+const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 60;
+const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 150;
 
 setInterval(() => {
     const now = Date.now();
@@ -407,7 +407,11 @@ async function prewarmSlideAudio({ db, sessionId, slideIndex, slide, totalSlides
         });
 
         const narrationText = await modelService.generateNarration(context);
+
+        // synthesizeDetailed is ~2x faster than streaming for full synthesis
+        // Both return word boundaries from the SDK
         const audioResult = await ttsService.synthesizeDetailed(narrationText, 'default');
+
         const payload = {
             text: narrationText,
             pcmBase64: audioResult.pcmBuffer.toString('base64'),
@@ -421,7 +425,9 @@ async function prewarmSlideAudio({ db, sessionId, slideIndex, slide, totalSlides
         setPrewarmedSlide(sessionId, slideIndex, payload);
         setReplayCache(sessionId, slideIndex, payload);
 
-        await persistSlideNarration({
+        // Persist asynchronously — DB write + Supabase upload are fire-and-forget
+        // Replay loads from replayCache (in-memory) or DB base64 column
+        persistSlideNarration({
             db,
             sessionId,
             slideIndex,
@@ -434,7 +440,7 @@ async function prewarmSlideAudio({ db, sessionId, slideIndex, slide, totalSlides
             bitsPerSample: audioResult.bitsPerSample,
             audioSource: 'prewarmed',
             wordBoundaries: audioResult.wordBoundaries || []
-        });
+        }).catch(err => console.warn('[AutoPlex] Async persist failed:', err.message));
 
         return payload;
     })();
@@ -528,14 +534,27 @@ async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {
         });
     }
 
-    io.to(sessionId).emit('audio-chunk', {
-        chunk: cached.pcmBase64,
-        slideIndex,
-        sampleRate: cached.sampleRate || 24000,
-        channels: cached.channels || 1,
-        bitsPerSample: cached.bitsPerSample || 16,
-        ...options
-    });
+    // Emit audio in chunks to mimic real streaming — client starts playback after
+    // first chunk arrives rather than waiting for full base64 decode of giant chunk.
+    // This dramatically improves first-byte time vs single large emission.
+    const rawBytes = Buffer.from(cached.pcmBase64, 'base64');
+    const chunkSize = 80000; // bytes per chunk (~1.67s of audio at 24kHz)
+    const interChunkDelay = parseInt(process.env.TTS_CHUNK_DELAY_MS, 10) || 8;
+
+    for (let offset = 0; offset < rawBytes.length; offset += chunkSize) {
+        const chunk = rawBytes.slice(offset, offset + chunkSize);
+        io.to(sessionId).emit('audio-chunk', {
+            chunk: chunk.toString('base64'),
+            slideIndex,
+            sampleRate: cached.sampleRate || 24000,
+            channels: cached.channels || 1,
+            bitsPerSample: cached.bitsPerSample || 16,
+            ...options
+        });
+        if (interChunkDelay > 0 && offset + chunkSize < rawBytes.length) {
+            await sleep(interChunkDelay);
+        }
+    }
 
     io.to(sessionId).emit('audio-end', {
         slideIndex,
@@ -544,17 +563,17 @@ async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {
     });
 
     const audioDurationSec = Number(cached.totalPcmBytes || 0) / (((cached.sampleRate || 24000) * (cached.bitsPerSample || 16) / 8) * (cached.channels || 1));
-    // Client audio player has ~170ms+ overhead (120ms buffer flush + 50ms scheduling + jitter)
-    // Prewarmed audio has word boundaries now, use accurate duration if available
+    // Client audio player has ~93ms overhead (60ms buffer flush + 30ms scheduling + jitter)
+    // Prewarmed audio has word boundaries — use accurate duration if available
     let waitMs;
     if (Array.isArray(cached.wordBoundaries) && cached.wordBoundaries.length > 0) {
         const lastWord = cached.wordBoundaries[cached.wordBoundaries.length - 1];
         const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
-        waitMs = Math.max(actualDurationMs + 2500, 8000);
+        waitMs = Math.max(actualDurationMs + 2000, 8000);
     } else {
         waitMs = Math.max(
-            Math.ceil(audioDurationSec * 1000) + 5500,
-            options.isQA ? 8000 : 10000
+            Math.ceil(audioDurationSec * 1000) + 4500,
+            options.isQA ? 7000 : 9000
         );
     }
     await waitForPlaybackCompletion(sessionId, waitMs);
@@ -1467,11 +1486,11 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         if (Array.isArray(lastWordBoundaries) && lastWordBoundaries.length > 0) {
             const lastWord = lastWordBoundaries[lastWordBoundaries.length - 1];
             const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
-            waitMs = Math.max(actualDurationMs + 2500, 8000);
+            waitMs = Math.max(actualDurationMs + 2000, 8000);
         } else {
             waitMs = Math.max(
-                Math.ceil(audioDurationSec * 1000) + (options.isQA ? 5500 : 6500),
-                options.isQA ? 8000 : 10000
+                Math.ceil(audioDurationSec * 1000) + (options.isQA ? 4500 : 5500),
+                options.isQA ? 7000 : 9000
             );
         }
         await waitForPlaybackCompletion(sessionId, waitMs);
