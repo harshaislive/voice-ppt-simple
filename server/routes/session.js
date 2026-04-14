@@ -132,6 +132,8 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.get('db');
+        const token = extractSessionControlToken(req);
+        console.log(`[Session] GET /:id=${id}, token present: ${!!token}`);
         
         const session = db.get(`
             SELECT s.*, 
@@ -142,8 +144,11 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
         `, [id]);
         
         if (!session) {
+            console.log(`[Session] Session not found: ${id}`);
             return res.status(404).json({ error: 'Session not found' });
         }
+        
+        console.log(`[Session] Session found, status: ${session.status}, has token hash: ${!!session.control_token_hash}`);
         
         // Get current slide
         const currentSlide = db.get(`
@@ -166,6 +171,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
             participantName = '';
         }
         
+        console.log(`[Session] Returning session data, status: ${session.status}`);
         res.json({
             session,
             currentSlide,

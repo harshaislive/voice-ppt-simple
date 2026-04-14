@@ -289,6 +289,19 @@ h1, h2, h3, h4 {
     max-width: 400px;
 }
 
+.session-recovery-msg {
+    font-size: 0.75rem;
+    color: var(--accent-green);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.session-recovery-msg.hidden {
+    display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;

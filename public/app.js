@@ -125,34 +125,53 @@ class VoicePPTApp {
     getPersistedSession() {
         try {
             const raw = localStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION);
-            if (!raw) return null;
+            if (!raw) {
+                console.log('[Session] No persisted session in localStorage');
+                return null;
+            }
             const session = JSON.parse(raw);
             const age = Date.now() - (session.storedAt || 0);
+            console.log('[Session] Found persisted session:', session.sessionId, 'participant:', session.participantName, 'age:', Math.round(age / 1000 / 60), 'min, ttl:', Math.round(VoicePPTApp.SESSION_TTL_MS / 1000 / 60), 'min');
             if (age > VoicePPTApp.SESSION_TTL_MS) {
+                console.log('[Session] Session expired, clearing');
                 this.clearPersistedSession();
                 return null;
             }
             return session;
-        } catch {
+        } catch (err) {
+            console.error('[Session] Error reading persisted session:', err);
             return null;
         }
     }
 
     async restorePersistedSession(session) {
+        console.log('[Session] Attempting to restore session:', session.sessionId, 'participant:', session.participantName);
         try {
             const res = await this.apiFetch(`/api/session/${session.sessionId}`);
-            if (!res.ok) {
+            console.log('[Session] Restore response status:', res.status);
+            
+            // 404 = session truly gone, clear localStorage
+            if (res.status === 404) {
+                console.log('[Session] Session not found on server (404), clearing localStorage');
                 this.clearPersistedSession();
                 return false;
             }
+            
+            if (!res.ok) {
+                console.log('[Session] Restore failed - HTTP', res.status, '- keeping session for retry');
+                return false;
+            }
+            
             const data = await res.json();
+            console.log('[Session] Restore response data - status:', data.session?.status);
             if (!data.session || !['active', 'presenting', 'wrapup'].includes(data.session.status)) {
+                console.log('[Session] Restore failed - bad status:', data.session?.status, '- clearing');
                 this.clearPersistedSession();
                 return false;
             }
             this.sessionId = session.sessionId;
             this.controlToken = session.controlToken || '';
-            this.participantName = session.participantName || '';
+            this.participantName = session.participantName || data.participantName || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
@@ -164,10 +183,10 @@ class VoicePPTApp {
             document.getElementById('submit-question').disabled = false;
             this.setStatus('Resumed', 'live', 'Session restored');
             this.syncQuestionCount();
+            console.log('[Session] Restore successful!');
             return true;
         } catch (err) {
-            console.error('Session restore failed:', err);
-            this.clearPersistedSession();
+            console.error('[Session] Restore failed with error:', err, '- keeping session for retry');
             return false;
         }
     }
@@ -187,9 +206,26 @@ class VoicePPTApp {
                 }
             }
             localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, String(!!data.passcodeRequired));
+            
+            // Pre-fill name if we have it from a previous session
+            if (persistedSession?.participantName) {
+                const nameInput = document.getElementById('participant-name');
+                if (nameInput) nameInput.value = persistedSession.participantName;
+            }
+            
             if (persistedSession) {
+                console.log('[Session] Have persisted session, attempting restore...');
                 const restored = await this.restorePersistedSession(persistedSession);
-                if (restored) return;
+                if (restored) {
+                    console.log('[Session] Restore succeeded, skipping start screen');
+                    return;
+                }
+                // Restore failed but session might be recoverable - show message
+                console.log('[Session] Restore failed, showing recovery message');
+                const msg = document.getElementById('session-recovery-msg');
+                if (msg) msg.classList.remove('hidden');
+            } else {
+                console.log('[Session] No persisted session found');
             }
         } catch (err) {
             console.warn('Could not load session config:', err);

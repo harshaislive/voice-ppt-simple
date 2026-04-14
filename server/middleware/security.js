@@ -81,6 +81,9 @@ function requireSessionControl(options = {}) {
             }
 
             if (!hasValidSessionControl(db, sessionId, providedToken)) {
+                console.log(`[Security] Session control failed for ${sessionId}, token provided: ${!!providedToken}`);
+                const session = db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]);
+                console.log(`[Security] Session exists: ${!!session}, has hash: ${!!session?.control_token_hash}`);
                 return res.status(403).json({ error: 'Valid session control token required' });
             }
 
