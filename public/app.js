@@ -532,9 +532,15 @@ class VoicePPTApp {
         this.questions.set(id, { id, text, status: 'pending' });
         this.syncQuestionCount();
         const list = document.getElementById('qa-list');
-        const empty = list.querySelector('.qa-empty'); if (empty) empty.remove();
-        const item = document.createElement('div'); item.className = 'qa-item pending'; item.id = `q-${id}`;
-        item.innerHTML = `<div class="qa-question">${this.escapeHtml(text)}</div><div class="qa-meta">${this.escapeHtml(by)} · just now</div>`;
+        const empty = list.querySelector('.qa-empty-state'); if (empty) empty.remove();
+        const item = document.createElement('div'); item.className = 'qa-card is-pending'; item.id = `q-${id}`;
+        item.innerHTML = `
+            <div class="qa-card-meta">
+                <span>${this.escapeHtml(by)}</span>
+                <span>Just Now</span>
+            </div>
+            <div class="qa-card-question">${this.escapeHtml(text)}</div>
+        `;
         list.appendChild(item); list.scrollTop = list.scrollHeight;
     }
 
@@ -542,15 +548,15 @@ class VoicePPTApp {
         if (!this.questions.has(id)) this.addQuestionToList(id, txt, 'Audience');
         const target = document.getElementById(`q-${id}`); if (!target) return;
         const q = this.questions.get(id); if (q) q.status = 'answered';
-        target.classList.remove('pending'); target.classList.add('answered');
-        let node = target.querySelector('.qa-answer'); if (!node) { node = document.createElement('div'); node.className = 'qa-answer'; target.appendChild(node); }
+        target.classList.remove('is-pending'); target.classList.add('is-answered');
+        let node = target.querySelector('.qa-card-answer'); if (!node) { node = document.createElement('div'); node.className = 'qa-card-answer'; target.appendChild(node); }
         node.textContent = ans; this.syncQuestionCount();
     }
 
     handleQueueUpdate(data) {
         if (data.questionId && data.status === 'answered') {
             const q = this.questions.get(data.questionId); if (q) q.status = 'answered';
-            const item = document.getElementById(`q-${data.questionId}`); if (item) { item.classList.remove('pending'); item.classList.add('answered'); }
+            const item = document.getElementById(`q-${data.questionId}`); if (item) { item.classList.remove('is-pending'); item.classList.add('is-answered'); }
         }
         this.syncQuestionCount();
     }

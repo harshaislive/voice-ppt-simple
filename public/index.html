@@ -174,27 +174,43 @@
 
             <div id="qa-scrim" class="qa-scrim hidden"></div>
             <aside id="qa-panel" class="qa-panel hidden">
-                <div class="qa-header">
-                    <div class="qa-header-left">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        <span>Questions</span>
+                <div class="qa-panel-inner">
+                    <header class="qa-header">
+                        <div class="qa-header-left">
+                            <span class="qa-eyebrow">Dialogue</span>
+                            <h2 class="qa-display-title">Questions</h2>
+                        </div>
+                        <div class="qa-header-actions">
+                            <div class="qa-status-pill">
+                                <span id="qa-count" class="qa-count">0</span>
+                                <span class="qa-pill-label">Total</span>
+                            </div>
+                            <button id="qa-close" class="qa-close-circle" type="button" aria-label="Close questions">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="qa-content-area">
+                        <div id="qa-list" class="qa-list">
+                            <div class="qa-empty-state">
+                                <div class="qa-empty-icon">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                </div>
+                                <p>The floor is open. Ask anything about the collective, the 10% life, or the restoration work.</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="qa-header-actions">
-                        <span id="qa-count" class="qa-count">0</span>
-                        <button id="qa-close" class="qa-close" type="button" aria-label="Close questions">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
+
+                    <div class="qa-footer">
+                        <div class="qa-input-container">
+                            <textarea id="question-input" class="qa-textarea" placeholder="Type your question..." rows="1" disabled></textarea>
+                            <button id="submit-question" class="qa-send-btn" disabled aria-label="Send question">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                            </button>
+                        </div>
+                        <p class="qa-input-hint">The presenter will address your question live.</p>
                     </div>
-                </div>
-                <p class="qa-intro">Ask by text here. The presenter can answer key questions after each slide while the mic stays available for live interruption.</p>
-                <div id="qa-list" class="qa-list">
-                    <div class="qa-empty">Ask a question anytime. It will appear here immediately.</div>
-                </div>
-                <div class="qa-input-row">
-                    <input id="question-input" type="text" class="qa-input" placeholder="Type your question..." disabled>
-                    <button id="submit-question" class="qa-send" disabled>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                    </button>
                 </div>
             </aside>
 

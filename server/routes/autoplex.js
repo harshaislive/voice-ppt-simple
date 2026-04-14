@@ -303,10 +303,12 @@ async function runPresentation(db, io, sessionId) {
     await sleep(180);
 
     let currentSlideIndex = 0;
+    console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}`);
 
     while (currentSlideIndex < slides.length) {
         await waitWhilePaused(db, io, sessionId);
         const slide = slides[currentSlideIndex];
+        console.log(`[AutoPlex] Narrating slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
 
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [currentSlideIndex, sessionId]);
 
