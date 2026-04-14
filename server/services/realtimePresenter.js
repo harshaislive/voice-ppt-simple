@@ -179,6 +179,8 @@ class RealtimePresenterService {
   }
 
   _buildPrompt(context, safeMode = false) {
+    const isQA = context.slideTitle === 'Audience Question' || context.isQA;
+
     if (!safeMode) {
       const messages = narrationPrompt.buildMessages(context);
 
@@ -189,15 +191,23 @@ class RealtimePresenterService {
         userSections.push(content);
       }
 
+      const instructions = isQA
+        ? 'You are answering an audience question for Beforest. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the attendee name once if provided. If the answer is not in the knowledge docs, say: "I don\'t have enough information to fully answer that. Someone from our team will follow up with you personally." One consistent, quiet, certain voice.'
+        : 'You are a narrator for Beforest — quiet, certain, disciplined. You speak about rhythm, practice, and restoration. Never frame the offer as per-night or per-day costs. The offer is 30 nights per year for 10 years — 300 nights of intentional living. Never use words like vacation, holiday, escape, getaway, deal, or value. One consistent voice throughout. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
+
       return {
-        instructions: 'You are a narrator for Beforest — quiet, certain, disciplined. You speak about rhythm, practice, and restoration. Never frame the offer as per-night or per-day costs. The offer is 30 nights per year for 10 years — 300 nights of intentional living. Never use words like vacation, holiday, escape, getaway, deal, or value. One consistent voice throughout. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.',
+        instructions,
         userText: userSections.join('\n\n')
       };
     }
 
     const userText = this._buildSafePrompt(context);
+    const instructions = isQA
+      ? 'You are answering an audience question for Beforest. Be direct, calm, and grounded. 3-5 sentences. No preamble. If unsure, say you don\'t have the information.'
+      : 'You are a narrator for Beforest — quiet, certain, disciplined. Speak about rhythm, not vacations. Frame the offer as 30 nights per year for 10 years. Never use per-night or per-day pricing. Never use vacation, holiday, escape, getaway, deal. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
+
     return {
-      instructions: 'You are a narrator for Beforest — quiet, certain, disciplined. Speak about rhythm, not vacations. Frame the offer as 30 nights per year for 10 years. Never use per-night or per-day pricing. Never use vacation, holiday, escape, getaway, deal. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.',
+      instructions,
       userText
     };
   }
@@ -211,8 +221,11 @@ class RealtimePresenterService {
       audienceContext,
       participantName,
       slideIndex,
-      totalSlides
+      totalSlides,
+      knowledgeContext
     } = context;
+
+    const isQA = slideTitle === 'Audience Question' || context.isQA;
 
     const lines = [
       `Scene ${slideIndex + 1} of ${totalSlides}.`,
@@ -220,18 +233,24 @@ class RealtimePresenterService {
       `On screen: ${slideContent || ''}`,
       slideNotes ? `Intent: ${slideNotes}` : '',
       participantName ? `Attendee: ${participantName}. Name them once max.` : '',
+      knowledgeContext ? `Project knowledge:\n${knowledgeContext}` : '',
       pendingQuestions && pendingQuestions.length
         ? `Audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
         : '',
       audienceContext && Object.keys(audienceContext).length
         ? `Previous scene narration: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
-        : '',
-      'Four beats: Hook (2-3 sentences, grab attention) → Insight (4-8 sentences, what the slide MEANS, be specific and thorough) → Implication (2-4 sentences, why it matters) → Bridge (1-2 sentences, momentum forward). Aim for 200-300 words total.',
-      'Specific over vague. No filler phrases. No recapping. One consistent voice. Documentary narrator, not stage actor.',
-      'Do not invent facts or numbers not in the slide or notes.'
-    ].filter(Boolean);
+        : ''
+    ];
 
-    return lines.join('\n');
+    if (isQA) {
+      lines.push('Answer the audience question using only the provided project knowledge. Be direct and concise (3-5 sentences).');
+    } else {
+      lines.push('Four beats: Hook (2-3 sentences, grab attention) → Insight (4-8 sentences, what the slide MEANS, be specific and thorough) → Implication (2-4 sentences, why it matters) → Bridge (1-2 sentences, momentum forward). Aim for 200-300 words total.');
+      lines.push('Specific over vague. No filler phrases. No recapping. One consistent voice. Documentary narrator, not stage actor.');
+      lines.push('Do not invent facts or numbers not in the slide or notes.');
+    }
+
+    return lines.filter(Boolean).join('\n');
   }
 }
 
