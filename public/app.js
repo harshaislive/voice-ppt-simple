@@ -921,7 +921,7 @@ class VoicePPTApp {
     }
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
-    onVoiceSessionConnected() { this.voiceModeEnabled = true; this.updateMicState(); this.setStatus('Mic live', 'paused', 'Ask question'); }
+    onVoiceSessionConnected() { this.voiceModeEnabled = true; this.updateMicState(); this.setStatus('Mic live', 'paused', 'Ask your question now. Tap again to end voice mode.'); }
     onVoiceSessionDisconnected() { const was = this.voiceModeEnabled; this.voiceModeEnabled = false; this.updateMicState(); if (was) { this.pauseAutoplex(false); this.setStatus('Voice ended', 'paused', 'Returning to presentation'); } }
 
     getRealtimeTools() {
