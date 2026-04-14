@@ -145,6 +145,12 @@ app.post('/api/retrieve', requireAdminApiKey, async (req, res) => {
 const sessionReactions = new Map();
 const sessionVotes = new Map();
 
+function clearSessionRealtimeState(sessionId) {
+    if (!sessionId) return;
+    sessionReactions.delete(sessionId);
+    sessionVotes.delete(sessionId);
+}
+
 // Periodic check for significant reactions (every 10s)
 setInterval(() => {
     for (const [sessionId, counts] of sessionReactions.entries()) {
@@ -195,6 +201,7 @@ io.on('connection', (socket) => {
         }
 
         socket.join(sessionId);
+        socket.data.sessionId = sessionId;
         console.log(`Client ${socket.id} joined session ${sessionId}`);
 
         // Send current votes if any
@@ -245,7 +252,15 @@ io.on('connection', (socket) => {
     });
     
     socket.on('disconnect', () => {
+        const sessionId = socket.data?.sessionId;
         console.log('Client disconnected:', socket.id);
+        if (!sessionId) {
+            return;
+        }
+        const room = io.sockets.adapter.rooms.get(sessionId);
+        if (!room || room.size === 0) {
+            clearSessionRealtimeState(sessionId);
+        }
     });
 });
 

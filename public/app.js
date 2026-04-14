@@ -133,6 +133,9 @@ class VoicePPTApp {
             document.getElementById('submit-question').disabled = false;
             this.setStatus('Resumed', 'live', 'Session restored');
             this.syncQuestionCount();
+            if (['active', 'presenting'].includes(data.session.status)) {
+                setTimeout(() => this.triggerAutoPlex(), 250);
+            }
             return true;
         } catch (err) {
             console.error('Session restore failed:', err);
@@ -537,7 +540,14 @@ class VoicePPTApp {
         if (options.interrupt) { await this.requestInterrupt(); this.setStatus('Thinking', 'paused', 'Routing interruption'); }
         this.pendingQuestionText = text;
         try {
-            const res = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: this.sessionId, questionText: text, submittedBy: options.submittedBy || 'Audience' }) });
+            const res = await this.apiFetch('/api/questions', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    questionText: text,
+                    submittedBy: options.submittedBy || 'Audience'
+                })
+            });
             if (!(await res.json()).success) throw new Error('Failed');
             input.value = ''; this.pendingQuestionText = null;
             if (options.queueForEnd) this.setStatus('Saved for final Q&A', 'paused', 'Answered after last slide');

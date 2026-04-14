@@ -9,7 +9,7 @@ const {
 } = require('../middleware/security');
 
 // Submit a question
-router.post('/', async (req, res) => {
+router.post('/', requireSessionControl(), async (req, res) => {
     try {
         const { sessionId, questionText, submittedBy } = req.body;
         
