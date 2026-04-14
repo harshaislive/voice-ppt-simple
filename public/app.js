@@ -72,7 +72,10 @@ class VoicePPTApp {
         this.bindEvents();
         this.bindQuestionAudioControls();
         this.streamPlayer.onStreamStart = ({ startedAtMs }) => {
+            console.log('[StreamStart] Audio started at:', startedAtMs);
             this.pendingPlaybackStartAt = startedAtMs;
+            this._progressDebugLogged = false;
+            this._firstProgressLogged = false;
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
         };
@@ -735,14 +738,17 @@ class VoicePPTApp {
 
     handleWordBoundaries(data) {
         this.wordBoundaries = Array.isArray(data?.words) ? data.words : [];
+        console.log('[WordBoundaries] Received', this.wordBoundaries.length, 'words for slide', data?.slideIndex);
         
         // Calculate actual duration from word boundaries
         if (this.wordBoundaries.length > 0) {
             const lastWord = this.wordBoundaries[this.wordBoundaries.length - 1];
             const actualDuration = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
+            console.log('[WordBoundaries] Last word offset:', lastWord.offsetMs, 'duration:', lastWord.durationMs, 'total:', actualDuration);
             // Only update if more accurate (longer) than estimated
             if (actualDuration > this.totalAudioDurationMs) {
                 this.totalAudioDurationMs = actualDuration;
+                console.log('[WordBoundaries] Updated totalAudioDurationMs to:', this.totalAudioDurationMs);
             }
         }
         
@@ -883,6 +889,11 @@ class VoicePPTApp {
         }
 
         if (!this.pendingPlaybackStartAt || this.totalAudioDurationMs <= 0) {
+            // Debug logging for progress bar issues
+            if (this.slideAudioStarted && !this._progressDebugLogged) {
+                console.log('[ProgressBar] Reset to 0% - pendingPlaybackStartAt:', this.pendingPlaybackStartAt, 'totalAudioDurationMs:', this.totalAudioDurationMs);
+                this._progressDebugLogged = true;
+            }
             fill.style.width = '0%';
             return;
         }
@@ -892,6 +903,13 @@ class VoicePPTApp {
         const totalDuration = this.totalAudioDurationMs;
 
         const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100;
+        
+        // Debug first progress update
+        if (!this._firstProgressLogged) {
+            console.log('[ProgressBar] First update - elapsed:', Math.round(elapsed), 'ms, total:', totalDuration, 'ms, progress:', Math.round(progress), '%');
+            this._firstProgressLogged = true;
+        }
+        
         fill.style.width = `${progress}%`;
     }
 

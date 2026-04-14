@@ -600,6 +600,12 @@ function buildKnowledgeContext(metadata = {}) {
     const sections = [];
     const knowledgeDocs = metadata.knowledgeDocs || {};
 
+    // Debug logging for personality/soul
+    console.log('[KnowledgeContext] Building context. Available docs:', Object.keys(knowledgeDocs));
+    if (knowledgeDocs.soul) {
+        console.log('[KnowledgeContext] Soul doc length:', String(knowledgeDocs.soul).length, 'chars');
+    }
+
     // 1. Load the global Agent Framework (Constitution) from root
     try {
         const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
@@ -630,7 +636,9 @@ function buildKnowledgeContext(metadata = {}) {
         sections.push(`CTA: ${stringifyDoc(knowledgeDocs.cta)}`);
     }
 
-    return sections.join('\n\n').slice(0, 8000);
+    const result = sections.join('\n\n').slice(0, 8000);
+    console.log('[KnowledgeContext] Total context length:', result.length, 'chars');
+    return result;
 }
 
 async function buildFullQAContext(sessionMetadata, slides) {

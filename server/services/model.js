@@ -55,6 +55,11 @@ class ModelService {
             const narrationPrompt = require('../prompts/narrationPrompt');
             const messages = narrationPrompt.buildMessages(context);
             
+            // Debug logging for personality troubleshooting
+            console.log('[Model] generateNarration called with knowledgeContext length:', context.knowledgeContext?.length || 0);
+            console.log('[Model] System prompt preview:', messages[0]?.content?.substring(0, 200) + '...');
+            console.log('[Model] User prompt preview:', messages[messages.length - 1]?.content?.substring(0, 200) + '...');
+            
             const response = await this.client.chat.completions.create({
                 model: this.deployment,
                 messages,
