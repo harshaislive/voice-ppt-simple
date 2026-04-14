@@ -1127,6 +1127,7 @@ async function runWrapUp(db, io, sessionId, deckId, participantName) {
     db.run('UPDATE sessions SET status = \'wrapup\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
     syncSessionState(sessionId, { status: 'wrapup' });
 
+    console.log(`[AutoPlex] Emitting presentation-wrapup for session ${sessionId}`);
     io.to(sessionId).emit('presentation-wrapup', {
         endsAt: deadline,
         durationMs,

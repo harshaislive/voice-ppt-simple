@@ -1476,19 +1476,34 @@ class VoicePPTApp {
     }
 
     startWrapUp(data = {}) {
-        this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0;
-        this.wrapUpEndsAt = Number(data.endsAt) || (Date.now() + 60000);
-        this.renderWrapUpMcqs();
-        document.getElementById('wrapup-message').textContent = data.promptText || 'One minute for questions.';
-        document.getElementById('wrapup-panel').classList.remove('hidden'); document.getElementById('completion-overlay').classList.remove('hidden');
-        this.setStatus('Final questions', 'paused', 'Type a question to queue it');
-        if (this.wrapUpTimer) clearInterval(this.wrapUpTimer);
-        this.wrapUpTimer = setInterval(() => {
-            const rem = Math.max(0, this.wrapUpEndsAt - Date.now()); const sec = Math.ceil(rem / 1000);
-            document.getElementById('wrapup-timer').textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
-            document.getElementById('wrapup-deadline').textContent = `Agent ends in ${sec}s`;
-            if (rem <= 0) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; }
-        }, 1000);
+        console.log('[WrapUp] startWrapUp called with data:', data);
+        try {
+            this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0;
+            this.wrapUpEndsAt = Number(data.endsAt) || (Date.now() + 60000);
+            this.renderWrapUpMcqs();
+            const wrapupPanel = document.getElementById('wrapup-panel');
+            const completionOverlay = document.getElementById('completion-overlay');
+            const wrapupMessage = document.getElementById('wrapup-message');
+            if (!wrapupPanel) console.error('[WrapUp] wrapup-panel element not found!');
+            if (!completionOverlay) console.error('[WrapUp] completion-overlay element not found!');
+            if (!wrapupMessage) console.error('[WrapUp] wrapup-message element not found!');
+            if (wrapupMessage) wrapupMessage.textContent = data.promptText || 'One minute for questions.';
+            if (wrapupPanel) wrapupPanel.classList.remove('hidden');
+            if (completionOverlay) completionOverlay.classList.remove('hidden');
+            this.setStatus('Final questions', 'paused', 'Type a question to queue it');
+            if (this.wrapUpTimer) clearInterval(this.wrapUpTimer);
+            this.wrapUpTimer = setInterval(() => {
+                const timerEl = document.getElementById('wrapup-timer');
+                const deadlineEl = document.getElementById('wrapup-deadline');
+                const rem = Math.max(0, this.wrapUpEndsAt - Date.now()); const sec = Math.ceil(rem / 1000);
+                if (timerEl) timerEl.textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+                if (deadlineEl) deadlineEl.textContent = `Agent ends in ${sec}s`;
+                if (rem <= 0) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; }
+            }, 1000);
+            console.log('[WrapUp] startWrapUp completed successfully');
+        } catch (err) {
+            console.error('[WrapUp] Error in startWrapUp:', err);
+        }
     }
 
     finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
