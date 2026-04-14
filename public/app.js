@@ -831,7 +831,7 @@ class VoicePPTApp {
 
     _updateTranscriptProgress() {
         this.updateTranscriptProgress();
-        if (this.streamPlayer.isPlaying || this.pendingPlaybackStartAt) {
+        if (!this.isAudioPaused && (this.streamPlayer.isPlaying || this.pendingPlaybackStartAt)) {
             this._transcriptProgressRaf = requestAnimationFrame(() => this._updateTranscriptProgress());
         }
     }
@@ -841,6 +841,10 @@ class VoicePPTApp {
         if (!container) return;
         const fill = container.querySelector('.transcript-reel-progress-fill');
         if (!fill) return;
+
+        if (this.isAudioPaused) {
+            return;
+        }
 
         if (!this.pendingPlaybackStartAt || this.totalAudioDurationMs <= 0) {
             fill.style.width = '0%';
@@ -1367,6 +1371,7 @@ class VoicePPTApp {
             this.isAudioPaused = true;
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
+            this.stopTranscriptProgress();
             this.stopWaveform();
             
             if (btn) btn.classList.add('is-paused');
@@ -1382,6 +1387,7 @@ class VoicePPTApp {
                 this.pauseStartMs = null;
             }
             this.syncTranscriptReelPlayback();
+            this.startTranscriptProgress();
             this.startWaveform();
             
             if (btn) btn.classList.remove('is-paused');
