@@ -104,7 +104,6 @@ export class UIManager {
     renderTranscriptReel(containerId, data = {}) {
         const container = document.getElementById(containerId);
         if (!container) return;
-        container.innerHTML = '';
 
         const state = data.state || 'waiting';
         const phrase = String(data.phrase || '').trim();
@@ -113,25 +112,40 @@ export class UIManager {
             return;
         }
 
-        const wrap = document.createElement('div');
-        wrap.className = `transcript-reel transcript-reel-${state}`;
+        // Check if we already have a transcript reel - reuse it to avoid progress bar flicker
+        let wrap = container.querySelector('.transcript-reel');
+        let meta = container.querySelector('.transcript-reel-meta');
+        let phraseEl = container.querySelector('.transcript-reel-phrase');
+        let progressTrack = container.querySelector('.transcript-reel-progress');
+        let progressFill = container.querySelector('.transcript-reel-progress-fill');
 
-        const meta = document.createElement('div');
-        meta.className = 'transcript-reel-meta';
+        if (!wrap) {
+            // First time - create all elements
+            wrap = document.createElement('div');
+            wrap.className = `transcript-reel transcript-reel-${state}`;
+
+            meta = document.createElement('div');
+            meta.className = 'transcript-reel-meta';
+
+            phraseEl = document.createElement('div');
+            phraseEl.className = 'transcript-reel-phrase';
+
+            progressTrack = document.createElement('div');
+            progressTrack.className = 'transcript-reel-progress';
+            progressFill = document.createElement('div');
+            progressFill.className = 'transcript-reel-progress-fill';
+            progressTrack.appendChild(progressFill);
+
+            wrap.append(meta, phraseEl, progressTrack);
+            container.appendChild(wrap);
+        } else {
+            // Reuse existing - just update class for state
+            wrap.className = `transcript-reel transcript-reel-${state}`;
+        }
+
+        // Update content without recreating DOM
         meta.textContent = data.headline || 'Speaking';
-
-        const phraseEl = document.createElement('div');
-        phraseEl.className = 'transcript-reel-phrase';
         phraseEl.textContent = phrase;
-
-        const progressTrack = document.createElement('div');
-        progressTrack.className = 'transcript-reel-progress';
-        const progressFill = document.createElement('div');
-        progressFill.className = 'transcript-reel-progress-fill';
-        progressTrack.appendChild(progressFill);
-
-        wrap.append(meta, phraseEl, progressTrack);
-        container.appendChild(wrap);
     }
 
     setStatus(text, state, detail = '') {

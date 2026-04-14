@@ -8,8 +8,7 @@ const {
     generateSessionControlToken,
     hashToken,
     requireAdminApiKey,
-    requireSessionControl,
-    extractSessionControlToken
+    requireSessionControl
 } = require('../middleware/security');
 
 // Log Supabase session service status on startup
@@ -153,8 +152,6 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
     try {
         const { id } = req.params;
         const db = req.app.get('db');
-        const token = extractSessionControlToken(req);
-        console.log(`[Session] GET /:id=${id}, token present: ${!!token}`);
         
         let session = null;
         let slides = [];

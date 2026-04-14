@@ -615,6 +615,14 @@ class VoicePPTApp {
                 this.transcriptChunkIndex = -1;
             }
             this.pendingPlaybackStartAt = null;
+            
+            // Set progress to 100% before rendering
+            const container = document.getElementById('full-transcription');
+            if (container) {
+                const fill = container.querySelector('.transcript-reel-progress-fill');
+                if (fill) fill.style.width = '100%';
+            }
+            
             this.renderFullTranscription();
             if (this.awaitingPlaybackComplete) { this.awaitingPlaybackComplete = false; this.socketClient.notifyPlaybackComplete(this.sessionId, this.currentSlideIndex); }
         };
