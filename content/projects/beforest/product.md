@@ -1,34 +1,45 @@
-# Beforest Product
+# Beforest 10% Club — Product Knowledge
 
-Beforest builds nature-led experiences and products that reconnect modern life with the living world.
+## What It Is
+The 10% Lifestyle membership by Beforest. 30 person-nights per year for 10 years across all Beforest Collectives. Access, not ownership. A commitment to intentional restoration, not a real estate purchase.
 
-## 10% Club
+## Key Numbers
+- ₹17.6 lakhs for 10 years of access
+- 30 person-nights per year = 300 nights across the decade
+- Cost per day: ₹5,866 — less than a business-class flight
+- 6 collectives currently operating
+- 1,300 acres restored from degraded farmland
+- 250 families already members
+- 7 years of track record
 
-The 10% Club positions wilderness not as occasional escape, but as a recurring and meaningful part of life.
+## Active Collectives
+- Blyton Poomaale Collective, Coorg
+- The Hammiyala Estate Bungalow, Coorg
+- Anderson's Camp, Hyderabad
+- Anderson's Bungalow, Hyderabad
 
-Core idea:
+## Upcoming
+- Blyton Bungalow, Coorg
+- Allen's Manor, Bhopal
+- Mackintosh Collective, Mumbai
+- Chandragaon 2.0, Hyderabad
 
-- spend roughly 30 nights a year in wilderness settings
-- commit to a longer arc of belonging rather than one-off consumption
-- remove ownership complexity and logistical friction
+## What It Is NOT
+- NOT real estate — you don't own land
+- NOT a property investment — no maintenance headaches
+- NOT a resort membership — this IS the collective membership itself
+- NOT a substitute — this IS the thing
 
-Audience:
+## What It IS
+- Access to a way of life that already exists and is working
+- A strategic commitment to protecting 10% of your year
+- Restoration, belonging, and long-term return to nature
+- A community of 250 families who've already made this choice
 
-- urban professionals
-- people seeking meaningful solitude
-- people dissatisfied with performative travel or extractive lifestyle patterns
+## Positioning
+This is not a holiday idea. This is a commitment to protecting a fraction of your life so that the rest of it actually works. 10% protected means the other 90% gets better — more focused, more rested, more human.
 
-Positioning:
-
-- this is a commitment, not a luxury collectible
-- this is about belonging, restoration, and long-term return to nature
-
-## Beforest Pitch
-
-The Beforest pitch deck frames the business as making sustainable forestry or forest-linked participation more accessible and understandable to a broader audience.
-
-When using the investment-oriented deck:
-
-- stay grounded in the actual slide content
-- do not add unapproved financial promises
-- do not exaggerate returns or guarantees
+## Contact
+- Email: hello@beforest.co
+- Website: beforest.co
+- Investment inquiry: invest@beforest.co
