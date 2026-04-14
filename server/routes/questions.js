@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const analyticsService = require('../services/analytics');
 const ttsService = require('../services/tts');
+const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
 const {
     extractSessionControlToken,
@@ -29,6 +30,113 @@ function buildAnswerMeta(questionText, answerText) {
             answer_length: trimmedAnswer.length
         }
     };
+}
+
+function stringifyDoc(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+}
+
+function buildQuestionKnowledgeContext({ sessionMetadata = {}, presentation = null, currentSlide = null, slides = [] } = {}) {
+    const sections = [];
+    const sessionDocs = sessionMetadata.knowledgeDocs || {};
+    const presentationDocs = presentation?.knowledgeDocs || {};
+    const docs = { ...presentationDocs, ...sessionDocs };
+
+    if (docs.soul) sections.push(`PROJECT SOUL:\n${stringifyDoc(docs.soul)}`);
+    if (docs.agents) sections.push(`PROJECT RULES:\n${stringifyDoc(docs.agents)}`);
+    if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${stringifyDoc(docs.product)}`);
+    if (docs.flow) sections.push(`PRESENTATION FLOW:\n${stringifyDoc(docs.flow)}`);
+    if (docs.design) sections.push(`DESIGN CONTEXT:\n${stringifyDoc(docs.design)}`);
+    if (docs.cta) sections.push(`CALL TO ACTION:\n${stringifyDoc(docs.cta)}`);
+
+    if (currentSlide) {
+        sections.push(`CURRENT SLIDE:\nTitle: ${currentSlide.title || ''}\nVisible text: ${currentSlide.content || ''}${currentSlide.notes ? `\nPresenter notes: ${currentSlide.notes}` : ''}`);
+    }
+
+    if (slides.length > 0) {
+        sections.push(`FULL PRESENTATION CONTENT:\n${slides.map((slide, index) => `Slide ${index + 1}: "${slide.title || ''}"\n${slide.content || ''}${slide.notes ? `\nPresenter notes: ${slide.notes}` : ''}`).join('\n\n')}`);
+    }
+
+    return sections.join('\n\n').slice(0, 8000);
+}
+
+async function loadQuestionAnswerContext(db, sessionId) {
+    const context = {
+        session: null,
+        metadata: {},
+        slides: [],
+        currentSlide: null,
+        presentation: null,
+        knowledgeContext: ''
+    };
+
+    let session = db.get('SELECT * FROM sessions WHERE id = ?', [sessionId]);
+    let slides = session ? db.all('SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC', [sessionId]) : [];
+
+    if (!session && supabaseSession.isConfigured()) {
+        try {
+            session = await supabaseSession.getSession(sessionId);
+            if (session) {
+                slides = await supabaseSession.getSlides(sessionId);
+            }
+        } catch (error) {
+            console.warn('[Questions] Failed to load session context from Supabase:', error.message);
+        }
+    }
+
+    if (!session) {
+        return context;
+    }
+
+    let metadata = {};
+    try {
+        metadata = JSON.parse(session.metadata || '{}');
+    } catch {
+        metadata = {};
+    }
+
+    let presentation = null;
+    const deckId = session.deck_id || metadata.presentationSlug || metadata.deckId || null;
+    if (deckId && (!metadata.knowledgeDocs || Object.keys(metadata.knowledgeDocs).length === 0)) {
+        try {
+            presentation = await cmsService.loadPresentation(deckId);
+        } catch (error) {
+            console.warn('[Questions] Failed to load presentation context:', error.message);
+        }
+    }
+
+    if ((!slides || slides.length === 0) && presentation?.slides) {
+        slides = presentation.slides.map((slide, index) => ({
+            id: slide.id || `${sessionId}-${index}`,
+            slide_index: index,
+            title: slide.title || '',
+            content: slide.content || '',
+            notes: slide.notes || ''
+        }));
+    }
+
+    const currentSlideIndex = Number(session.current_slide_index || 0);
+    const currentSlide = slides.find((slide) => Number(slide.slide_index) === currentSlideIndex) || slides[currentSlideIndex] || null;
+
+    context.session = session;
+    context.metadata = metadata;
+    context.slides = slides;
+    context.currentSlide = currentSlide;
+    context.presentation = presentation;
+    context.knowledgeContext = buildQuestionKnowledgeContext({
+        sessionMetadata: metadata,
+        presentation,
+        currentSlide,
+        slides
+    });
+
+    return context;
 }
 
 async function persistQuestionAnswer({ db, io, question, answerText, audioResult, sessionId }) {
@@ -227,16 +335,19 @@ router.post('/', async (req, res) => {
         setImmediate(async () => {
             try {
                 const modelService = require('../services/model');
-                // Give basic context to model service. For full context we'd need session metadata, but this provides a quick answer.
+                const answerContext = await loadQuestionAnswerContext(db, sessionId);
                 const answer = await modelService.generateNarrationStream({
                     slideTitle: 'Audience Question',
                     slideContent: questionText,
-                    slideNotes: 'Answer concisely, honestly, and directly. Keep it under 3 sentences. Explain the reasoning clearly.',
+                    slideNotes: answerContext.currentSlide
+                        ? `Current slide: "${answerContext.currentSlide.title || ''}". Visible text: "${answerContext.currentSlide.content || ''}"${answerContext.currentSlide.notes ? `\nPresenter notes: ${answerContext.currentSlide.notes}` : ''}`
+                        : 'Answer directly and use the presentation knowledge if available.',
                     pendingQuestions: [],
                     participantName: submittedBy,
-                    slideIndex: session.current_slide_index,
-                    totalSlides: session.current_slide_index + 10, // arbitrary
-                    style: 'conversational'
+                    slideIndex: answerContext.session ? Number(answerContext.session.current_slide_index || 0) : 0,
+                    totalSlides: answerContext.slides ? answerContext.slides.length : (Number(answerContext.session?.current_slide_index || 0) + 10),
+                    style: 'conversational',
+                    knowledgeContext: answerContext.knowledgeContext
                 }, () => {}); // ignoring stream deltas
 
                 let audioResult = null;

@@ -1013,6 +1013,10 @@ h1, h2, h3, h4 {
     position: relative;
 }
 
+.interrupt-mic {
+    position: relative;
+}
+
 .icon-badge {
     position: absolute;
     top: -6px;
@@ -1029,6 +1033,11 @@ h1, h2, h3, h4 {
     line-height: 18px;
     text-align: center;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+.interrupt-mic .icon-badge {
+    top: -4px;
+    right: -4px;
 }
 
 .footer-hint {

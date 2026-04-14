@@ -260,6 +260,7 @@ export class UIManager {
         scrim.classList.toggle('hidden', !open);
         
         if (open) {
+            this.app.clearQuestionBadge?.();
             const input = document.getElementById('question-input');
             if (input) input.focus();
         }

@@ -64,6 +64,7 @@ class VoicePPTApp {
         this.waveformAnimFrame = null;
         this.questionAudioPlayer = document.getElementById('audio-player');
         this.activeQuestionAudioButton = null;
+        this.questionAudioPausedNarration = false;
 
         this.bindEvents();
         this.bindQuestionAudioControls();
@@ -305,11 +306,7 @@ class VoicePPTApp {
 
         on('history-fab', 'click', () => {
             const scrubber = document.getElementById('scrubber-container');
-            if (scrubber) {
-                const willOpen = scrubber.classList.contains('hidden');
-                scrubber.classList.toggle('hidden');
-                if (willOpen) this.clearHistoryBadge();
-            }
+            if (scrubber) scrubber.classList.toggle('hidden');
         });
         on('scrubber-close', 'click', () => {
             const scrubber = document.getElementById('scrubber-container');
@@ -394,6 +391,7 @@ class VoicePPTApp {
                 this.activeQuestionAudioButton.dataset.playing = 'false';
             }
             this.activeQuestionAudioButton = null;
+            this.resumeMainNarrationAfterQuestionAudio();
         });
     }
 
@@ -1186,8 +1184,12 @@ class VoicePPTApp {
         this.updateHistoryBadge();
     }
 
+    clearQuestionBadge() {
+        this.clearHistoryBadge();
+    }
+
     updateHistoryBadge() {
-        const badge = document.getElementById('history-badge');
+        const badge = document.getElementById('chat-badge');
         if (!badge) return;
         const count = Number(this.unreadAnswerCount || 0);
         badge.textContent = count >= 9 ? '9+' : String(count);
@@ -1260,12 +1262,35 @@ class VoicePPTApp {
         }
 
         this.activeQuestionAudioButton = button;
+        this.pauseMainNarrationForQuestionAudio();
         this.questionAudioPlayer.src = audioUrl;
         this.questionAudioPlayer.currentTime = 0;
         this.questionAudioPlayer.play().catch((err) => {
             console.warn('Question answer audio failed:', err);
             this.updateQuestionAudioButtonState(button, false);
+            this.resumeMainNarrationAfterQuestionAudio();
         });
+    }
+
+    pauseMainNarrationForQuestionAudio() {
+        const context = this.streamPlayer?.audioContext;
+        const hasActiveNarration = this.streamPlayer?.isPlaying || this.streamPlayer?.hasPendingPlayback?.();
+        if (!context || context.state !== 'running' || !hasActiveNarration || this.questionAudioPausedNarration) {
+            return;
+        }
+
+        this.questionAudioPausedNarration = true;
+        this.toggleAudioPause();
+    }
+
+    resumeMainNarrationAfterQuestionAudio() {
+        if (!this.questionAudioPausedNarration) return;
+
+        this.questionAudioPausedNarration = false;
+        const context = this.streamPlayer?.audioContext;
+        if (context && context.state === 'suspended') {
+            this.toggleAudioPause();
+        }
     }
 
     updateQuestionAudioButtonState(button, playing) {
