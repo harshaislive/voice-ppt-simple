@@ -1110,6 +1110,8 @@ h1, h2, h3, h4 {
     background: transparent;
     cursor: pointer;
     transition: all 0.2s ease;
+    padding: 0;
+    color: var(--text);
 }
 
 .qa-close-circle:hover {
