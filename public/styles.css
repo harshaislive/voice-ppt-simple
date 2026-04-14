@@ -671,20 +671,6 @@ h1, h2, h3, h4 {
     opacity: 0.5;
 }
 
-.folio-page {
-    position: absolute;
-    right: 0;
-    top: 0;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    opacity: 0.8;
-    background: var(--text);
-    color: var(--bg);
-    padding: 2px 8px;
-}
-
 .slide-title {
     font-size: clamp(2.5rem, 5vw, 4.5rem);
     line-height: 1.05;
