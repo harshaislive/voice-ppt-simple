@@ -964,9 +964,8 @@ class VoicePPTApp {
     }
 
     updateFolio() {
-        const dateEl = document.getElementById('folio-date'); const pageEl = document.getElementById('folio-page');
+        const dateEl = document.getElementById('folio-date');
         if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        if (pageEl) pageEl.textContent = `PAGE ${this.currentSlideIndex + 1} OF ${this.totalSlides || '?'}`;
     }
 
     handleMicPermissionError() { this.openQuestionComposer(); }
