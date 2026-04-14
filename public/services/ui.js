@@ -161,6 +161,34 @@ export class UIManager {
         }
     }
 
+    renderAnswerReel(target, text = '') {
+        const container = typeof target === 'string' ? document.getElementById(target) : target;
+        if (!container) return;
+        container.innerHTML = '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'qa-answer-reel';
+
+        const pieces = String(text || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .split(/(?<=[.!?])\s+|,\s+/)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+        const fallbackPieces = pieces.length > 0 ? pieces : [String(text || '').trim()].filter(Boolean);
+
+        fallbackPieces.forEach((piece, index) => {
+            const span = document.createElement('span');
+            span.className = 'qa-answer-piece';
+            span.style.animationDelay = `${index * 120}ms`;
+            span.textContent = piece;
+            wrap.appendChild(span);
+        });
+
+        container.appendChild(wrap);
+    }
+
     updateMicState(isListening, voiceModeEnabled, azureConnected) {
         const button = document.getElementById('interrupt-mic');
         const label = document.getElementById('interrupt-label');
@@ -169,31 +197,28 @@ export class UIManager {
         const wrapupMic = document.getElementById('wrapup-mic');
         const wrapupMicLabel = document.getElementById('wrapup-mic-label');
 
-        const active = isListening || (voiceModeEnabled && azureConnected);
-
         if (button) {
-            button.classList.toggle('listening', active);
-            button.classList.toggle('armed', voiceModeEnabled && !azureConnected);
+            button.classList.remove('listening', 'armed');
         }
         
         if (label) {
-            label.textContent = voiceModeEnabled ? 'End Voice' : isListening ? 'Listening...' : 'Interrupt';
+            label.textContent = 'Questions';
         }
 
         if (slideTurnMic) {
-            slideTurnMic.classList.toggle('is-live', active);
+            slideTurnMic.classList.remove('is-live');
         }
         
         if (slideTurnMicLabel) {
-            slideTurnMicLabel.textContent = voiceModeEnabled ? 'End Voice Session' : 'Talk To Presenter';
+            slideTurnMicLabel.textContent = 'Queue Question';
         }
 
         if (wrapupMic) {
-            wrapupMic.classList.toggle('listening', active);
+            wrapupMic.classList.remove('listening');
         }
 
         if (wrapupMicLabel) {
-            wrapupMicLabel.textContent = voiceModeEnabled ? 'End Voice' : isListening ? 'Listening...' : 'Ask Anything';
+            wrapupMicLabel.textContent = 'Questions';
         }
     }
 
@@ -236,10 +261,10 @@ export class UIManager {
         const turnDetail = document.getElementById('slide-turn-detail');
         if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
-        if (statusDetail) statusDetail.textContent = 'Tap mic or continue';
+        if (statusDetail) statusDetail.textContent = 'Type a question or continue';
         if (overlay) overlay.classList.remove('hidden');
         if (turnDetail && data && data.pendingQuestionCount > 0) {
-            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — ask now or continue`;
+            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — they will be answered after the slide`;
         }
         if (continueBtn) {
             continueBtn.classList.remove('hidden');

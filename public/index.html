@@ -35,7 +35,7 @@
                         <span>Begin Experience</span>
                     </button>
 
-                    <p class="start-hint">Use your mic or type questions anytime during the presentation.</p>
+                    <p class="start-hint">Type questions anytime. The presenter will answer between slides or at the end.</p>
                 </div>
             </div>
         </div>
@@ -119,16 +119,16 @@
 
                     <footer class="presentation-footer">
                         <div class="footer-block footer-left">
-                            <span class="footer-hint">Click to interrupt & ask</span>
+                            <span class="footer-hint">Questions</span>
                             <div class="immersive-dock">
-                                <button id="interrupt-mic" class="interrupt-mic" type="button" aria-label="Interrupt and speak">
+                                <button id="interrupt-mic" class="interrupt-mic" type="button" aria-label="Open questions">
                                     <span class="interrupt-core">
                                         <span class="interrupt-ring"></span>
                                         <span class="interrupt-icon">
-                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
                                         </span>
                                     </span>
-                                    <span id="interrupt-label" class="interrupt-label">Interrupt</span>
+                                    <span id="interrupt-label" class="interrupt-label">Questions</span>
                                 </button>
                                 <button id="footer-continue-btn" class="footer-continue-btn hidden" type="button">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
@@ -158,8 +158,8 @@
                             
                             <div class="slide-turn-actions">
                                 <button id="slide-turn-mic" class="slide-turn-mic btn-primary" type="button">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                                    <span id="slide-turn-mic-label">Ask a Question</span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
+                                    <span id="slide-turn-mic-label">Queue Question</span>
                                 </button>
                                 <button id="slide-turn-continue" class="slide-turn-continue btn-secondary" type="button">
                                     <span>Continue</span>
@@ -174,20 +174,6 @@
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="mic-permission-modal" class="modal-overlay hidden">
-                        <div class="modal-card">
-                            <div class="modal-icon alert">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                            </div>
-                            <h2>Microphone Access Denied</h2>
-                            <p>We need your mic to let you talk to the presenter. Please enable it in your browser settings and try again.</p>
-                            <div class="modal-actions">
-                                <button id="mic-retry-btn" class="btn-primary">Try Again</button>
-                                <button id="mic-close-btn" class="btn-text">Dismiss</button>
                             </div>
                         </div>
                     </div>
@@ -259,12 +245,12 @@
                                 </div>
                                 <p id="wrapup-message" class="wrapup-message"></p>
                                 
-                                <div class="wrapup-actions">
-                                    <button id="wrapup-mic" class="wrapup-mic" type="button" aria-label="Speak to agent">
+                            <div class="wrapup-actions">
+                                    <button id="wrapup-mic" class="wrapup-mic" type="button" aria-label="Open questions">
                                         <span class="wrapup-mic-icon">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
                                         </span>
-                                        <span id="wrapup-mic-label">Ask Anything</span>
+                                        <span id="wrapup-mic-label">Questions</span>
                                     </button>
                                 </div>
 
@@ -296,8 +282,8 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
                 </div>
                 <div class="guideline-text">
-                    <h4>Interrupt anytime</h4>
-                    <p>Tap the mic icon to speak directly to the presenter. Ask anything — the presenter will respond live.</p>
+                    <h4>Ask from the queue</h4>
+                    <p>Open questions, type your note, and the presenter will answer between slides or at the end.</p>
                 </div>
             </div>
 

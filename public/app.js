@@ -236,9 +236,9 @@ class VoicePPTApp {
         on('qa-close', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('qa-scrim', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('restart-btn', 'click', () => location.reload());
-        on('interrupt-mic', 'click', () => this.handleInterruptMic());
-        on('slide-turn-mic', 'click', () => this.handleInterruptMic());
-        on('wrapup-mic', 'click', () => this.handleInterruptMic());
+        on('interrupt-mic', 'click', () => this.openQuestionComposer());
+        on('slide-turn-mic', 'click', () => this.openQuestionComposer());
+        on('wrapup-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-continue', 'click', () => this.continuePresentationFlow());
         on('footer-continue-btn', 'click', () => this.continuePresentationFlow());
         on('slide-question-send', 'click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
@@ -250,16 +250,6 @@ class VoicePPTApp {
         });
         on('wrapup-prev', 'click', () => this.changeWrapUpCard(-1));
         on('wrapup-next', 'click', () => this.changeWrapUpCard(1));
-
-        on('mic-retry-btn', 'click', () => {
-            const modal = document.getElementById('mic-permission-modal');
-            if (modal) modal.classList.add('hidden');
-            this.handleInterruptMic();
-        });
-        on('mic-close-btn', 'click', () => {
-            const modal = document.getElementById('mic-permission-modal');
-            if (modal) modal.classList.add('hidden');
-        });
         
         document.querySelectorAll('.reaction-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -371,18 +361,7 @@ class VoicePPTApp {
     }
 
     setupSpeechRecognitionFallback() {
-        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) return;
-        this.recognition = new Recognition();
-        this.recognition.lang = 'en-US';
-        this.recognition.onstart = () => { this.isListening = true; this.updateMicState(); this.setStatus('Listening', 'paused', 'Browser speech recognition active'); };
-        this.recognition.onend = () => { this.isListening = false; this.updateMicState(); if (!this.voiceModeEnabled) this.restorePresentationStatus(); };
-        this.recognition.onresult = (e) => {
-            const transcript = Array.from(e.results).map(r => r[0]?.transcript || '').join(' ').trim();
-            const last = e.results[e.results.length - 1];
-            if (last?.isFinal && transcript) this.submitQuestion(transcript, { interrupt: true, submittedBy: 'Voice Interrupt' });
-        };
-        this.recognition.onerror = () => { this.isListening = false; this.updateMicState(); this.setStatus('Mic unavailable', 'paused', 'Type your question'); };
+        this.recognition = null;
     }
 
     async startSession() {
@@ -653,7 +632,7 @@ class VoicePPTApp {
         }
     }
 
-    chunkTranscriptText(text, maxWords = 7) {
+    chunkTranscriptText(text, maxWords = 9) {
         const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
         const chunks = [];
         let i = 0;
@@ -667,7 +646,7 @@ class VoicePPTApp {
             }
             const slice = words.slice(i, end);
             const startMs = chunks.length === 0 ? 0 : chunks[chunks.length - 1].endMs + 120;
-            const durationMs = Math.max(900, slice.length * 240);
+            const durationMs = Math.max(1400, slice.length * 320);
             chunks.push({
                 text: slice.join(' '),
                 startMs,
@@ -678,7 +657,7 @@ class VoicePPTApp {
         return chunks;
     }
 
-    chunkWordBoundaries(boundaries = [], maxWords = 7) {
+    chunkWordBoundaries(boundaries = [], maxWords = 9) {
         const words = boundaries.filter(Boolean);
         const chunks = [];
         for (let i = 0; i < words.length; i += maxWords) {
@@ -686,7 +665,7 @@ class VoicePPTApp {
             if (!slice.length) continue;
             const startMs = Number(slice[0].offsetMs || 0);
             const last = slice[slice.length - 1];
-            const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 120;
+            const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 220;
             chunks.push({
                 text: slice.map(item => String(item.word || '').trim()).filter(Boolean).join(' '),
                 startMs,
@@ -716,20 +695,18 @@ class VoicePPTApp {
         if (pageEl) pageEl.textContent = `PAGE ${this.currentSlideIndex + 1} OF ${this.totalSlides || '?'}`;
     }
 
-    handleMicPermissionError() { document.getElementById('mic-permission-modal').classList.remove('hidden'); }
+    handleMicPermissionError() { this.openQuestionComposer(); }
 
     async submitQuestion(forcedText, options = {}) {
         const input = options.source === 'slide-turn' ? document.getElementById('slide-question-input') : document.getElementById('question-input');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) return;
-        if (options.interrupt) { await this.requestInterrupt(); this.setStatus('Thinking', 'paused', 'Routing interruption'); }
         this.pendingQuestionText = text;
         try {
             const res = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: this.sessionId, questionText: text, submittedBy: options.submittedBy || 'Audience' }) });
             if (!(await res.json()).success) throw new Error('Failed');
             input.value = ''; this.pendingQuestionText = null;
-            if (options.queueForEnd) this.setStatus('Saved for final Q&A', 'paused', 'Answered after last slide');
-            else this.setStatus('Question queued', 'paused', 'Answered shortly');
+            this.setStatus('Question queued', 'paused', 'Answered after the current slide');
             this.userQuestions.push({ text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true);
         } catch (err) { console.error(err); this.setStatus('Question failed', 'paused', 'Retry'); }
@@ -758,7 +735,8 @@ class VoicePPTApp {
         const q = this.questions.get(id); if (q) q.status = 'answered';
         target.classList.remove('is-pending'); target.classList.add('is-answered');
         let node = target.querySelector('.qa-card-answer'); if (!node) { node = document.createElement('div'); node.className = 'qa-card-answer'; target.appendChild(node); }
-        node.textContent = ans; this.syncQuestionCount();
+        this.ui.renderAnswerReel(node, ans);
+        this.syncQuestionCount();
     }
 
     handleQueueUpdate(data) {
@@ -776,12 +754,7 @@ class VoicePPTApp {
     }
 
     async handleInterruptMic() {
-        if (this.voiceModeEnabled) { await this.stopVoiceMode(); return; }
-        await this.requestInterrupt(); await this.pauseAutoplex(true);
-        if (await this.azureVoice.connect()) { this.voiceModeEnabled = true; this.updateMicState(); return; }
-        await this.pauseAutoplex(false);
-        if (!this.recognition) { document.getElementById('question-input').focus(); this.setStatus('Type interruption', 'paused', 'Voice unavailable'); return; }
-        try { this.recognition.start(); } catch (err) { console.error(err); this.setStatus('Mic unavailable', 'paused', 'Type question'); }
+        this.openQuestionComposer();
     }
 
     async stopVoiceMode() { this.voiceModeEnabled = false; await this.azureVoice.disconnect(); await this.pauseAutoplex(false); this.updateMicState(); this.restorePresentationStatus(); }
@@ -816,10 +789,17 @@ class VoicePPTApp {
 
     openSlideTurnOverlay(data = {}) { this.awaitingSlideContinue = true; this.ui.openSlideTurnOverlay(data); this.updateMicState(); }
 
+    openQuestionComposer() {
+        this.ui.toggleQuestionDrawer(true);
+        const input = document.getElementById('question-input');
+        if (input) input.focus();
+        this.setStatus('Questions', 'paused', 'Type a question to queue it');
+    }
+
     restorePresentationStatus() {
-        if (this.voiceModeEnabled) { this.setStatus('Mic live', 'paused', 'Ask question or tap mic to resume'); return; }
-        if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Use mic or prompts'); return; }
-        if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Ask now or continue'); return; }
+        if (this.voiceModeEnabled) { this.setStatus('Questions', 'paused', 'Type a question to queue it'); return; }
+        if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Type a question to queue it'); return; }
+        if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Type a question or continue'); return; }
         if (this.isQAPhase) { this.setStatus('Q&A', 'paused', 'Answering questions'); return; }
         this.setStatus('Presenting', 'live', 'Narration live');
     }
@@ -830,7 +810,7 @@ class VoicePPTApp {
         this.renderWrapUpMcqs();
         document.getElementById('wrapup-message').textContent = data.promptText || 'One minute for questions.';
         document.getElementById('wrapup-panel').classList.remove('hidden'); document.getElementById('completion-overlay').classList.remove('hidden');
-        this.setStatus('Final questions', 'paused', 'Use mic or prompts');
+        this.setStatus('Final questions', 'paused', 'Type a question to queue it');
         if (this.wrapUpTimer) clearInterval(this.wrapUpTimer);
         this.wrapUpTimer = setInterval(() => {
             const rem = Math.max(0, this.wrapUpEndsAt - Date.now()); const sec = Math.ceil(rem / 1000);
@@ -943,8 +923,8 @@ class VoicePPTApp {
     }
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
-    onVoiceSessionConnected() { this.voiceModeEnabled = true; this.updateMicState(); this.setStatus('Mic live', 'paused', 'Ask question'); }
-    onVoiceSessionDisconnected() { const was = this.voiceModeEnabled; this.voiceModeEnabled = false; this.updateMicState(); if (was) { this.pauseAutoplex(false); this.setStatus('Voice ended', 'paused', 'Returning to presentation'); } }
+    onVoiceSessionConnected() { this.voiceModeEnabled = false; this.updateMicState(); this.setStatus('Questions', 'paused', 'Type a question to queue it'); }
+    onVoiceSessionDisconnected() { this.voiceModeEnabled = false; this.updateMicState(); this.restorePresentationStatus(); }
 
     getRealtimeTools() {
         return [
