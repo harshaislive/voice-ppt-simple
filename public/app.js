@@ -42,6 +42,7 @@ class VoicePPTApp {
         this.subtitleReady = false;
         this.fullNarrationTranscript = '';
         this.narrationSourceText = '';
+        this.pendingNarrationText = '';
         this.wordBoundaries = [];
         this.transcriptChunks = [];
         this.transcriptChunkIndex = -1;
@@ -218,7 +219,7 @@ class VoicePPTApp {
             await this.primeInitialSlide();
             await this.loadSessionSlides();
             await this.loadSessionQuestions();
-            this.socketClient.connect(this.sessionId, this.controlToken);
+            await this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
             this.setStatus('Resumed', 'live', 'Session restored');
@@ -626,7 +627,7 @@ class VoicePPTApp {
             
             this.setStatus('Ready', 'live', 'Type questions anytime');
             this.syncQuestionCount();
-            setTimeout(() => this.triggerAutoPlex(), 250);
+            await this.triggerAutoPlex();
         } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience'; }
     }
 
@@ -697,6 +698,19 @@ class VoicePPTApp {
         this.refreshTranscriptReel();
     }
 
+    handleNarrationText(data = {}) {
+        const text = String(data?.text || '').trim();
+        if (!text) return;
+
+        if (!this.slideAudioStarted && !data?.isQA && !data?.isWrapUp) {
+            this.pendingNarrationText = text;
+            return;
+        }
+
+        this.pendingNarrationText = '';
+        this.finalizeSubtitleText(text);
+    }
+
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
@@ -705,6 +719,10 @@ class VoicePPTApp {
             this.activeAudioSlideIndex = data.slideIndex;
         }
         this.renderSubtitle();
+        if (this.pendingNarrationText && !this.narrationSourceText) {
+            this.finalizeSubtitleText(this.pendingNarrationText);
+            this.pendingNarrationText = '';
+        }
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
         this.startWaveform();
     }
@@ -885,6 +903,7 @@ class VoicePPTApp {
         this.subtitleReady = false;
         this.fullNarrationTranscript = '';
         this.narrationSourceText = '';
+        this.pendingNarrationText = '';
         this.wordBoundaries = [];
         this.transcriptChunks = [];
         this.transcriptChunkIndex = -1;
@@ -1238,7 +1257,8 @@ class VoicePPTApp {
 
         const title = document.createElement('div');
         title.className = 'qa-answer-thread-title';
-        title.textContent = payload.answerTitle || 'Answer';
+        const titleText = String(payload.answerTitle || 'Answer').trim();
+        title.textContent = titleText;
 
         const controls = document.createElement('button');
         controls.type = 'button';
@@ -1258,6 +1278,7 @@ class VoicePPTApp {
 
         const summaryText = String(payload.answerSummary || '').trim();
         const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
+        const shouldShowTitle = titleText && titleText !== 'Answer' && !detailsText.startsWith(titleText);
 
         const summary = document.createElement('div');
         summary.className = 'qa-answer-thread-summary';
@@ -1267,7 +1288,9 @@ class VoicePPTApp {
         details.className = 'qa-answer-thread-details';
         details.textContent = detailsText;
 
-        wrap.appendChild(header);
+        if (shouldShowTitle || payload.answerAudioUrl) {
+            wrap.appendChild(header);
+        }
         if (summaryText && summaryText !== detailsText) {
             wrap.appendChild(summary);
         }

@@ -11,8 +11,16 @@ export class SocketClient {
         // Expecting io to be globally available via <script src="/socket.io/socket.io.js"></script>
         if (typeof io === 'undefined') {
             console.error('Socket.IO (io) is not defined. Ensure /socket.io/socket.io.js is loaded.');
-            return;
+            return Promise.resolve(false);
         }
+
+        return new Promise((resolve) => {
+            let resolved = false;
+            const resolveOnce = (value) => {
+                if (resolved) return;
+                resolved = true;
+                resolve(value);
+            };
 
         this.socket = io({
             transports: ['websocket', 'polling'],
@@ -24,6 +32,7 @@ export class SocketClient {
             this.isConnected = true;
             this.socket.emit('join-session', { sessionId, controlToken });
             this.app.setStatus('Connected', 'live', 'Joining presentation room');
+            resolveOnce(true);
         });
 
         this.socket.on('disconnect', () => {
@@ -33,6 +42,7 @@ export class SocketClient {
 
         this.socket.on('session-join-error', (data) => {
             this.app.setStatus('Access denied', '', data?.error || 'Could not join presentation room');
+            resolveOnce(false);
         });
 
         this.socket.on('presentation-start', (data) => {
@@ -55,7 +65,7 @@ export class SocketClient {
         });
 
         this.socket.on('narration-text', (data) => {
-            this.app.finalizeSubtitleText(data.text);
+            this.app.handleNarrationText(data);
         });
 
         this.socket.on('audio-chunk', (data) => {
@@ -167,6 +177,9 @@ export class SocketClient {
         this.socket.on('presentation-error', (data) => {
             this.app.setStatus('Error', '', data.error || 'Presentation failed');
             console.error('Presentation error:', data.error);
+        });
+
+        setTimeout(() => resolveOnce(this.isConnected), 1500);
         });
     }
 

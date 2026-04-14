@@ -16,17 +16,15 @@ const {
 const GENERATED_QA_DIR = path.join(__dirname, '..', '..', 'public', 'generated', 'qa');
 
 function buildAnswerMeta(questionText, answerText) {
-    const trimmedQuestion = String(questionText || '').trim();
     const trimmedAnswer = String(answerText || '').trim();
-    const firstSentence = trimmedAnswer.split(/(?<=[.!?])\s+/)[0] || trimmedAnswer;
     const summary = trimmedAnswer.length > 220 ? `${trimmedAnswer.slice(0, 217).trimEnd()}...` : trimmedAnswer;
 
     return {
-        answerTitle: firstSentence || 'Answer',
+        answerTitle: 'Answer',
         answerSummary: summary,
         answerDetails: trimmedAnswer,
         metadataJson: {
-            question_length: trimmedQuestion.length,
+            question_length: String(questionText || '').trim().length,
             answer_length: trimmedAnswer.length
         }
     };

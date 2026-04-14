@@ -930,13 +930,13 @@ async function runPresentation(db, io, sessionId) {
             });
         const narrationText = narrationResult.text;
 
-        // Background pre-warm for the NEXT slide
-        const nextSlideIndex = currentSlideIndex + 1;
-        if (nextSlideIndex < slides.length && !getPrewarmedSlide(sessionId, nextSlideIndex)) {
-            console.log(`[AutoPlex] Background pre-warming next slide ${nextSlideIndex + 1}/${slides.length}`);
-            const nextSlide = slides[nextSlideIndex];
-            
-            // Fire and forget pre-warm
+        // Keep more than one slide pre-generated so narration does not stall between slides.
+        const prewarmTargets = [currentSlideIndex + 1, currentSlideIndex + 2]
+            .filter((index) => index < slides.length && !getPrewarmedSlide(sessionId, index) && !getPrewarmTask(sessionId, index));
+
+        prewarmTargets.forEach((targetIndex) => {
+            const targetSlide = slides[targetIndex];
+            console.log(`[AutoPlex] Background pre-warming slide ${targetIndex + 1}/${slides.length}`);
             (async () => {
                 try {
                     const nextPendingQuestions = db.all(
@@ -947,18 +947,21 @@ async function runPresentation(db, io, sessionId) {
                     await prewarmSlideAudio({
                         db,
                         sessionId,
-                        slideIndex: nextSlideIndex,
-                        slide: nextSlide,
+                        slideIndex: targetIndex,
+                        slide: targetSlide,
                         totalSlides: slides.length,
                         pendingQuestions: nextPendingQuestions
                     });
-                    
-                    console.log(`[AutoPlex] Pre-warm complete for slide ${nextSlideIndex + 1}`);
+
+                    console.log(`[AutoPlex] Pre-warm complete for slide ${targetIndex + 1}`);
                 } catch (err) {
-                    console.warn(`[AutoPlex] Background pre-warm failed for slide ${nextSlideIndex + 1}:`, err.message);
+                    console.warn(`[AutoPlex] Background pre-warm failed for slide ${targetIndex + 1}:`, err.message);
                 }
             })();
-        } else if (nextSlideIndex === slides.length && !getPrewarmedSlide(sessionId, 'wrapup')) {
+        });
+
+        const nextSlideIndex = currentSlideIndex + 1;
+        if (nextSlideIndex === slides.length && !getPrewarmedSlide(sessionId, 'wrapup') && !getPrewarmTask(sessionId, 'wrapup')) {
             console.log(`[AutoPlex] Background pre-warming wrap-up phase`);
             (async () => {
                 try {
