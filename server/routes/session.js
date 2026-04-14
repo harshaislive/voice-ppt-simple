@@ -3,12 +3,21 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const cmsService = require('../services/cms');
 const analyticsService = require('../services/analytics');
+const supabaseSession = require('../services/supabaseSession');
 const {
     generateSessionControlToken,
     hashToken,
     requireAdminApiKey,
-    requireSessionControl
+    requireSessionControl,
+    extractSessionControlToken
 } = require('../middleware/security');
+
+// Log Supabase session service status on startup
+if (supabaseSession.isConfigured()) {
+    console.log('[Session] Supabase session persistence is configured');
+} else {
+    console.log('[Session] Supabase not configured - sessions will only use local SQLite');
+}
 
 // Public config - no auth required
 router.get('/config', (req, res) => {
@@ -36,91 +45,103 @@ router.post('/start', async (req, res) => {
         
         const sessionId = uuidv4();
         const controlToken = generateSessionControlToken();
+        const controlTokenHash = hashToken(controlToken);
         const now = new Date().toISOString();
         const normalizedParticipantName = String(participantName || '').trim().slice(0, 60);
+        
         // Load deck slides from CMS or local fallback
+        let presentation;
+        let slides = [];
+        
         try {
-            const presentation = await cmsService.loadPresentation(deckId);
-            const metadata = JSON.stringify({
-                participantName: normalizedParticipantName,
-                sourceType: presentation.source,
-                presentationTitle: presentation.title,
-                presentationSlug: presentation.presentationSlug,
-                projectSlug: presentation.projectSlug,
-                knowledgeDocs: presentation.knowledgeDocs || {},
-                deckSchema: presentation.deckSchema || null,
-                flowConfig: presentation.flowConfig || null,
-                designConfig: presentation.designConfig || null
-            });
-
-            db.run(`
-                INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
-                VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
-            `, [sessionId, presentation.presentationSlug || deckId, hashToken(controlToken), now, now, metadata]);
-            
-            // Insert slides
-            presentation.slides.forEach((slide, index) => {
-                db.run(`
-                    INSERT INTO slides (id, session_id, deck_id, slide_index, title, content, image, notes, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [uuidv4(), sessionId, presentation.presentationSlug || deckId, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
-            });
-            
-            // Analytics log session start
-            analyticsService.logSessionStart(
-                sessionId,
-                presentation.projectSlug,
-                presentation.presentationSlug || deckId,
-                normalizedParticipantName,
-                presentation.slides.length
-            );
-
-            // Create initial event
-            db.run(`
-                INSERT INTO events (session_id, event_type, event_data, created_at)
-                VALUES (?, ?, ?, ?)
-            `, [sessionId, 'session_started', JSON.stringify({
-                deckId: presentation.presentationSlug || deckId,
-                slideCount: presentation.slides.length,
-                participantName: normalizedParticipantName,
-                sourceType: presentation.source,
-                projectSlug: presentation.projectSlug
-            }), now]);
-            
-            res.json({
-                success: true,
-                sessionId,
-                controlToken,
-                deckId: presentation.presentationSlug || deckId,
-                presentationTitle: presentation.title,
-                participantName: normalizedParticipantName,
-                slideCount: presentation.slides.length,
-                status: 'active',
-                passcodeRequired
-            });
+            presentation = await cmsService.loadPresentation(deckId);
+            slides = presentation.slides || [];
         } catch (error) {
             console.warn(`Presentation ${deckId} not found, creating empty session`);
-            const metadata = JSON.stringify({
-                participantName: normalizedParticipantName
-            });
-
-            db.run(`
-                INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
-                VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
-            `, [sessionId, deckId, hashToken(controlToken), now, now, metadata]);
-            
-            res.json({
-                success: true,
-                sessionId,
-                controlToken,
-                deckId,
-                participantName: normalizedParticipantName,
-                slideCount: 0,
-                status: 'active',
-                warning: 'Deck not found',
-                passcodeRequired
-            });
+            presentation = null;
         }
+        
+        const metadata = JSON.stringify({
+            participantName: normalizedParticipantName,
+            sourceType: presentation?.source || 'unknown',
+            presentationTitle: presentation?.title || deckId,
+            presentationSlug: presentation?.presentationSlug || deckId,
+            projectSlug: presentation?.projectSlug || null,
+            knowledgeDocs: presentation?.knowledgeDocs || {},
+            deckSchema: presentation?.deckSchema || null,
+            flowConfig: presentation?.flowConfig || null,
+            designConfig: presentation?.designConfig || null
+        });
+
+        // Write to SQLite (for current server operations)
+        db.run(`
+            INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
+            VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
+        `, [sessionId, presentation?.presentationSlug || deckId, controlTokenHash, now, now, metadata]);
+        
+        // Write to Supabase (for persistent cross-server persistence)
+        if (supabaseSession.isConfigured()) {
+            try {
+                await supabaseSession.createSession({
+                    id: sessionId,
+                    deckId: presentation?.presentationSlug || deckId,
+                    controlTokenHash,
+                    currentSlideIndex: 0,
+                    status: 'active',
+                    metadata
+                });
+                
+                if (slides.length > 0) {
+                    await supabaseSession.createSlides(sessionId, slides);
+                }
+                
+                console.log('[Session] Persisted session to Supabase:', sessionId);
+            } catch (err) {
+                console.error('[Session] Failed to persist to Supabase:', err.message);
+                // Continue anyway - SQLite is still the primary
+            }
+        }
+        
+        // Insert slides to SQLite
+        slides.forEach((slide, index) => {
+            db.run(`
+                INSERT INTO slides (id, session_id, deck_id, slide_index, title, content, image, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [uuidv4(), sessionId, presentation?.presentationSlug || deckId, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
+        });
+        
+        // Analytics log session start
+        analyticsService.logSessionStart(
+            sessionId,
+            presentation?.projectSlug,
+            presentation?.presentationSlug || deckId,
+            normalizedParticipantName,
+            slides.length
+        );
+
+        // Create initial event
+        db.run(`
+            INSERT INTO events (session_id, event_type, event_data, created_at)
+            VALUES (?, ?, ?, ?)
+        `, [sessionId, 'session_started', JSON.stringify({
+            deckId: presentation?.presentationSlug || deckId,
+            slideCount: slides.length,
+            participantName: normalizedParticipantName,
+            sourceType: presentation?.source || 'unknown',
+            projectSlug: presentation?.projectSlug
+        }), now]);
+        
+        res.json({
+            success: true,
+            sessionId,
+            controlToken,
+            deckId: presentation?.presentationSlug || deckId,
+            presentationTitle: presentation?.title || deckId,
+            participantName: normalizedParticipantName,
+            slideCount: slides.length,
+            status: 'active',
+            passcodeRequired
+        });
     } catch (error) {
         console.error('Error starting session:', error);
         res.status(500).json({ error: 'Failed to start session' });
@@ -128,35 +149,59 @@ router.post('/start', async (req, res) => {
 });
 
 // Get session state
-router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
+router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => {
     try {
         const { id } = req.params;
         const db = req.app.get('db');
         const token = extractSessionControlToken(req);
         console.log(`[Session] GET /:id=${id}, token present: ${!!token}`);
         
-        const session = db.get(`
-            SELECT s.*, 
-                   (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id AND q.status = 'pending') as pending_questions,
-                   (SELECT COUNT(*) FROM slides sl WHERE sl.session_id = s.id) as slide_count
-            FROM sessions s
-            WHERE s.id = ?
-        `, [id]);
+        let session = null;
+        let slides = [];
+        let fromSupabase = false;
+        
+        // Try Supabase first (persistent store)
+        if (supabaseSession.isConfigured()) {
+            try {
+                const supabaseData = await supabaseSession.getSessionWithSlides(id);
+                if (supabaseData && supabaseData.session) {
+                    session = supabaseData.session;
+                    slides = supabaseData.slides || [];
+                    fromSupabase = true;
+                    console.log('[Session] Session loaded from Supabase:', id);
+                }
+            } catch (err) {
+                console.warn('[Session] Failed to load from Supabase, trying SQLite:', err.message);
+            }
+        }
+        
+        // Fall back to SQLite
+        if (!session) {
+            session = db.get(`
+                SELECT s.*, 
+                       (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id AND q.status = 'pending') as pending_questions,
+                       (SELECT COUNT(*) FROM slides sl WHERE sl.session_id = s.id) as slide_count
+                FROM sessions s
+                WHERE s.id = ?
+            `, [id]);
+            
+            if (session) {
+                slides = db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id]);
+                console.log('[Session] Session loaded from SQLite:', id);
+            }
+        }
         
         if (!session) {
             console.log(`[Session] Session not found: ${id}`);
             return res.status(404).json({ error: 'Session not found' });
         }
         
-        console.log(`[Session] Session found, status: ${session.status}, has token hash: ${!!session.control_token_hash}`);
+        console.log(`[Session] Session found, status: ${session.status}, fromSupabase: ${fromSupabase}`);
         
         // Get current slide
-        const currentSlide = db.get(`
-            SELECT * FROM slides
-            WHERE session_id = ? AND slide_index = ?
-        `, [id, session.current_slide_index]);
+        const currentSlide = slides.find(s => s.slide_index === session.current_slide_index) || null;
         
-        // Get pending questions
+        // Get pending questions (always from SQLite - questions aren't in Supabase)
         const pendingQuestions = db.all(`
             SELECT * FROM questions
             WHERE session_id = ? AND status = 'pending'
@@ -176,7 +221,8 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
             session,
             currentSlide,
             pendingQuestions,
-            participantName
+            participantName,
+            slideCount: slides.length
         });
     } catch (error) {
         console.error('Error getting session:', error);
@@ -185,7 +231,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
 });
 
 // Update session state
-router.patch('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
+router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
@@ -209,11 +255,19 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), (req, res) => {
         
         values.push(id);
         
+        // Update SQLite
         db.run(`
             UPDATE sessions
             SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `, values);
+        
+        // Update Supabase (fire and forget - SQLite is source of truth for writes)
+        if (supabaseSession.isConfigured()) {
+            supabaseSession.updateSession(id, updates).catch(err => {
+                console.error('[Session] Failed to update Supabase:', err.message);
+            });
+        }
         
         // Create event
         db.run(`
