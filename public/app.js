@@ -11,6 +11,7 @@ class VoicePPTApp {
         this.currentSlide = null;
         this.totalSlides = 0;
         this.participantName = '';
+        this.activeProjectSlug = '';
         this.isQAPhase = false;
         this.questions = new Map();
         this.pendingQuestionText = null;
@@ -68,6 +69,7 @@ class VoicePPTApp {
             participantName: data.participantName,
             deckId: data.deckId,
             presentationTitle: data.presentationTitle,
+            projectSlug: data.projectSlug,
             slideCount: data.slideCount,
             passcodeRequired: data.passcodeRequired,
             storedAt: Date.now()
@@ -119,6 +121,7 @@ class VoicePPTApp {
             this.sessionId = session.sessionId;
             this.controlToken = session.controlToken || '';
             this.participantName = session.participantName || '';
+            this.activeProjectSlug = session.projectSlug || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
@@ -226,7 +229,6 @@ class VoicePPTApp {
         };
 
         setupClearBtn('question-input', 'question-clear');
-        setupClearBtn('slide-question-input', 'slide-question-clear');
 
         document.getElementById('mic-retry-btn').addEventListener('click', () => {
             document.getElementById('mic-permission-modal').classList.add('hidden');
@@ -392,10 +394,11 @@ class VoicePPTApp {
                 participantName: this.participantName,
                 deckId: data.deckId || deckId,
                 presentationTitle: data.presentationTitle || deckId.replace(/_/g, ' '),
+                projectSlug: data.projectSlug || supabasePres?.projectSlug || this.activeProjectSlug,
                 slideCount: this.totalSlides,
                 passcodeRequired: data.passcodeRequired
             });
-            this.awaitingSlideContinue = false;
+            this.activeProjectSlug = data.projectSlug || supabasePres?.projectSlug || this.activeProjectSlug;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
@@ -417,6 +420,7 @@ class VoicePPTApp {
             let meta = {};
             try { meta = JSON.parse(data?.session?.metadata || '{}'); } catch {}
             this.participantName = data?.participantName || meta.participantName || this.participantName;
+            this.activeProjectSlug = meta.projectSlug || this.activeProjectSlug;
             if (data?.currentSlide) this.updateSlide({ slideIndex: data.session?.current_slide_index || 0, totalSlides: data.session?.slide_count || this.totalSlides, slide: data.currentSlide });
         } catch (err) { console.error('Initial slide fetch failed:', err); }
     }
@@ -655,7 +659,7 @@ class VoicePPTApp {
         if (!this.sessionId) return;
         this.streamPlayer.reset();
         this.resetSubtitleState();
-        try { await this.apiFetch('/api/autoplex/continue', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); this.ui.closeSlideTurnOverlay(); this.setStatus('Presenting', 'live', 'Narration live'); }
+        try { await this.apiFetch('/api/autoplex/continue', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); this.setStatus('Presenting', 'live', 'Narration live'); }
         catch (err) { console.error(err); }
     }
 
@@ -690,6 +694,10 @@ class VoicePPTApp {
         this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0; this.wrapUpSubmitted = false;
         this.wrapUpEndsAt = Number(data.endsAt) || (Date.now() + 60000);
         this.renderWrapUpMcqs();
+        document.getElementById('completion-title').textContent = 'Final Minute';
+        document.getElementById('completion-summary').textContent = 'A few quick prompts while the presenter stays open for questions.';
+        document.getElementById('completion-cta').classList.add('hidden');
+        document.getElementById('restart-btn').classList.add('hidden');
         document.getElementById('wrapup-message').textContent = data.promptText || 'One minute for questions.';
         document.getElementById('wrapup-panel').classList.remove('hidden'); document.getElementById('completion-overlay').classList.remove('hidden');
         this.setStatus('Final questions', 'paused', 'Use mic or prompts');
@@ -705,7 +713,10 @@ class VoicePPTApp {
     finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
 
     showCompletion(data) {
+        document.getElementById('completion-title').textContent = 'Thank you';
         document.getElementById('completion-summary').textContent = `${data.totalSlides} slides, ${data.totalQuestionsAnswered} answered.`;
+        document.getElementById('wrapup-panel').classList.add('hidden');
+        document.getElementById('restart-btn').classList.remove('hidden');
         const activity = { participantName: this.participantName, deckTitle: document.getElementById('deck-label').textContent, totalSlides: data.totalSlides, questionsAnswered: data.totalQuestionsAnswered, userQuestions: this.userQuestions, userReactions: this.userReactions, timestamp: new Date().toISOString() };
         localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
         document.getElementById('completion-overlay').classList.remove('hidden');
@@ -714,7 +725,8 @@ class VoicePPTApp {
     }
 
     async loadCtaBlocks() {
-        const projectSlug = 'beforest';
+        const projectSlug = this.activeProjectSlug;
+        if (!projectSlug) return;
         try {
             const res = await fetch(`/api/cms/projects/${projectSlug}/cta-blocks`);
             const data = await res.json();

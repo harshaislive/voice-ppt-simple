@@ -242,12 +242,18 @@ class CMSService {
 
     async listSupabasePresentations() {
         console.log('[CMS] listSupabasePresentations: starting');
-        const rows = await this.request('presentations', {
-            select: 'id,slug,title,project_id,status,design_json',
-            status: 'eq.published',
-            order: 'title.asc'
-        });
+        const [rows, projects] = await Promise.all([
+            this.request('presentations', {
+                select: 'id,slug,title,project_id,status,design_json',
+                status: 'eq.published',
+                order: 'title.asc'
+            }),
+            this.request('projects', {
+                select: 'id,slug'
+            })
+        ]);
         console.log(`[CMS] listSupabasePresentations: found ${rows.length} presentations`);
+        const projectSlugById = new Map((projects || []).map((project) => [project.id, project.slug]));
 
         const results = await Promise.all(rows.map(async (row) => {
             const slides = await this.request('slides', {
@@ -268,7 +274,7 @@ class CMSService {
                 id: row.slug || row.id,
                 title: row.title || this.humanize(row.slug || row.id),
                 source: 'supabase',
-                projectSlug: row.project_id || null,
+                projectSlug: projectSlugById.get(row.project_id) || row.project_id || null,
                 presentationSlug: row.slug || row.id,
                 startTitle: row.design_json?.startTitle || null,
                 startSubtitle: row.design_json?.startSubtitle || null,
@@ -304,12 +310,13 @@ class CMSService {
                 project_id: `eq.${presentation.project_id}`
             })
         ]);
+        const projectSlug = await this.getProjectSlugById(presentation.project_id);
 
         return {
             id: presentation.slug || presentation.id,
             title: presentation.title || this.humanize(presentation.slug || presentation.id),
             source: 'supabase',
-            projectSlug: presentation.project_id,
+            projectSlug,
             presentationSlug: presentation.slug || presentation.id,
             slides: slides.map((slide) => this.normalizeSlide(slide)),
             knowledgeDocs: this.normalizeKnowledgeDocs(docs),
@@ -359,6 +366,16 @@ class CMSService {
                 presentationSlug: presentation.slug || presentation.id
             }))
         };
+    }
+
+    async getProjectSlugById(projectId) {
+        if (!projectId) return null;
+        const rows = await this.request('projects', {
+            select: 'id,slug',
+            id: `eq.${projectId}`,
+            limit: '1'
+        });
+        return rows?.[0]?.slug || projectId;
     }
 
     normalizeSlide(slide) {
