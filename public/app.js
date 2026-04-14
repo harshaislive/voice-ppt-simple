@@ -44,6 +44,7 @@ class VoicePPTApp {
         this.transcriptChunkIndex = -1;
         this.transcriptChunkTimers = [];
         this.pendingPlaybackStartAt = null;
+        this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
         this.slideDeck = [];
         this.presentationCatalog = [];
@@ -579,6 +580,17 @@ class VoicePPTApp {
 
     handleWordBoundaries(data) {
         this.wordBoundaries = Array.isArray(data?.words) ? data.words : [];
+        
+        // Calculate actual duration from word boundaries
+        if (this.wordBoundaries.length > 0) {
+            const lastWord = this.wordBoundaries[this.wordBoundaries.length - 1];
+            const actualDuration = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
+            // Only update if more accurate (longer) than estimated
+            if (actualDuration > this.totalAudioDurationMs) {
+                this.totalAudioDurationMs = actualDuration;
+            }
+        }
+        
         this.refreshTranscriptReel();
         this.syncTranscriptReelPlayback();
     }
@@ -692,20 +704,14 @@ class VoicePPTApp {
         const fill = container.querySelector('.transcript-reel-progress-fill');
         if (!fill) return;
 
-        if (!this.pendingPlaybackStartAt || !this.transcriptChunks.length) {
+        if (!this.pendingPlaybackStartAt || this.totalAudioDurationMs <= 0) {
             fill.style.width = '0%';
             return;
         }
 
         const now = performance.now();
         const elapsed = now - this.pendingPlaybackStartAt;
-        const lastChunk = this.transcriptChunks[this.transcriptChunks.length - 1];
-        const totalDuration = lastChunk ? (lastChunk.endMs || 0) : 0;
-
-        if (totalDuration <= 0) {
-            fill.style.width = '0%';
-            return;
-        }
+        const totalDuration = this.totalAudioDurationMs;
 
         const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100;
         fill.style.width = `${progress}%`;
@@ -729,6 +735,7 @@ class VoicePPTApp {
         this.transcriptChunks = [];
         this.transcriptChunkIndex = -1;
         this.pendingPlaybackStartAt = null;
+        this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
         this.clearTranscriptChunkTimers();
         this.stopTranscriptProgress();
@@ -747,6 +754,13 @@ class VoicePPTApp {
         }
         this.transcriptChunkIndex = -1;
         this.transcriptChunkMode = this.pendingPlaybackStartAt ? 'live' : 'waiting';
+        
+        // Lock in total duration once when chunks are first built
+        if (this.transcriptChunks.length > 0 && this.totalAudioDurationMs === 0) {
+            const lastChunk = this.transcriptChunks[this.transcriptChunks.length - 1];
+            this.totalAudioDurationMs = lastChunk ? (lastChunk.endMs || 0) : 0;
+        }
+        
         this.renderFullTranscription();
         if (this.pendingPlaybackStartAt) {
             this.syncTranscriptReelPlayback();
