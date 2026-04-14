@@ -60,6 +60,10 @@ export class StreamAudioPlayer {
     }
 
     _flushQueue() {
+        // Add a small scheduling buffer (50ms) to ensure smooth transition from buffering to playing
+        const schedulingBuffer = 0.05;
+        this.nextStartTime = this.audioContext.currentTime + schedulingBuffer;
+        
         while (this.chunkQueue.length > 0) {
             const chunk = this.chunkQueue.shift();
             this._processChunk(chunk.pcmBase64, chunk.sampleRate, chunk.channels);

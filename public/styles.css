@@ -124,10 +124,7 @@ h1, h2, h3, h4 {
 
 /* Optional overlay for the image */
 .start-hero::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to bottom, rgba(253, 251, 247, 0) 60%, rgba(253, 251, 247, 1) 100%);
+    display: none;
 }
 
 .start-content {

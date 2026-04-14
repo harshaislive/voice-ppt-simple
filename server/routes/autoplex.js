@@ -300,7 +300,8 @@ async function runPresentation(db, io, sessionId) {
         deckTitle: session.deck_id
     });
 
-    await sleep(180);
+    // Increased delay to 1.5s to ensure client audio context is fully resumed and buffered
+    await sleep(1500);
 
     let currentSlideIndex = 0;
     console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}`);
