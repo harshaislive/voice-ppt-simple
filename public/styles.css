@@ -603,32 +603,6 @@ h1, h2, h3, h4 {
     flex-direction: column;
 }
 
-/* Rule of Thirds (Desktop) */
-@media (min-width: 1025px) {
-    .slide-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0;
-        min-height: calc(100vh - 80px - 100px); /* Adjust for topbar and footer */
-    }
-
-    .slide-visual-shell {
-        height: 100%;
-        position: sticky;
-        top: 0;
-        border-bottom: none;
-        border-right: 2px solid var(--border-color);
-    }
-
-    .slide-copy {
-        min-height: 100%;
-        padding: 80px 60px 120px 60px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-}
-
 .slide-visual-shell {
     flex: 1;
     min-height: 300px;
@@ -2447,3 +2421,251 @@ h1, h2, h3, h4 {
 .slide-pause-btn:hover { transform: scale(1.1); background: #9e3430; }
 .slide-pause-btn.is-paused { background: var(--accent-green); }
 .slide-pause-btn.is-paused:hover { background: #2a3a2b; }
+
+/* ============================================
+   DESKTOP REDESIGN (min-width: 1025px)
+   Mobile CSS above is preserved as-is.
+   ============================================ */
+
+@media (min-width: 1025px) {
+
+    /* --- Start Screen: Editorial Split --- */
+    .start-screen {
+        flex-direction: row;
+    }
+
+    .start-hero {
+        width: 50%;
+        height: 100vh;
+        flex: none;
+    }
+
+    .start-hero::after {
+        background: linear-gradient(to right, transparent 60%, rgba(0, 0, 0, 0.3));
+    }
+
+    .start-hero-badge {
+        top: 32px;
+        left: 32px;
+    }
+
+    .start-content {
+        width: 50%;
+        flex: none;
+        padding: clamp(48px, 6vh, 96px) clamp(48px, 5vw, 96px);
+        justify-content: center;
+        overflow-y: auto;
+    }
+
+    .start-header-group {
+        margin-bottom: 40px;
+    }
+
+    .start-title {
+        font-size: clamp(3rem, 4vw, 4.5rem);
+    }
+
+    .start-actions {
+        max-width: 440px;
+    }
+
+    .start-hint {
+        max-width: 440px;
+    }
+
+    /* --- Topbar: Cleaner Desktop Spacing --- */
+    .topbar {
+        padding: 16px 40px;
+    }
+
+    .topbar-center {
+        display: flex;
+    }
+
+    .status-indicator {
+        padding: 8px 20px;
+    }
+
+    .topbar-right {
+        gap: 24px;
+    }
+
+    /* --- Slide Layout: 60/40 Ratio, No Sticky --- */
+    .slide-container {
+        grid-template-columns: 1.5fr 1fr;
+        min-height: calc(100vh - 70px - 100px);
+    }
+
+    .slide-visual-shell {
+        position: relative;
+        top: auto;
+        border-right: 2px solid var(--border-color);
+        border-bottom: none;
+        min-height: 0;
+        height: 100%;
+    }
+
+    .slide-copy {
+        padding: 64px 48px 120px 48px;
+        justify-content: flex-start;
+        overflow-y: auto;
+    }
+
+    .folio-bar {
+        margin-bottom: 32px;
+    }
+
+    .slide-title {
+        font-size: clamp(2.5rem, 3vw, 3.5rem);
+        margin-bottom: 28px;
+    }
+
+    .slide-subtitle {
+        font-size: 1.3rem;
+        margin-bottom: 20px;
+    }
+
+    .full-transcription {
+        font-size: 1.05rem;
+        max-width: 100%;
+    }
+
+    /* --- Footer: Centered, No Wasted Space --- */
+    .presentation-footer {
+        padding: 20px 40px;
+        justify-content: center;
+        gap: 40px;
+    }
+
+    .footer-block {
+        flex-direction: row;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .footer-hint {
+        display: none;
+    }
+
+    .immersive-dock {
+        gap: 24px;
+        align-items: center;
+    }
+
+    .reaction-bar {
+        gap: 16px;
+    }
+
+    /* --- Q&A Panel: Wider on Desktop --- */
+    .qa-panel {
+        width: 600px;
+    }
+
+    .qa-panel-inner {
+        max-width: 600px;
+    }
+
+    .qa-header {
+        padding: 40px 40px 28px;
+    }
+
+    .qa-content-area {
+        padding: 0 40px;
+    }
+
+    .qa-footer {
+        padding: 28px 40px 40px;
+    }
+
+    .qa-display-title {
+        font-size: 2.2rem;
+    }
+
+    /* --- Waveform: Subtle on Desktop --- */
+    .waveform {
+        height: 48px;
+        opacity: 0.3;
+    }
+
+    /* --- Completion Overlay: Better Desktop Sizing --- */
+    .completion-overlay {
+        padding: 60px;
+    }
+
+    .completion-content {
+        padding: 72px 64px;
+        max-width: 720px;
+    }
+
+    .completion-content h2 {
+        font-size: 2.8rem;
+    }
+
+    .completion-cta {
+        max-width: 520px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .wrapup-panel {
+        max-width: 560px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: left;
+    }
+
+    .wrapup-actions {
+        justify-content: flex-start;
+    }
+
+    .wrapup-question-copy {
+        text-align: left;
+    }
+
+    /* --- Scrubber: Better Desktop Sizing --- */
+    .scrubber-modal {
+        max-width: 1100px;
+    }
+
+    .scrubber-inner {
+        padding: 0 48px 48px;
+    }
+
+    .scrubber-header {
+        padding: 48px 48px 32px;
+    }
+
+    .scrubber-thumb {
+        width: 160px;
+        height: 100px;
+    }
+
+    /* --- Slide Turn Card: Desktop --- */
+    .slide-turn-card {
+        padding: 72px 64px;
+        max-width: 680px;
+    }
+
+    .slide-turn-title {
+        font-size: 3.5rem;
+    }
+
+    .slide-turn-detail {
+        font-size: 1.15rem;
+    }
+
+    /* --- Poll: Desktop Positioning --- */
+    .poll-container {
+        width: 420px;
+        top: 50%;
+        right: auto;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    /* --- Help Modal: Desktop --- */
+    .help-modal {
+        max-width: 560px;
+        padding: 56px;
+    }
+}
