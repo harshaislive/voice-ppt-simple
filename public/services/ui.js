@@ -16,6 +16,7 @@ export class UIManager {
         const quoteText = document.getElementById('loading-quote-text');
         const quoteAuthor = document.getElementById('loading-quote-author');
         const progressFill = document.getElementById('loading-progress-fill');
+        const progressLabel = document.getElementById('loading-progress-label');
         
         if (!overlay) return;
         
@@ -23,22 +24,17 @@ export class UIManager {
         this.currentQuoteIndex = Math.floor(Math.random() * this.loadingQuotes.length);
         this._updateQuote();
 
-        // Start progress bar animation until the deck is actually ready.
-        let progress = 0;
-        const interval = 100;
-        const step = 1.5;
-
+        // Reset progress to 0% — real pre-generation progress will drive the bar.
         if (this.loadingTimer) clearInterval(this.loadingTimer);
-        this.loadingTimer = setInterval(() => {
-            progress = Math.min(progress + step, 92);
-            if (progressFill) progressFill.style.width = `${progress}%`;
+        this.loadingTimer = null;
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressLabel) progressLabel.textContent = 'Initializing presentation...';
 
-            // Switch quote every few seconds while we wait for the deck to become ready.
-            if (Math.floor(progress) % 30 === 0 && progress > 5 && progress < 90) {
-                this.currentQuoteIndex = (this.currentQuoteIndex + 1) % this.loadingQuotes.length;
-                this._updateQuote();
-            }
-        }, interval);
+        // Rotate quotes while waiting — but don't fake progress.
+        this.loadingTimer = setInterval(() => {
+            this.currentQuoteIndex = (this.currentQuoteIndex + 1) % this.loadingQuotes.length;
+            this._updateQuote();
+        }, 5000);
     }
 
     hideLoadingScreen() {

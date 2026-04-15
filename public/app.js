@@ -608,16 +608,22 @@ class VoicePPTApp {
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
-            
-            // Show pre-generation progress in loading screen
-            await this.primeInitialSlide();
-            await this.loadSessionSlides();
-            this.socketClient.connect(this.sessionId, this.controlToken);
+
+            // Start polling pre-generation progress IMMEDIATELY — don't wait for other ops.
+            const preGenPromise = this.waitForPreGeneration();
+
+            // Run setup tasks in parallel with pre-gen polling.
+            await Promise.all([
+                this.primeInitialSlide(),
+                this.loadSessionSlides(),
+                Promise.resolve(this.socketClient.connect(this.sessionId, this.controlToken)),
+            ]);
+
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
 
-            // Poll for pre-generation progress
-            await this.waitForPreGeneration();
+            // Wait for pre-generation to finish (may already be done).
+            await preGenPromise;
             
             this.ui.hideLoadingScreen();
             await this.loadSessionQuestions();
