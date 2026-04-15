@@ -302,7 +302,6 @@ async function persistSlideNarration({ db, sessionId, slideIndex, slide = null, 
                 // Supabase storage bucket may not exist - keep local copy
             }
         }
-        }
     }
 
     db.run(`
