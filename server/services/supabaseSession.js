@@ -146,6 +146,7 @@ class SupabaseSessionService {
         }
 
         const now = new Date().toISOString();
+        // Only include columns that exist in the Supabase schema
         const slideRows = slides.map((slide, index) => ({
             id: uuidv4(),
             session_id: sessionId,
@@ -157,7 +158,6 @@ class SupabaseSessionService {
             narration_text: slide.narrationText || null,
             narration_audio_path: slide.narrationAudioPath || null,
             narration_audio_url: slide.narrationAudioUrl || null,
-            narration_audio_duration_ms: Number.isFinite(slide.narrationAudioDurationMs) ? slide.narrationAudioDurationMs : null,
             narration_audio_source: slide.narrationAudioSource || 'local',
             narration_metadata_json: slide.narrationMetadataJson || {},
             narration_generated_at: slide.narrationGeneratedAt || null
@@ -165,14 +165,19 @@ class SupabaseSessionService {
 
         if (slideRows.length === 0) return [];
 
-        const result = await this.request('vpp_session_slides', {}, {
-            method: 'POST',
-            body: slideRows,
-            prefer: 'return=representation'
-        });
+        try {
+            const result = await this.request('vpp_session_slides', {}, {
+                method: 'POST',
+                body: slideRows,
+                prefer: 'return=representation'
+            });
 
-        console.log('[SupabaseSession] Created', result.length, 'slides for session:', sessionId);
-        return result;
+            console.log('[SupabaseSession] Created', result?.length || 0, 'slides for session:', sessionId);
+            return result || [];
+        } catch (error) {
+            console.warn('[SupabaseSession] createSlides failed, slides will use SQLite fallback:', error.message);
+            return [];
+        }
     }
 
     async updateSlideNarration(sessionId, slideIndex, updates) {
@@ -183,11 +188,11 @@ class SupabaseSessionService {
         const payload = {
             narration_generated_at: new Date().toISOString()
         };
+        // Only include columns that exist in the Supabase schema
         const allowed = [
             'narration_text',
             'narration_audio_path',
             'narration_audio_url',
-            'narration_audio_duration_ms',
             'narration_audio_source',
             'narration_metadata_json',
             'narration_generated_at'
@@ -199,16 +204,21 @@ class SupabaseSessionService {
             }
         }
 
-        const result = await this.request('vpp_session_slides', {
-            session_id: `eq.${sessionId}`,
-            slide_index: `eq.${slideIndex}`
-        }, {
-            method: 'PATCH',
-            body: payload,
-            prefer: 'return=representation'
-        });
+        try {
+            const result = await this.request('vpp_session_slides', {
+                session_id: `eq.${sessionId}`,
+                slide_index: `eq.${slideIndex}`
+            }, {
+                method: 'PATCH',
+                body: payload,
+                prefer: 'return=representation'
+            });
 
-        return result && result.length > 0 ? result[0] : null;
+            return result && result.length > 0 ? result[0] : null;
+        } catch (error) {
+            console.warn('[SupabaseSession] updateSlideNarration failed:', error.message);
+            return null;
+        }
     }
 
     async createQuestionAnswer(answerData) {

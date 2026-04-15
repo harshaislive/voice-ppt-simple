@@ -299,8 +299,9 @@ async function persistSlideNarration({ db, sessionId, slideIndex, slide = null, 
                 narrationAudioUrl = upload.publicUrl;
                 narrationAudioSource = 'supabase';
             } catch (error) {
-                console.warn('[AutoPlex] Failed to upload slide narration audio to Supabase, keeping local copy:', error.message);
+                // Supabase storage bucket may not exist - keep local copy
             }
+        }
         }
     }
 
@@ -332,7 +333,6 @@ async function persistSlideNarration({ db, sessionId, slideIndex, slide = null, 
                 narration_text: narrationText || '',
                 narration_audio_path: narrationAudioPath,
                 narration_audio_url: narrationAudioUrl,
-                narration_audio_duration_ms: audioDurationMs,
                 narration_audio_source: narrationAudioSource,
                 narration_metadata_json: metadataJson,
                 narration_generated_at: now

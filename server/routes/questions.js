@@ -381,8 +381,11 @@ router.post('/', async (req, res) => {
         // Run parallel thread to generate answer
         setImmediate(async () => {
             try {
+                console.log('[Q&A] Starting background answer generation for question:', questionId);
                 const modelService = require('../services/model');
                 const answerContext = await loadQuestionAnswerContext(db, sessionId);
+                console.log('[Q&A] Answer context loaded, slides:', answerContext.slides?.length || 0, 'knowledge context length:', answerContext.knowledgeContext?.length || 0);
+
                 const answer = await modelService.generateNarrationStream({
                     slideTitle: 'Audience Question',
                     slideContent: questionText,
@@ -396,6 +399,8 @@ router.post('/', async (req, res) => {
                     style: 'conversational',
                     knowledgeContext: answerContext.knowledgeContext
                 }, () => {}); // ignoring stream deltas
+
+                console.log('[Q&A] Answer generated, length:', answer?.length || 0);
 
                 let audioResult = null;
                 try {
@@ -418,8 +423,25 @@ router.post('/', async (req, res) => {
                     audioResult,
                     sessionId
                 });
+
+                console.log('[Q&A] Answer persisted and emitted for question:', questionId);
             } catch (err) {
                 console.error('[Background AI] Failed to generate answer for question:', questionId, err);
+                // Emit a fallback event so the UI shows something
+                io.to(sessionId).emit('question-answer-ready', {
+                    questionId,
+                    questionText,
+                    submittedBy: submittedBy || 'anonymous',
+                    answerText: 'I apologize, but I was unable to generate a complete answer to your question. Please try rephrasing or ask something else.',
+                    answerTitle: 'Answer unavailable',
+                    answerSummary: 'Answer generation failed',
+                    answerDetails: '',
+                    answerAudioUrl: null,
+                    answerAudioPath: null,
+                    answerAudioDurationMs: null,
+                    audioSource: 'none',
+                    status: 'answered'
+                });
             }
         });
         
