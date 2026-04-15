@@ -3365,6 +3365,7 @@ h1, h2, h3, h4 {
     overflow: hidden;
     background: #000;
     min-width: 0;
+    height: 100%;
 }
 
 .editorial-layout .visual-panel .slide-bg {
@@ -3372,14 +3373,17 @@ h1, h2, h3, h4 {
     inset: 0;
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     transition: background-image 0.8s ease;
+    width: 100%;
+    height: 100%;
 }
 
 .editorial-layout .visual-panel .slide-overlay {
     position: absolute;
     inset: 0;
-    background: #342e29;
-    opacity: 0.7;
+    background: linear-gradient(180deg, rgba(52, 46, 41, 0.15) 0%, rgba(52, 46, 41, 0.4) 100%);
+    opacity: 1;
 }
 
 .editorial-layout .visual-panel .waveform {
