@@ -272,10 +272,25 @@ export class UIManager {
     }
 
     toggleQuestionDrawer(forceOpen) {
+        // Support both old sidebar and new editorial view
         const panel = document.getElementById('qa-panel');
         const scrim = document.getElementById('qa-scrim');
-        if (!panel || !scrim) return;
+        const qaView = document.getElementById('qa-view');
+        const slideView = document.getElementById('slide-view');
 
+        if (qaView && slideView) {
+            // New editorial mode
+            const open = typeof forceOpen === 'boolean' ? forceOpen : !qaView.classList.contains('active');
+            if (open) {
+                this.app.openQAView();
+            } else {
+                this.app.closeQAView();
+            }
+            return;
+        }
+
+        // Fallback to old sidebar mode
+        if (!panel || !scrim) return;
         const open = typeof forceOpen === 'boolean' ? forceOpen : panel.classList.contains('hidden');
         panel.classList.toggle('hidden', !open);
         scrim.classList.toggle('hidden', !open);

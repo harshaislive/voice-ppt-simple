@@ -59,121 +59,132 @@
 
         <!-- PRESENTATION VIEW -->
         <div id="present-view" class="present-view hidden">
-            <div class="presentation-shell">
-                <section class="presentation-stage">
+            <div class="presentation-shell editorial-layout">
+                <!-- Visual Panel (left) -->
+                <section class="visual-panel">
                     <div id="slide-bg" class="slide-bg"></div>
                     <div class="slide-overlay"></div>
+                    <canvas id="waveform" class="waveform"></canvas>
+                </section>
 
-                    <header class="topbar">
-                        <div class="topbar-left">
-                            <span id="deck-label" class="topbar-label">10% Club</span>
-                        </div>
-                        <div class="topbar-center">
-                            <div id="status-indicator" class="status-indicator">
+                <!-- Content Panel (right) -->
+                <section class="content-panel">
+                    <!-- Top Bar -->
+                    <header class="panel-header">
+                        <div class="panel-header-left">
+                            <span id="deck-label" class="panel-label">10% Club</span>
+                            <div id="status-indicator" class="status-indicator-inline">
                                 <span id="status-dot" class="status-dot"></span>
-                                <div class="status-copy">
-                                    <span id="status-text">Connecting</span>
-                                    <span id="status-detail" class="status-detail">Preparing presentation</span>
-                                </div>
+                                <span id="status-text">Connecting</span>
                             </div>
                         </div>
-                        <div class="topbar-right">
-                            <button id="history-fab" class="help-fab" type="button" aria-label="Slide History" title="Slide History">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                        <div class="panel-header-actions">
+                            <button id="history-fab" class="panel-btn" type="button" aria-label="Slide History" title="Slide History">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="4" width="6" height="4"/><rect x="16" y="4" width="6" height="4"/><rect x="2" y="16" width="6" height="4"/><rect x="16" y="16" width="6" height="4"/><rect x="9" y="10" width="6" height="4"/></svg>
+                                <span>Slides</span>
                             </button>
-                            <span id="slide-counter" class="slide-counter">0 / 0</span>
-                            <button id="help-fab" class="help-fab" type="button" aria-label="Help">?</button>
+                            <span id="slide-counter" class="slide-counter-inline">0 / 0</span>
+                            <button id="help-fab" class="panel-btn" type="button" aria-label="Help">?</button>
                         </div>
                     </header>
 
-                    <main class="slide-main">
-                        <div id="slide-container" class="slide-container">
-                            <div class="slide-visual-shell">
-                                <div class="slide-visual-tint"></div>
+                    <!-- Slide View -->
+                    <div class="slide-view" id="slide-view">
+                        <div class="panel-content">
+                            <div class="folio-bar">
+                                <span id="folio-date" class="folio-date"></span>
+                                <span id="folio-deck" class="folio-deck"></span>
                             </div>
-                            <div class="slide-copy">
-                                <div class="folio-bar">
-                                    <span id="folio-date" class="folio-date"></span>
-                                    <span id="folio-deck" class="folio-deck"></span>
-                                </div>
-                                <h1 id="slide-title" class="slide-title"></h1>
-                                <div id="slide-content-flow" class="slide-content-flow">
-                                    <p id="slide-subtitle" class="slide-subtitle"></p>
-                                    <div style="position: relative; flex: 1;">
-                                        <p id="full-transcription" class="full-transcription"></p>
-                                        <button id="slide-pause-btn" class="slide-pause-btn" type="button" aria-label="Pause/Play">
-                                            <svg class="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                                            <svg class="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                        </button>
-                                    </div>
+                            <h1 id="slide-title" class="slide-title"></h1>
+                            <div class="slide-content-flow">
+                                <p id="slide-subtitle" class="slide-subtitle"></p>
+                                <div class="divider"></div>
+                                <div class="transcription-area">
+                                    <p id="full-transcription" class="full-transcription"></p>
+                                    <button id="slide-pause-btn" class="slide-pause-btn" type="button" aria-label="Pause/Play">
+                                        <svg class="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                        <svg class="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Poll Container -->
-                        <div id="poll-container" class="poll-container hidden">
-                            <h3 id="poll-question"></h3>
-                            <div id="poll-options" class="poll-options"></div>
-                        </div>
-                    </main>
-
-                    <!-- Visual Index (Scrubber) - Slide History Carousel -->
-                    <div id="scrubber-container" class="scrubber-container hidden" role="dialog" aria-modal="true" aria-label="Slide History">
-                        <div class="scrubber-modal">
-                            <div class="scrubber-header">
-                                <div class="scrubber-header-left">
-                                    <span class="scrubber-eyebrow">Slide History</span>
-                                    <p class="scrubber-copy">Click any slide to replay its narration.</p>
-                                    <div class="scrubber-nav" aria-label="Slide navigation">
-                                        <button id="scrubber-prev" class="scrubber-nav-btn" type="button" aria-label="Previous slide">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                                        </button>
-                                        <button id="scrubber-next" class="scrubber-nav-btn" type="button" aria-label="Next slide">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                        </button>
+                        <footer class="panel-footer">
+                            <div class="footer-controls">
+                                <div class="footer-left-controls">
+                                    <button id="interrupt-mic" class="interrupt-mic-inline" type="button" aria-label="Open questions">
+                                        <span id="chat-badge" class="icon-badge-inline hidden">0</span>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
+                                        <span>Questions</span>
+                                    </button>
+                                    <button id="footer-continue-btn" class="footer-continue-btn hidden" type="button">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                        Continue
+                                    </button>
+                                </div>
+                                <div class="footer-right-controls">
+                                    <span class="footer-hint-inline">React</span>
+                                    <div id="reaction-bar" class="reaction-bar-inline">
+                                        <button class="reaction-btn" data-emoji="👏" aria-label="Clap">👏</button>
+                                        <button class="reaction-btn" data-emoji="❤️" aria-label="Heart">❤️</button>
+                                        <button class="reaction-btn" data-emoji="💡" aria-label="Idea">💡</button>
                                     </div>
                                 </div>
-                                <button id="scrubber-close" class="qa-close-circle" type="button" aria-label="Close slide history">
+                            </div>
+                            <div class="progress-bar">
+                                <div id="progress-fill" class="progress-fill"></div>
+                            </div>
+                        </footer>
+                    </div>
+
+                    <!-- Q&A View (replaces slide view) -->
+                    <div class="qa-view" id="qa-view">
+                        <div class="qa-view-header">
+                            <h3>Questions</h3>
+                            <button id="qa-back-btn" class="qa-back-btn" type="button">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                                <span>Back to slides</span>
+                            </button>
+                        </div>
+                        <div class="qa-view-content">
+                            <div id="qa-list" class="qa-list-editorial">
+                                <div class="qa-empty-state-editorial">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    <p>The floor is open. Type a question.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="qa-view-input">
+                            <textarea id="question-input" class="qa-textarea-editorial" placeholder="Type your question..." rows="2" disabled></textarea>
+                            <button id="submit-question" class="qa-send-btn-editorial" disabled aria-label="Send question">Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Poll Container -->
+                    <div id="poll-container" class="poll-container hidden">
+                        <h3 id="poll-question"></h3>
+                        <div id="poll-options" class="poll-options"></div>
+                    </div>
+
+                    <!-- Carousel Modal (Slide History) -->
+                    <div id="scrubber-container" class="carousel-overlay hidden" role="dialog" aria-modal="true" aria-label="Slide History">
+                        <div class="carousel-modal">
+                            <div class="carousel-header">
+                                <div class="carousel-header-left">
+                                    <h3>Slide History</h3>
+                                    <p>Click any slide to replay its narration.</p>
+                                </div>
+                                <button id="scrubber-close" class="carousel-close" type="button" aria-label="Close slide history">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                 </button>
                             </div>
-                            <div class="scrubber-inner">
-                                <div id="scrubber-filmstrip" class="scrubber-filmstrip"></div>
+                            <div class="carousel-body">
+                                <div id="scrubber-filmstrip" class="carousel-grid"></div>
                             </div>
                         </div>
                     </div>
 
-                    <footer class="presentation-footer">
-                        <div class="footer-block footer-left">
-                            <span class="footer-hint">Questions</span>
-                            <div class="immersive-dock">
-                                <button id="interrupt-mic" class="interrupt-mic" type="button" aria-label="Open questions">
-                                    <span id="chat-badge" class="icon-badge hidden">0</span>
-                                    <span class="interrupt-core">
-                                        <span class="interrupt-ring"></span>
-                                        <span class="interrupt-icon">
-                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
-                                        </span>
-                                    </span>
-                                    <span id="interrupt-label" class="interrupt-label">Questions</span>
-                                </button>
-                                <button id="footer-continue-btn" class="footer-continue-btn hidden" type="button">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                    Continue
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="footer-block footer-right">
-                            <span class="footer-hint">React here</span>
-                            <div id="reaction-bar" class="reaction-bar">
-                                <button class="reaction-btn reaction-clap" data-emoji="👏" aria-label="Clap">👏</button>
-                                <button class="reaction-btn reaction-heart" data-emoji="❤️" aria-label="Heart">❤️</button>
-                                <button class="reaction-btn reaction-idea" data-emoji="💡" aria-label="Idea">💡</button>
-                            </div>
-                        </div>
-                    </footer>
-
+                    <!-- Slide Turn Overlay -->
                     <div id="slide-turn-overlay" class="slide-turn-overlay hidden">
                         <div class="slide-turn-backdrop"></div>
                         <div class="slide-turn-card">
@@ -182,7 +193,6 @@
                                 <h2 class="slide-turn-title">Next Step?</h2>
                                 <p id="slide-turn-detail" class="slide-turn-detail">Type a question to queue it. The answer will appear between slides.</p>
                             </div>
-
                             <div class="slide-turn-actions">
                                 <button id="slide-turn-mic" class="slide-turn-mic btn-primary" type="button">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
@@ -193,7 +203,6 @@
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                                 </button>
                             </div>
-
                             <div class="slide-turn-qa">
                                 <div class="slide-turn-input-row">
                                     <input id="slide-question-input" type="text" class="slide-turn-input" placeholder="Type a question...">
@@ -204,52 +213,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <canvas id="waveform" class="waveform"></canvas>
-                </section>
-            </div>
-
-            <div id="qa-scrim" class="qa-scrim hidden"></div>
-            <aside id="qa-panel" class="qa-panel hidden">
-                <div class="qa-panel-inner">
-                    <header class="qa-header">
-                        <div class="qa-header-left">
-                            <span class="qa-eyebrow">Dialogue</span>
-                            <h2 class="qa-display-title">Questions</h2>
-                        </div>
-                        <div class="qa-header-actions">
-                            <div class="qa-status-pill">
-                                <span id="qa-count" class="qa-count">0</span>
-                                <span class="qa-pill-label">Total</span>
-                            </div>
-                            <button id="qa-close" class="qa-close-circle" type="button" aria-label="Close questions">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                        </div>
-                    </header>
-
-                    <div class="qa-content-area">
-                        <div id="qa-list" class="qa-list">
-                            <div class="qa-empty-state">
-                                <div class="qa-empty-icon">
-                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                                </div>
-                                <p>The floor is open. Type a question about the collective, the 10% life, or the restoration work.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="qa-footer">
-                        <div class="qa-input-container">
-                            <textarea id="question-input" class="qa-textarea" placeholder="Type your question..." rows="1" disabled></textarea>
-                            <button id="submit-question" class="qa-send-btn" disabled aria-label="Send question">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-                            </button>
-                        </div>
-                        <p class="qa-input-hint">The presenter will answer after the current slide or in the final Q&A.</p>
-                    </div>
-                </div>
-            </aside>
 
                     <!-- Completion Overlay -->
                     <div id="completion-overlay" class="completion-overlay hidden">
@@ -271,7 +234,6 @@
                                     <span id="wrapup-timer" class="wrapup-timer">1:00</span>
                                 </div>
                                 <p id="wrapup-message" class="wrapup-message"></p>
-
                                 <div class="wrapup-actions">
                                     <button id="wrapup-mic" class="wrapup-mic" type="button" aria-label="Open questions">
                                         <span class="wrapup-mic-icon">
@@ -280,16 +242,16 @@
                                         <span id="wrapup-mic-label">Questions</span>
                                     </button>
                                 </div>
-                                <p class="wrapup-question-copy">Type a question and watch the answer animate in real time while it is being narrated.</p>
-
+                                <p class="wrapup-question-copy">Type a question and watch the answer animate in real time.</p>
                                 <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
                                 <div id="wrapup-qa-slides" class="wrapup-qa-slides" style="display: none;"></div>
                                 <button id="restart-btn" class="btn-start">Start Over</button>
                             </div>
                         </div>
                     </div>
+                </section>
+            </div>
         </div>
-    </div>
 
     <!-- Audio element -->
     <audio id="audio-player" style="display:none;"></audio>

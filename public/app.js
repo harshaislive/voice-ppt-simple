@@ -319,14 +319,16 @@ class VoicePPTApp {
             if (scrubber) scrubber.classList.add('hidden');
             this.resumePresentationAfterHistory();
         });
-        on('scrubber-prev', 'click', () => this.navigateScrubber(-1));
-        on('scrubber-next', 'click', () => this.navigateScrubber(1));
         on('scrubber-container', 'click', (e) => {
             if (e.target.id === 'scrubber-container') {
                 e.target.classList.add('hidden');
                 this.resumePresentationAfterHistory();
             }
         });
+
+        // Q&A view toggle
+        on('interrupt-mic', 'click', () => this.openQuestionComposer());
+        on('qa-back-btn', 'click', () => this.closeQAView());
 
         on('start-presentation', 'click', () => this.startSession());
         on('participant-name', 'keypress', (e) => {
@@ -1556,6 +1558,24 @@ class VoicePPTApp {
         const input = document.getElementById('question-input');
         if (input) input.focus();
         this.setStatus('Questions', 'paused', 'Type a question to queue it');
+    }
+
+    openQAView() {
+        const qaView = document.getElementById('qa-view');
+        const slideView = document.getElementById('slide-view');
+        if (qaView) qaView.classList.add('active');
+        if (slideView) slideView.classList.add('hidden');
+        this.clearQuestionBadge();
+        const input = document.getElementById('question-input');
+        if (input) input.focus();
+    }
+
+    closeQAView() {
+        const qaView = document.getElementById('qa-view');
+        const slideView = document.getElementById('slide-view');
+        if (qaView) qaView.classList.remove('active');
+        if (slideView) slideView.classList.remove('hidden');
+        this.restorePresentationStatus();
     }
 
     restorePresentationStatus() {

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Editorial - Beforest</title>
+    <style>
+        @font-face {
+            font-family: 'ABC Arizona Flare';
+            src: url('/fonts/ABCArizonaFlare-Regular-Trial.woff2') format('woff2'),
+                 url('/fonts/ABCArizonaFlare-Regular-Trial.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'ABC Arizona Flare';
+            src: url('/fonts/ABCArizonaFlare-Light-Trial.woff2') format('woff2'),
+                 url('/fonts/ABCArizonaFlare-Light-Trial.woff') format('woff');
+            font-weight: 300;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'ABC Arizona Flare Sans';
+            src: url('/fonts/ABCArizonaSans-Regular-Trial.woff2') format('woff2'),
+                 url('/fonts/ABCArizonaSans-Regular-Trial.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'ABC Arizona Flare Sans', sans-serif;
+            background: #342e29;
+            color: #fdfbf7;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        .layout {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .visual-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .visual-area img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .content-area {
+            background: #342e29;
+            border-top: 1px solid #51514d;
+            padding: 1.25rem;
+            max-height: 45vh;
+            overflow-y: auto;
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .slide-counter {
+            font-size: 0.7rem;
+            color: #e7e4df;
+            letter-spacing: 0.1em;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .slides-btn, .qa-button {
+            background: transparent;
+            border: 1px solid #51514d;
+            color: #fdfbf7;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-family: 'ABC Arizona Flare Sans', sans-serif;
+        }
+
+        .slides-btn:hover, .qa-button:hover {
+            border-color: #ffc083;
+            color: #ffc083;
+        }
+
+        .badge {
+            background: #86312b;
+            color: #fdfbf7;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+        }
+
+        .slide-title {
+            font-family: 'ABC Arizona Flare', serif;
+            font-size: 1.25rem;
+            font-weight: 400;
+            line-height: 1.3;
+            margin-bottom: 0.5rem;
+        }
+
+        .slide-subtitle {
+            font-family: 'ABC Arizona Flare', serif;
+            font-size: 0.8rem;
+            font-weight: 300;
+            color: #e7e4df;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .divider {
+            width: 30px;
+            height: 1px;
+            background: #ffc083;
+            margin-bottom: 1rem;
+        }
+
+        .narration-text {
+            font-size: 0.8rem;
+            line-height: 1.65;
+            color: #e7e4df;
+            margin-bottom: 1rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-play {
+            width: 36px;
+            height: 36px;
+            background: #86312b;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fdfbf7;
+            flex-shrink: 0;
+        }
+
+        .progress-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .progress-bar {
+            height: 2px;
+            background: #51514d;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #ffc083;
+            width: 35%;
+        }
+
+        .progress-time {
+            font-size: 0.55rem;
+            color: #51514d;
+            text-align: right;
+            letter-spacing: 0.05em;
+        }
+
+        /* Carousel Modal */
+        .carousel-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+
+        .carousel-overlay.open {
+            display: flex;
+        }
+
+        .carousel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid #51514d;
+            background: #342e29;
+        }
+
+        .carousel-header h3 {
+            font-family: 'ABC Arizona Flare', serif;
+            font-size: 1.1rem;
+            font-weight: 400;
+        }
+
+        .carousel-close {
+            background: transparent;
+            border: none;
+            color: #e7e4df;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        .carousel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .carousel-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .carousel-slide {
+            position: relative;
+            aspect-ratio: 16/9;
+            background: #4b3c35;
+            cursor: pointer;
+            border: 1px solid transparent;
+            overflow: hidden;
+        }
+
+        .carousel-slide.active {
+            border-color: #ffc083;
+        }
+
+        .carousel-slide img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.6;
+        }
+
+        .carousel-slide.no-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-slide-number {
+            position: absolute;
+            top: 0.4rem;
+            left: 0.4rem;
+            font-size: 0.55rem;
+            color: #e7e4df;
+            background: rgba(52, 46, 41, 0.8);
+            padding: 0.15rem 0.3rem;
+        }
+
+        .carousel-slide-title {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 0.4rem;
+            font-size: 0.6rem;
+            color: #fdfbf7;
+            background: linear-gradient(transparent, rgba(52, 46, 41, 0.95));
+            line-height: 1.3;
+        }
+
+        /* Q&A Drawer - Full screen on mobile */
+        .qa-drawer {
+            position: fixed;
+            inset: 0;
+            background: #342e29;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+
+        .qa-drawer.open {
+            display: flex;
+        }
+
+        .qa-drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid #51514d;
+        }
+
+        .qa-drawer-header h3 {
+            font-family: 'ABC Arizona Flare', serif;
+            font-size: 1.1rem;
+            font-weight: 400;
+        }
+
+        .qa-drawer-close {
+            background: transparent;
+            border: none;
+            color: #e7e4df;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .qa-drawer-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .qa-item {
+            background: #4b3c35;
+            padding: 0.75rem;
+            border-left: 2px solid #ffc083;
+        }
+
+        .qa-question {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+            color: #fdfbf7;
+        }
+
+        .qa-answer {
+            font-size: 0.7rem;
+            color: #e7e4df;
+            line-height: 1.5;
+        }
+
+        .qa-status {
+            font-size: 0.6rem;
+            color: #ffc083;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .qa-drawer-input {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid #51514d;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .qa-drawer-input textarea {
+            flex: 1;
+            padding: 0.5rem 0.6rem;
+            background: #4b3c35;
+            border: 1px solid #51514d;
+            color: #fdfbf7;
+            font-family: 'ABC Arizona Flare Sans', sans-serif;
+            font-size: 0.75rem;
+            resize: none;
+            border-radius: 2px;
+        }
+
+        .qa-drawer-input textarea:focus {
+            outline: none;
+            border-color: #ffc083;
+        }
+
+        .qa-send-btn {
+            background: #86312b;
+            border: none;
+            color: #fdfbf7;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            font-family: 'ABC Arizona Flare Sans', sans-serif;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="visual-area">
+            <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=75" alt="">
+        </div>
+
+        <div class="content-area">
+            <div class="content-header">
+                <span class="slide-counter">03 / 07</span>
+                <div class="header-actions">
+                    <button class="slides-btn" id="open-carousel">
+                        <svg viewBox="0 0 24 24" width="12" height="12"><rect x="2" y="4" width="6" height="4" fill="currentColor"/><rect x="16" y="4" width="6" height="4" fill="currentColor"/><rect x="2" y="16" width="6" height="4" fill="currentColor"/><rect x="16" y="16" width="6" height="4" fill="currentColor"/><rect x="9" y="10" width="6" height="4" fill="currentColor"/></svg>
+                        <span>Slides</span>
+                    </button>
+                    <button class="qa-button" id="open-qa">
+                        <span>Q&A</span>
+                        <span class="badge">2</span>
+                    </button>
+                </div>
+            </div>
+
+            <h1 class="slide-title">Seven years of quiet work.</h1>
+            <p class="slide-subtitle">Six collectives. 1,300 acres. 250 families.</p>
+            <div class="divider"></div>
+            <p class="narration-text">Six collectives. 1,300 acres. 250 families. Seven years. Each number as its own quiet rebellion against the hurry culture.</p>
+
+            <div class="controls">
+                <button class="btn-play">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></svg>
+                </button>
+                <div class="progress-wrapper">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <span class="progress-time">0:16 / 0:45</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Carousel Modal -->
+    <div class="carousel-overlay" id="carousel-overlay">
+        <div class="carousel-header">
+            <h3>Slide History</h3>
+            <button class="carousel-close" id="close-carousel">&times;</button>
+        </div>
+        <div class="carousel-body">
+            <div class="carousel-grid">
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">01</span>
+                    <span class="carousel-slide-title">You've been running at 100%.</span>
+                </div>
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">02</span>
+                    <span class="carousel-slide-title">What if 10% was enough?</span>
+                </div>
+                <div class="carousel-slide active">
+                    <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=75" alt="">
+                    <span class="carousel-slide-number">03</span>
+                    <span class="carousel-slide-title">Seven years of quiet work.</span>
+                </div>
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">04</span>
+                    <span class="carousel-slide-title">Rewilded landscapes.</span>
+                </div>
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">05</span>
+                    <span class="carousel-slide-title">300 Nights of Living.</span>
+                </div>
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">06</span>
+                    <span class="carousel-slide-title">The weight of 'Next Year'.</span>
+                </div>
+                <div class="carousel-slide no-image">
+                    <span class="carousel-slide-number">07</span>
+                    <span class="carousel-slide-title">Blyton Bungalow.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Q&A Drawer -->
+    <div class="qa-drawer" id="qa-drawer">
+        <div class="qa-drawer-header">
+            <h3>Questions</h3>
+            <button class="qa-drawer-close" id="close-qa">&times;</button>
+        </div>
+        <div class="qa-drawer-list">
+            <div class="qa-item">
+                <div class="qa-question">What does the 10% actually mean?</div>
+                <div class="qa-answer">It means spending 30 nights a year immersed in nature — not a holiday, but a practice of intentional living.</div>
+                <div class="qa-status">Answered</div>
+            </div>
+            <div class="qa-item">
+                <div class="qa-question">Is this open to families with young children?</div>
+                <div class="qa-answer"></div>
+                <div class="qa-status">Generating answer...</div>
+            </div>
+        </div>
+        <div class="qa-drawer-input">
+            <textarea placeholder="Ask a question..." rows="2"></textarea>
+            <button class="qa-send-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('open-carousel').addEventListener('click', () => {
+            document.getElementById('carousel-overlay').classList.add('open');
+        });
+        document.getElementById('close-carousel').addEventListener('click', () => {
+            document.getElementById('carousel-overlay').classList.remove('open');
+        });
+
+        document.getElementById('open-qa').addEventListener('click', () => {
+            document.getElementById('qa-drawer').classList.add('open');
+        });
+        document.getElementById('close-qa').addEventListener('click', () => {
+            document.getElementById('qa-drawer').classList.remove('open');
+        });
+    </script>
+</body>
+</html>
