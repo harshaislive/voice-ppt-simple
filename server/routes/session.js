@@ -191,7 +191,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             }
         }
         
-        // Fall back to SQLite
+        // Fall back to SQLite if session not found
         if (!session) {
             session = db.get(`
                 SELECT s.*, 
@@ -204,6 +204,15 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             if (session) {
                 slides = db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id]);
                 console.log('[Session] Session loaded from SQLite:', id);
+            }
+        }
+        
+        // If Supabase returned a session but no slides, fall back to SQLite for slides
+        if (session && (!slides || slides.length === 0)) {
+            const sqliteSlides = db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id]);
+            if (sqliteSlides && sqliteSlides.length > 0) {
+                slides = sqliteSlides;
+                console.log('[Session] Slides loaded from SQLite fallback (Supabase had none):', id);
             }
         }
         

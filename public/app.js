@@ -700,6 +700,17 @@ class VoicePPTApp {
         this.currentSlide = data.slide || null;
         this.slideAudioStarted = false;
         this.activeAudioSlideIndex = null;
+
+        // Keep slideDeck in sync so scrubber always has data
+        if (data.slide) {
+            if (!Array.isArray(this.slideDeck)) this.slideDeck = [];
+            if (this.slideDeck[data.slideIndex]) {
+                this.slideDeck[data.slideIndex] = { ...this.slideDeck[data.slideIndex], ...data.slide };
+            } else {
+                this.slideDeck[data.slideIndex] = data.slide;
+            }
+        }
+
         this.ui.closeSlideTurnOverlay();
         this.resetSubtitleState();
         this.fullNarrationTranscript = '';
@@ -1099,9 +1110,9 @@ class VoicePPTApp {
         const prevBtn = document.getElementById('scrubber-prev');
         const nextBtn = document.getElementById('scrubber-next');
         if (!filmstrip) return;
-        filmstrip.innerHTML = '';
 
         if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) {
+            filmstrip.innerHTML = '';
             if (this.ui?.renderEmptyHistory) {
                 this.ui.renderEmptyHistory('scrubber-filmstrip');
             }
@@ -1109,6 +1120,22 @@ class VoicePPTApp {
             if (nextBtn) nextBtn.disabled = true;
             return;
         }
+
+        // Skip full rebuild if deck size hasn't changed — just update active thumb
+        const existingCount = filmstrip.dataset.slideCount;
+        if (existingCount === String(this.slideDeck.length)) {
+            filmstrip.querySelectorAll('.scrubber-thumb').forEach((btn, i) => {
+                btn.classList.toggle('active', i === this.currentSlideIndex);
+            });
+            const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
+            if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
+            if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
+            return;
+        }
+
+        // Full rebuild — deck size changed
+        filmstrip.innerHTML = '';
+        filmstrip.dataset.slideCount = String(this.slideDeck.length);
 
         const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
         if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
