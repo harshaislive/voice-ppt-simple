@@ -722,14 +722,30 @@ class VoicePPTApp {
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
         const notesEl = document.getElementById('slide-notes');
         if (notesEl) notesEl.textContent = '';
-        const stage = document.querySelector('.slide-visual-shell');
+        
+        // Update visual panel background (new editorial layout)
+        const visualPanel = document.querySelector('.visual-panel .slide-bg');
+        const legacyStage = document.querySelector('.slide-visual-shell');
         const imageUrl = data.slide && data.slide.image ? data.slide.image : null;
-        if (stage) {
+        
+        if (visualPanel) {
             if (imageUrl) {
-                stage.classList.add('blur-up');
-                const img = new Image(); img.onload = () => { stage.style.backgroundImage = `url(${imageUrl})`; stage.classList.remove('blur-up'); this.analyzeImageBrightness(imageUrl); };
+                const img = new Image();
+                img.onload = () => {
+                    visualPanel.style.backgroundImage = `url(${imageUrl})`;
+                    this.analyzeImageBrightness(imageUrl);
+                };
                 img.src = imageUrl;
-            } else { stage.style.backgroundImage = 'none'; stage.classList.remove('blur-up'); }
+            } else {
+                visualPanel.style.backgroundImage = 'none';
+            }
+        }
+        if (legacyStage) {
+            if (imageUrl) {
+                legacyStage.classList.add('blur-up');
+                const img = new Image(); img.onload = () => { legacyStage.style.backgroundImage = `url(${imageUrl})`; legacyStage.classList.remove('blur-up'); this.analyzeImageBrightness(imageUrl); };
+                img.src = imageUrl;
+            } else { legacyStage.style.backgroundImage = 'none'; legacyStage.classList.remove('blur-up'); }
         }
         const main = document.querySelector('.slide-main');
         if (main) main.scrollTop = 0;
