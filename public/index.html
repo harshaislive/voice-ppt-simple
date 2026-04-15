@@ -72,19 +72,17 @@
                     <!-- Top Bar -->
                     <header class="panel-header">
                         <div class="panel-header-left">
-                            <span id="deck-label" class="panel-label">10% Club</span>
-                            <div id="status-indicator" class="status-indicator-inline">
-                                <span id="status-dot" class="status-dot"></span>
-                                <span id="status-text">Connecting</span>
-                            </div>
+                            <span id="slide-counter" class="slide-counter-inline">0 / 0</span>
                         </div>
                         <div class="panel-header-actions">
-                            <button id="history-fab" class="panel-btn" type="button" aria-label="Slide History" title="Slide History">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="4" width="6" height="4"/><rect x="16" y="4" width="6" height="4"/><rect x="2" y="16" width="6" height="4"/><rect x="16" y="16" width="6" height="4"/><rect x="9" y="10" width="6" height="4"/></svg>
-                                <span>Slides</span>
+                            <button id="history-fab" class="panel-btn-icon" type="button" aria-label="Slide History" title="Slide History">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="6" height="4"/><rect x="16" y="4" width="6" height="4"/><rect x="2" y="16" width="6" height="4"/><rect x="16" y="16" width="6" height="4"/><rect x="9" y="10" width="6" height="4"/></svg>
                             </button>
-                            <span id="slide-counter" class="slide-counter-inline">0 / 0</span>
-                            <button id="help-fab" class="panel-btn" type="button" aria-label="Help">?</button>
+                            <button id="interrupt-mic" class="panel-btn-icon" type="button" aria-label="Open questions" title="Questions">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
+                                <span id="chat-badge" class="icon-badge-inline hidden">0</span>
+                            </button>
+                            <button id="help-fab" class="panel-btn-icon" type="button" aria-label="Help" title="Help">?</button>
                         </div>
                     </header>
 
@@ -112,18 +110,12 @@
                         <footer class="panel-footer">
                             <div class="footer-controls">
                                 <div class="footer-left-controls">
-                                    <button id="interrupt-mic" class="interrupt-mic-inline" type="button" aria-label="Open questions">
-                                        <span id="chat-badge" class="icon-badge-inline hidden">0</span>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
-                                        <span>Questions</span>
-                                    </button>
                                     <button id="footer-continue-btn" class="footer-continue-btn hidden" type="button">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                                         Continue
                                     </button>
                                 </div>
                                 <div class="footer-right-controls">
-                                    <span class="footer-hint-inline">React</span>
                                     <div id="reaction-bar" class="reaction-bar-inline">
                                         <button class="reaction-btn" data-emoji="👏" aria-label="Clap">👏</button>
                                         <button class="reaction-btn" data-emoji="❤️" aria-label="Heart">❤️</button>

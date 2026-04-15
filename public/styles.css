@@ -3411,9 +3411,48 @@ h1, h2, h3, h4 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem 2rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid rgba(81, 81, 77, 0.3);
     flex-shrink: 0;
+    min-height: 48px;
+}
+
+.editorial-layout .panel-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.editorial-layout .slide-counter-inline {
+    font-size: 0.7rem;
+    color: #51514d;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+}
+
+.editorial-layout .panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.editorial-layout .panel-btn-icon {
+    background: transparent;
+    border: none;
+    color: #51514d;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.2s;
+    position: relative;
+    padding: 0;
+}
+
+.editorial-layout .panel-btn-icon:hover {
+    color: #ffc083;
 }
 
 .editorial-layout .topbar {
@@ -3623,7 +3662,7 @@ h1, h2, h3, h4 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .editorial-layout .footer-left-controls {
@@ -3632,99 +3671,61 @@ h1, h2, h3, h4 {
     gap: 0.75rem;
 }
 
-.editorial-layout .interrupt-mic-inline {
-    background: transparent;
-    border: 1px solid #51514d;
-    color: #fdfbf7;
-    padding: 0.4rem 0.75rem;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-family: 'ABC Arizona Flare Sans', sans-serif;
-    position: relative;
-    transition: all 0.2s;
-}
-
-.editorial-layout .interrupt-mic-inline:hover {
-    border-color: #ffc083;
-    color: #ffc083;
-}
-
-.editorial-layout .icon-badge-inline {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #86312b;
-    color: #fdfbf7;
-    border-radius: 50%;
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.6rem;
-}
-
 .editorial-layout .footer-continue-btn {
     background: transparent;
-    border: 1px solid #51514d;
-    color: #e7e4df;
-    padding: 0.4rem 0.75rem;
+    border: none;
+    color: #51514d;
+    padding: 0.4rem 0.5rem;
     font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     font-family: 'ABC Arizona Flare Sans', sans-serif;
-    transition: all 0.2s;
+    transition: color 0.2s;
 }
 
 .editorial-layout .footer-continue-btn:hover {
-    border-color: #ffc083;
     color: #ffc083;
 }
 
 .editorial-layout .footer-right-controls {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .editorial-layout .footer-hint-inline {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: #51514d;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
+    display: none;
 }
 
 .editorial-layout .reaction-bar-inline {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.35rem;
 }
 
 .editorial-layout .reaction-bar-inline .reaction-btn {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     background: transparent;
-    border: 1px solid #51514d;
-    border-radius: 2px;
+    border: none;
     font-size: 0.85rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: transform 0.2s;
+    padding: 0;
 }
 
 .editorial-layout .reaction-bar-inline .reaction-btn:hover {
-    border-color: #ffc083;
-    transform: scale(1.1);
+    transform: scale(1.15);
 }
 
 /* Neutralize old immersive-dock */
