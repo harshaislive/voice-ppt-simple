@@ -309,18 +309,112 @@ async function persistQuestionAnswer({ db, io, question, answerText, audioResult
     return questionAnswer;
 }
 
-// Submit a question
+// Submit a question (deck-based, no session required)
 router.post('/', async (req, res) => {
     try {
-        const { sessionId, questionText, submittedBy } = req.body;
+        const { sessionId, questionText, submittedBy, deckId } = req.body;
         
-        if (!sessionId || !questionText) {
-            return res.status(400).json({ error: 'Session ID and question text are required' });
+        if (!questionText) {
+            return res.status(400).json({ error: 'Question text is required' });
         }
+
+        // Support both session-based and deck-based questions
+        const activeSessionId = sessionId || `deck_${deckId || 'unknown'}_${Date.now()}`;
         
+        if (!sessionId) {
+            // Deck-based mode: generate answer directly without session
+            const questionId = uuidv4();
+            
+            setImmediate(async () => {
+                try {
+                    console.log('[Q&A] Starting deck-based answer generation for deck:', deckId);
+                    const modelService = require('../services/model');
+                    
+                    let knowledgeContext = '';
+                    if (deckId) {
+                        try {
+                            const presentation = await cmsService.loadPresentation(deckId);
+                            if (presentation) {
+                                knowledgeContext = buildQuestionKnowledgeContext({
+                                    sessionMetadata: {},
+                                    presentation,
+                                    currentSlide: null,
+                                    slides: presentation.slides || []
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('[Q&A] Failed to load deck context:', err.message);
+                        }
+                    }
+
+                    const answer = await modelService.generateNarrationStream({
+                        slideTitle: 'Audience Question',
+                        slideContent: questionText,
+                        slideNotes: 'Answer directly and use the presentation knowledge if available.',
+                        pendingQuestions: [],
+                        participantName: submittedBy || 'Viewer',
+                        slideIndex: 0,
+                        totalSlides: 1,
+                        style: 'conversational',
+                        knowledgeContext
+                    }, () => {});
+
+                    console.log('[Q&A] Deck-based answer generated, length:', answer?.length || 0);
+
+                    let audioResult = null;
+                    try {
+                        audioResult = await ttsService.synthesizeDetailed(answer, 'default');
+                    } catch (ttsErr) {
+                        console.warn('[Q&A] Failed to synthesize deck-based answer:', ttsErr.message);
+                    }
+
+                    const io = req.app.get('io');
+                    io.to(activeSessionId).emit('question-answer-ready', {
+                        questionId,
+                        questionText,
+                        submittedBy: submittedBy || 'Viewer',
+                        answerText: answer,
+                        answerTitle: 'Answer',
+                        answerSummary: answer.slice(0, 220),
+                        answerDetails: answer,
+                        answerAudioUrl: null,
+                        answerAudioPath: null,
+                        answerAudioDurationMs: audioResult?.durationMs || null,
+                        audioSource: 'none',
+                        status: 'answered'
+                    });
+
+                    console.log('[Q&A] Deck-based answer emitted for question:', questionId);
+                } catch (err) {
+                    console.error('[Q&A] Failed to generate deck-based answer:', err);
+                    const io = req.app.get('io');
+                    io.to(activeSessionId).emit('question-answer-ready', {
+                        questionId: uuidv4(),
+                        questionText,
+                        submittedBy: submittedBy || 'Viewer',
+                        answerText: 'I apologize, but I was unable to generate a complete answer. Please try rephrasing.',
+                        answerTitle: 'Answer unavailable',
+                        answerSummary: 'Answer generation failed',
+                        answerDetails: '',
+                        answerAudioUrl: null,
+                        answerAudioPath: null,
+                        answerAudioDurationMs: null,
+                        audioSource: 'none',
+                        status: 'answered'
+                    });
+                }
+            });
+
+            return res.json({
+                success: true,
+                questionId: uuidv4(),
+                deckBased: true
+            });
+        }
+
+        // Session-based mode (original logic)
         const db = req.app.get('db');
         
-        // Verify session exists and is active
         let session = await loadSessionForQuestions(db, sessionId);
         if (session && !['active', 'presenting', 'wrapup', 'completed'].includes(String(session.status || ''))) {
             session = null;
@@ -333,7 +427,6 @@ router.post('/', async (req, res) => {
         const questionId = uuidv4();
         const now = new Date().toISOString();
         
-        // Insert question
         db.run(`
             INSERT INTO questions (id, session_id, question_text, submitted_by, slide_index, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -353,23 +446,19 @@ router.post('/', async (req, res) => {
             });
         }
         
-        // Analytics
         analyticsService.logEvent(sessionId, 'user_question', session.current_slide_index, questionText, { submittedBy: submittedBy || 'anonymous', questionId });
 
-        // Create event
         db.run(`
             INSERT INTO events (session_id, event_type, event_data, created_at)
             VALUES (?, ?, ?, ?)
         `, [sessionId, 'question_submitted', JSON.stringify({ questionId, questionText, submittedBy }), now]);
         
-        // Get pending questions count
         const pendingResult = db.get(`
             SELECT COUNT(*) as count FROM questions
             WHERE session_id = ? AND status = 'pending'
         `, [sessionId]);
         const pendingCount = pendingResult ? pendingResult.count : 0;
         
-        // Emit Socket.IO event
         const io = req.app.get('io');
         io.to(sessionId).emit('question-added', {
             questionId,
@@ -378,7 +467,6 @@ router.post('/', async (req, res) => {
             pendingCount
         });
 
-        // Run parallel thread to generate answer
         setImmediate(async () => {
             try {
                 console.log('[Q&A] Starting background answer generation for question:', questionId);
@@ -398,7 +486,7 @@ router.post('/', async (req, res) => {
                     totalSlides: answerContext.slides ? answerContext.slides.length : (Number(answerContext.session?.current_slide_index || 0) + 10),
                     style: 'conversational',
                     knowledgeContext: answerContext.knowledgeContext
-                }, () => {}); // ignoring stream deltas
+                }, () => {});
 
                 console.log('[Q&A] Answer generated, length:', answer?.length || 0);
 
@@ -427,7 +515,6 @@ router.post('/', async (req, res) => {
                 console.log('[Q&A] Answer persisted and emitted for question:', questionId);
             } catch (err) {
                 console.error('[Background AI] Failed to generate answer for question:', questionId, err);
-                // Emit a fallback event so the UI shows something
                 io.to(sessionId).emit('question-answer-ready', {
                     questionId,
                     questionText,

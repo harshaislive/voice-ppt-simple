@@ -31,6 +31,7 @@ app.use(securityHeaders);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/published', express.static(path.join(__dirname, 'published')));
 app.use('/api', createRateLimiter({ windowMs: 60 * 1000, max: 180, label: 'API' }));
 app.use('/api/session/start', createRateLimiter({ windowMs: 60 * 1000, max: 10, label: 'Session start' }));
 app.use('/api/questions', createRateLimiter({ windowMs: 60 * 1000, max: 30, label: 'Question submission' }));
@@ -54,6 +55,7 @@ const autoplexRoutes = require('./server/routes/autoplex');
 const realtimeRoutes = require('./server/routes/realtime');
 const cmsRoutes = require('./server/routes/cms');
 const analyticsRoutes = require('./server/routes/analytics');
+const publishRoutes = require('./server/routes/publish');
 
 // API routes
 app.use('/api/session', sessionRoutes);
@@ -64,6 +66,7 @@ app.use('/api/autoplex', autoplexRoutes);
 app.use('/api/realtime', realtimeRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/publish', publishRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
