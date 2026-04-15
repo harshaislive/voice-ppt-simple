@@ -36,8 +36,9 @@ export class StreamAudioPlayer {
             this.analyserNode.connect(this.audioContext.destination);
         }
         if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
+            return this.audioContext.resume();
         }
+        return Promise.resolve();
     }
 
     playChunk(pcmBase64, sampleRate, channels) {
@@ -146,5 +147,47 @@ export class StreamAudioPlayer {
             float32[i] = sample < 0 ? sample / 32768 : sample / 32767;
         }
         return float32;
+    }
+
+    async playPregeneratedAudio(pcmBase64, sampleRate, channels, wordBoundaries = []) {
+        await this._ensureContext();
+        
+        const pcm = this._base64ToArrayBuffer(pcmBase64);
+        const float32 = this._pcm16ToFloat32(pcm);
+        const buffer = this.audioContext.createBuffer(channels || 1, float32.length, sampleRate || this.sampleRate);
+        buffer.getChannelData(0).set(float32);
+        
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.value = this.playbackRate;
+        source.connect(this.gainNode);
+        
+        const schedulingBuffer = 0.03;
+        const startTime = this.audioContext.currentTime + schedulingBuffer;
+        source.start(startTime);
+        
+        this.isPlaying = true;
+        this.activeSources.push(source);
+        
+        if (!this._streamStartNotified) {
+            this._streamStartNotified = true;
+            this.onStreamStart?.({
+                audioContextStartTime: startTime,
+                startedAtMs: performance.now() + (schedulingBuffer * 1000)
+            });
+        }
+        
+        source.onended = () => {
+            this.activeSources = this.activeSources.filter((item) => item !== source);
+            if (this.activeSources.length === 0) {
+                this.isPlaying = false;
+            }
+        };
+        
+        return {
+            duration: buffer.duration,
+            durationMs: Math.round(buffer.duration * 1000),
+            wordBoundaries
+        };
     }
 }

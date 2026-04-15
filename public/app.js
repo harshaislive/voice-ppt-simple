@@ -608,23 +608,17 @@ class VoicePPTApp {
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = data.presentationTitle || deckId.replace(/_/g, ' ');
-            const prewarmPromise = this.apiFetch('/api/autoplex/prewarm', {
-                method: 'POST',
-                body: JSON.stringify({ sessionId: this.sessionId, slideIndex: 0 })
-            }).catch(err => {
-                console.warn('Initial narration prewarm failed:', err);
-                return null;
-            });
             
-            // Prime initial slide while loading
+            // Show pre-generation progress in loading screen
             await this.primeInitialSlide();
             await this.loadSessionSlides();
             this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
 
-            // Hide the loading screen as soon as the first slide and initial prewarm are ready.
-            await prewarmPromise;
+            // Poll for pre-generation progress
+            await this.waitForPreGeneration();
+            
             this.ui.hideLoadingScreen();
             await this.loadSessionQuestions();
             
@@ -652,6 +646,45 @@ class VoicePPTApp {
 
     async triggerAutoPlex() {
         try { await this.apiFetch('/api/autoplex', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error('AutoPlex trigger failed:', err); }
+    }
+
+    async waitForPreGeneration() {
+        const maxWait = 30000;
+        const pollInterval = 300;
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < maxWait) {
+            try {
+                const res = await this.apiFetch(`/api/session/pregen-progress/${this.sessionId}`);
+                if (res.ok) {
+                    const progress = await res.json();
+                    console.log('[PreGen] Progress:', progress);
+                    
+                    // Update loading screen with progress
+                    if (this.ui.updateLoadingProgress) {
+                        this.ui.updateLoadingProgress(progress);
+                    }
+                    
+                    if (progress.status === 'complete') {
+                        console.log('[PreGen] Pre-generation complete!');
+                        return true;
+                    }
+                    if (progress.status === 'failed') {
+                        console.warn('[PreGen] Pre-generation failed, proceeding anyway');
+                        return false;
+                    }
+                    if (progress.status === 'no-slides') {
+                        return true;
+                    }
+                }
+            } catch (err) {
+                console.warn('[PreGen] Progress poll failed:', err.message);
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        console.warn('[PreGen] Pre-generation timeout after', maxWait, 'ms, proceeding anyway');
+        return false;
     }
 
     updateSlide(data) {

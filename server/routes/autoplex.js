@@ -20,6 +20,8 @@ const presentationStartTimes = new Map();
 const prewarmedSlides = new Map();
 const prewarmTasks = new Map();
 const replayCache = new Map();
+const pregenProgress = new Map();
+const pregeneratedSessions = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 100;
@@ -465,6 +467,128 @@ function setReplayCache(sessionId, slideIndex, payload) {
     replayCache.set(getReplayKey(sessionId, slideIndex), {
         ...payload,
         createdAt: Date.now()
+    });
+}
+
+function updatePreGenProgress(sessionId, completed, total, status = 'generating') {
+    pregenProgress.set(sessionId, { completed, total, status });
+}
+
+function getPreGenProgress() {
+    return pregenProgress;
+}
+
+async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
+    if (!slides || slides.length === 0) {
+        updatePreGenProgress(sessionId, 0, 0, 'no-slides');
+        return [];
+    }
+
+    const totalSlides = slides.length;
+    updatePreGenProgress(sessionId, 0, totalSlides, 'starting');
+    console.log(`[PreGen] Starting pre-generation for session ${sessionId}, ${totalSlides} slides`);
+
+    try {
+        const pendingQuestions = db.all(
+            'SELECT question_text FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
+            [sessionId]
+        ).map(q => q.question_text);
+
+        const contextPromises = slides.map((slide, index) => {
+            const context = buildNarrationContext({
+                db,
+                sessionId,
+                slide,
+                slideIndex: index,
+                totalSlides,
+                pendingQuestions
+            });
+            return { context, slide, index };
+        });
+
+        updatePreGenProgress(sessionId, 0, totalSlides, 'generating-narration');
+        const narrationPromises = contextPromises.map(({ context }) =>
+            modelService.generateNarration(context)
+        );
+        const narrations = await Promise.all(narrationPromises);
+        console.log(`[PreGen] Narration generated for all ${totalSlides} slides`);
+
+        updatePreGenProgress(sessionId, Math.floor(totalSlides * 0.3), totalSlides, 'generating-audio');
+        const TTS_BATCH_SIZE = parseInt(process.env.PREGEN_TTS_BATCH_SIZE, 10) || 3;
+        const audioResults = [];
+
+        for (let batchStart = 0; batchStart < narrations.length; batchStart += TTS_BATCH_SIZE) {
+            const batch = narrations.slice(batchStart, batchStart + TTS_BATCH_SIZE);
+            const batchPromises = batch.map((text) =>
+                ttsService.synthesizeDetailed(text, 'default')
+            );
+            const batchResults = await Promise.all(batchPromises);
+            audioResults.push(...batchResults);
+
+            const completed = Math.floor(((batchStart + batch.length) / totalSlides) * 0.7 * totalSlides) + Math.floor(totalSlides * 0.3);
+            updatePreGenProgress(sessionId, Math.min(completed, totalSlides), totalSlides, 'generating-audio');
+        }
+
+        console.log(`[PreGen] TTS generated for all ${totalSlides} slides`);
+        updatePreGenProgress(sessionId, Math.floor(totalSlides * 0.85), totalSlides, 'persisting');
+
+        const pregeneratedSlides = [];
+        for (let i = 0; i < slides.length; i++) {
+            const slide = slides[i];
+            const narrationText = narrations[i];
+            const audioResult = audioResults[i];
+
+            const payload = {
+                text: narrationText,
+                pcmBase64: audioResult.pcmBuffer.toString('base64'),
+                sampleRate: audioResult.sampleRate,
+                channels: audioResult.channels,
+                bitsPerSample: audioResult.bitsPerSample,
+                wordBoundaries: audioResult.wordBoundaries || [],
+                totalPcmBytes: audioResult.pcmBuffer.length
+            };
+
+            setPrewarmedSlide(sessionId, i, payload);
+            setReplayCache(sessionId, i, payload);
+            pregeneratedSlides.push({ ...slide, narration: narrationText, audio: payload });
+
+            persistSlideNarration({
+                db,
+                sessionId,
+                slideIndex: i,
+                slide,
+                narrationText,
+                audioBuffer: audioResult.audioBuffer,
+                pcmBuffer: audioResult.pcmBuffer,
+                sampleRate: audioResult.sampleRate,
+                channels: audioResult.channels,
+                bitsPerSample: audioResult.bitsPerSample,
+                audioSource: 'pregenerated',
+                wordBoundaries: audioResult.wordBoundaries || []
+            }).catch(err => console.warn('[PreGen] Async persist failed for slide', i, ':', err.message));
+
+            updatePreGenProgress(sessionId, i + 1, totalSlides, 'persisting');
+        }
+
+        pregeneratedSessions.set(sessionId, pregeneratedSlides);
+        updatePreGenProgress(sessionId, totalSlides, totalSlides, 'complete');
+        console.log(`[PreGen] Pre-generation complete for session ${sessionId}`);
+
+        return pregeneratedSlides;
+    } catch (error) {
+        console.error(`[PreGen] Pre-generation failed for session ${sessionId}:`, error.message);
+        updatePreGenProgress(sessionId, 0, totalSlides, 'failed');
+        throw error;
+    }
+}
+
+function triggerPreGeneration(db, sessionId, slides, sessionMetadata) {
+    const metadata = typeof sessionMetadata === 'string'
+        ? (() => { try { return JSON.parse(sessionMetadata); } catch { return {}; } })()
+        : (sessionMetadata || {});
+
+    preGenerateAllSlides(db, sessionId, slides, metadata).catch(err => {
+        console.error(`[PreGen] Background pre-generation failed for ${sessionId}:`, err.message);
     });
 }
 
@@ -917,13 +1041,14 @@ async function runPresentation(db, io, sessionId) {
 
     await sleep(PRESENTATION_START_DELAY_MS);
 
+    const pregeneratedSlides = pregeneratedSessions.get(sessionId) || [];
     let currentSlideIndex = 0;
-    console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}`);
+    console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}, pregenerated: ${pregeneratedSlides.length}`);
 
     while (currentSlideIndex < slides.length) {
         await waitWhilePaused(db, io, sessionId);
         const slide = slides[currentSlideIndex];
-        console.log(`[AutoPlex] Narrating slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
+        console.log(`[AutoPlex] Playing slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
 
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [currentSlideIndex, sessionId]);
         syncSessionState(sessionId, { current_slide_index: currentSlideIndex, status: 'presenting' });
@@ -937,26 +1062,35 @@ async function runPresentation(db, io, sessionId) {
 
         await sleep(SLIDE_CHANGE_SETTLE_MS);
 
-        let updatedPendingQuestions = db.all(
-            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
-            [sessionId]
-        );
+        const cached = pregeneratedSlides[currentSlideIndex]?.audio
+            || consumePrewarmedSlide(sessionId, currentSlideIndex)
+            || getPrewarmedSlide(sessionId, currentSlideIndex)
+            || await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex);
 
-        let prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
-        if (!prewarmed) {
-            const inFlightPrewarm = getPrewarmTask(sessionId, currentSlideIndex);
-            if (inFlightPrewarm) {
-                try {
-                    await inFlightPrewarm;
-                    prewarmed = consumePrewarmedSlide(sessionId, currentSlideIndex);
-                } catch (error) {
-                    console.warn(`[AutoPlex] In-flight prewarm failed for slide ${currentSlideIndex + 1}:`, error.message);
-                }
+        if (cached) {
+            if (!getReplayCache(sessionId, currentSlideIndex)) {
+                setReplayCache(sessionId, currentSlideIndex, cached);
             }
-        }
-        const narrationResult = prewarmed
-            ? { text: prewarmed.text, audioHandled: true, prewarmed: true, prewarmedAudio: prewarmed }
-            : await narrateSlide({
+            io.to(sessionId).emit('narration-text', {
+                text: cached.text,
+                slideIndex: currentSlideIndex
+            });
+            await emitCachedPlayback(io, sessionId, currentSlideIndex, cached, { isQA: false });
+
+            const narrationText = cached.text;
+            analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationText);
+
+            db.run(
+                'INSERT INTO events (session_id, event_type, event_data, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+                [sessionId, 'narration_played', JSON.stringify({ slideIndex: currentSlideIndex, narrationLength: narrationText.length, source: 'pregenerated' })]
+            );
+        } else {
+            console.warn(`[AutoPlex] No pre-generated audio for slide ${currentSlideIndex + 1}, falling back to on-the-fly`);
+            let updatedPendingQuestions = db.all(
+                'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
+                [sessionId]
+            );
+            const narrationResult = await narrateSlide({
                 db,
                 io,
                 sessionId,
@@ -965,122 +1099,29 @@ async function runPresentation(db, io, sessionId) {
                 totalSlides: slides.length,
                 pendingQuestions: updatedPendingQuestions.slice(0, 5).map((q) => q.question_text)
             });
-        const narrationText = narrationResult.text;
 
-        // Keep more than one slide pre-generated so narration does not stall between slides.
-        const prewarmTargets = [currentSlideIndex + 1, currentSlideIndex + 2]
-            .filter((index) => index < slides.length && !getPrewarmedSlide(sessionId, index) && !getPrewarmTask(sessionId, index));
-
-        prewarmTargets.forEach((targetIndex) => {
-            const targetSlide = slides[targetIndex];
-            console.log(`[AutoPlex] Background pre-warming slide ${targetIndex + 1}/${slides.length}`);
-            (async () => {
-                try {
-                    const nextPendingQuestions = db.all(
-                        'SELECT question_text FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
-                        [sessionId]
-                    ).map(q => q.question_text);
-
-                    await prewarmSlideAudio({
-                        db,
-                        sessionId,
-                        slideIndex: targetIndex,
-                        slide: targetSlide,
-                        totalSlides: slides.length,
-                        pendingQuestions: nextPendingQuestions
-                    });
-
-                    console.log(`[AutoPlex] Pre-warm complete for slide ${targetIndex + 1}`);
-                } catch (err) {
-                    console.warn(`[AutoPlex] Background pre-warm failed for slide ${targetIndex + 1}:`, err.message);
-                }
-            })();
-        });
-
-        const nextSlideIndex = currentSlideIndex + 1;
-        if (nextSlideIndex === slides.length && !getPrewarmedSlide(sessionId, 'wrapup') && !getPrewarmTask(sessionId, 'wrapup')) {
-            console.log(`[AutoPlex] Background pre-warming wrap-up phase`);
-            (async () => {
-                try {
-                    const promptText = [
-                        participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
-                        'I will stay with you for one more minute.',
-                        'If you have any questions, type them in the questions panel.',
-                        'You can also answer the quick prompts on screen while you think about your questions.'
-                    ].join(' ');
-                    
-                    const audioResult = await ttsService.synthesizeDetailed(promptText, 'default');
-                    setPrewarmedSlide(sessionId, 'wrapup', {
-                        text: promptText,
-                        pcmBase64: audioResult.pcmBuffer.toString('base64'),
-                        sampleRate: audioResult.sampleRate,
-                        channels: audioResult.channels,
-                        bitsPerSample: audioResult.bitsPerSample,
-                        wordBoundaries: audioResult.wordBoundaries || [],
-                        totalPcmBytes: audioResult.pcmBuffer.length
-                    });
-                    await persistSlideNarration({
-                        db,
-                        sessionId,
-                        slideIndex: slides.length,
-                        slide: { title: 'Wrap Up', content: promptText, notes: '' },
-                        narrationText: promptText,
-                        audioBuffer: audioResult.audioBuffer,
-                        pcmBuffer: audioResult.pcmBuffer,
-                        sampleRate: audioResult.sampleRate,
-                        channels: audioResult.channels,
-                        bitsPerSample: audioResult.bitsPerSample,
-                        audioSource: 'prewarmed',
-                        wordBoundaries: audioResult.wordBoundaries || []
-                    });
-                    console.log(`[AutoPlex] Pre-warm complete for wrap-up phase`);
-                } catch (err) {
-                    console.warn(`[AutoPlex] Background pre-warm failed for wrap-up phase:`, err.message);
-                }
-            })();
-        }
-
-        updatedPendingQuestions = db.all(
-            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
-            [sessionId]
-        );
-
-        await waitWhilePaused(db, io, sessionId);
-        if (narrationResult.prewarmedAudio) {
-            await playPrewarmedAudio(io, sessionId, currentSlideIndex, narrationResult.prewarmedAudio, { isQA: false });
-        } else if (!narrationResult.audioHandled) {
-            const streamedAudio = await streamAudio(io, sessionId, narrationText, currentSlideIndex, { isQA: false });
+            const streamedAudio = await streamAudio(io, sessionId, narrationResult.text, currentSlideIndex, { isQA: false });
             if (streamedAudio) {
                 await persistSlideNarration({
                     db,
                     sessionId,
                     slideIndex: currentSlideIndex,
                     slide,
-                    narrationText,
+                    narrationText: narrationResult.text,
                     audioBuffer: streamedAudio.audioBuffer,
                     pcmBuffer: streamedAudio.pcmBuffer,
                     sampleRate: streamedAudio.sampleRate,
                     channels: streamedAudio.channels,
                     bitsPerSample: streamedAudio.bitsPerSample,
-                    audioSource: 'streamed',
+                    audioSource: 'streamed-fallback',
                     wordBoundaries: streamedAudio.wordBoundaries || []
                 });
             }
+
+            analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationResult.text);
         }
 
-        analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationText);
-
-        db.run(
-            'INSERT INTO events (session_id, event_type, event_data, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
-            [sessionId, 'narration_generated', JSON.stringify({ slideIndex: currentSlideIndex, narrationLength: narrationText.length })]
-        );
-
         await sleep(POST_SLIDE_HOLD_MS);
-
-        updatedPendingQuestions = db.all(
-            'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
-            [sessionId]
-        );
 
         currentSlideIndex += 1;
     }
@@ -1736,6 +1777,8 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
 
 module.exports = router;
 module.exports.markPlaybackComplete = markPlaybackComplete;
+module.exports.triggerPreGeneration = triggerPreGeneration;
+module.exports.getPreGenProgress = getPreGenProgress;
 
 async function waitWhilePaused(db, io, sessionId) {
     let emitted = false;

@@ -11,6 +11,18 @@ const {
     requireSessionControl
 } = require('../middleware/security');
 
+// Import pre-generation progress tracker from autoplex
+let pregenProgress = null;
+function getPreGenProgress() {
+    if (!pregenProgress) {
+        try {
+            const autoplexModule = require('./autoplex');
+            pregenProgress = autoplexModule.getPreGenProgress?.();
+        } catch {}
+    }
+    return pregenProgress || new Map();
+}
+
 // Log Supabase session service status on startup
 if (supabaseSession.isConfigured()) {
     console.log('[Session] Supabase session persistence is configured');
@@ -130,6 +142,12 @@ router.post('/start', async (req, res) => {
             projectSlug: presentation?.projectSlug
         }), now]);
         
+        // Trigger background pre-generation of all slides
+        if (slides.length > 0) {
+            const autoplexModule = require('./autoplex');
+            autoplexModule.triggerPreGeneration?.(db, sessionId, slides, metadata);
+        }
+        
         res.json({
             success: true,
             sessionId,
@@ -139,6 +157,7 @@ router.post('/start', async (req, res) => {
             participantName: normalizedParticipantName,
             slideCount: slides.length,
             status: 'active',
+            pregenStatus: 'starting',
             passcodeRequired
         });
     } catch (error) {
@@ -309,6 +328,13 @@ router.get('/', requireAdminApiKey, (req, res) => {
         console.error('Error listing sessions:', error);
         res.status(500).json({ error: 'Failed to list sessions' });
     }
+});
+
+// Get pre-generation progress for loading screen
+router.get('/pregen-progress/:sessionId', (req, res) => {
+    const progressMap = getPreGenProgress();
+    const progress = progressMap.get(req.params.sessionId);
+    res.json(progress || { completed: 0, total: 0, status: 'pending' });
 });
 
 module.exports = router;

@@ -56,6 +56,28 @@ export class UIManager {
         }
     }
 
+    updateLoadingProgress(progress) {
+        const progressFill = document.getElementById('loading-progress-fill');
+        const progressLabel = document.getElementById('loading-progress-label');
+        if (!progressFill) return;
+        
+        const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
+        progressFill.style.width = `${Math.min(percent, 100)}%`;
+        
+        if (progressLabel) {
+            const statusMessages = {
+                'starting': 'Initializing presentation...',
+                'generating-narration': 'Generating narration...',
+                'generating-audio': 'Synthesizing audio...',
+                'persisting': 'Saving slides...',
+                'complete': 'Ready to present!',
+                'failed': 'Some slides may load during presentation',
+                'no-slides': 'No slides to load'
+            };
+            progressLabel.textContent = statusMessages[progress.status] || `Preparing... ${percent}%`;
+        }
+    }
+
     _updateQuote() {
         const quoteText = document.getElementById('loading-quote-text');
         const quoteAuthor = document.getElementById('loading-quote-author');
