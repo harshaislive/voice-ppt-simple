@@ -398,7 +398,7 @@ async function prewarmSlideAudio({ db, sessionId, slideIndex, slide, totalSlides
     }
 
     const task = (async () => {
-        const context = buildNarrationContext({
+        const context = await buildNarrationContext({
             db,
             sessionId,
             slide,
@@ -493,8 +493,8 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
             [sessionId]
         ).map(q => q.question_text);
 
-        const contextPromises = slides.map((slide, index) => {
-            const context = buildNarrationContext({
+        const contextPromises = slides.map(async (slide, index) => {
+            const context = await buildNarrationContext({
                 db,
                 sessionId,
                 slide,
@@ -504,9 +504,10 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
             });
             return { context, slide, index };
         });
+        const contextResults = await Promise.all(contextPromises);
 
         updatePreGenProgress(sessionId, 0, totalSlides, 'generating-narration');
-        const narrationPromises = contextPromises.map(({ context }) =>
+        const narrationPromises = contextResults.map(({ context }) =>
             modelService.generateNarration(context)
         );
         const narrations = await Promise.all(narrationPromises);
@@ -723,13 +724,11 @@ function buildKnowledgeContext(metadata = {}) {
     const sections = [];
     const knowledgeDocs = metadata.knowledgeDocs || {};
 
-    // Debug logging for personality/soul
     console.log('[KnowledgeContext] Building context. Available docs:', Object.keys(knowledgeDocs));
     if (knowledgeDocs.soul) {
         console.log('[KnowledgeContext] Soul doc length:', String(knowledgeDocs.soul).length, 'chars');
     }
 
-    // 1. Load the global Agent Framework (Constitution) from root
     try {
         const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
         if (fs.existsSync(frameworkPath)) {
@@ -740,26 +739,22 @@ function buildKnowledgeContext(metadata = {}) {
         console.error('Failed to read global AGENTS.md:', err.message);
     }
 
-    if (knowledgeDocs.soul) {
-        sections.push(`PROJECT SOUL: ${stringifyDoc(knowledgeDocs.soul)}`);
-    }
-    if (knowledgeDocs.agents) {
-        sections.push(`PROJECT RULES: ${stringifyDoc(knowledgeDocs.agents)}`);
-    }
-    if (knowledgeDocs.product) {
-        sections.push(`PRODUCT: ${stringifyDoc(knowledgeDocs.product)}`);
-    }
-    if (knowledgeDocs.flow) {
-        sections.push(`FLOW: ${stringifyDoc(knowledgeDocs.flow)}`);
-    }
-    if (knowledgeDocs.design) {
-        sections.push(`DESIGN: ${stringifyDoc(knowledgeDocs.design)}`);
-    }
-    if (knowledgeDocs.cta) {
-        sections.push(`CTA: ${stringifyDoc(knowledgeDocs.cta)}`);
+    const docKeys = ['soul', 'agents', 'product', 'flow', 'design', 'cta'];
+    const docLabels = {
+        soul: 'PROJECT SOUL',
+        agents: 'PROJECT RULES',
+        product: 'PRODUCT',
+        flow: 'FLOW',
+        design: 'DESIGN',
+        cta: 'CTA'
+    };
+    for (const key of docKeys) {
+        if (knowledgeDocs[key]) {
+            sections.push(`${docLabels[key]}: ${stringifyDoc(knowledgeDocs[key])}`);
+        }
     }
 
-    const result = sections.join('\n\n').slice(0, 8000);
+    const result = sections.join('\n\n').slice(0, 16000);
     console.log('[KnowledgeContext] Total context length:', result.length, 'chars');
     return result;
 }
@@ -820,10 +815,25 @@ function stringifyDoc(value) {
     }
 }
 
-function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
+async function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
     const sessionMetadata = getSessionMetadata(db, sessionId);
     const participantName = getParticipantName(db, sessionId);
-    const knowledgeContext = buildKnowledgeContext(sessionMetadata);
+
+    let knowledgeContext = buildKnowledgeContext(sessionMetadata);
+    if (!knowledgeContext || knowledgeContext.length < 200) {
+        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
+        if (deckId) {
+            try {
+                const presentation = await cmsService.loadPresentation(deckId);
+                if (presentation?.knowledgeDocs && Object.keys(presentation.knowledgeDocs).length > 0) {
+                    knowledgeContext = buildKnowledgeContext({ ...sessionMetadata, knowledgeDocs: presentation.knowledgeDocs });
+                }
+            } catch (err) {
+                console.warn('[NarrationContext] Failed to reload knowledge from CMS:', err.message);
+            }
+        }
+    }
+
     const audienceMemory = db.all(
         'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
         [sessionId]
@@ -1390,7 +1400,7 @@ async function applyQuestionClassification(db, sessionId, pendingQuestions, clas
 }
 
 async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
-    const context = buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions });
+    const context = await buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions });
 
     let narrationText = '';
 

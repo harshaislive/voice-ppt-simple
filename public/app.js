@@ -747,7 +747,7 @@ class VoicePPTApp {
         this.resetSubtitleState();
         this.fullNarrationTranscript = '';
         this.ui.updateFullTranscriptionDisplay('');
-        document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || '?'}`;
+        document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || this.totalSlides || this.slideDeck.length || '?'}`;
         document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
         const notesEl = document.getElementById('slide-notes');
@@ -793,7 +793,13 @@ class VoicePPTApp {
         }
 
         this.pendingNarrationText = '';
-        this.finalizeSubtitleText(text);
+        this.narrationSourceText = text;
+        this.fullNarrationTranscript = text;
+        if (this.wordBoundaries.length > 0 || this.transcriptChunks.length === 0) {
+            this.refreshTranscriptReel();
+        }
+        this.subtitleReady = true;
+        this.renderSubtitle();
     }
 
     handleAudioChunk(data) {
@@ -819,8 +825,12 @@ class VoicePPTApp {
             this.activeAudioSlideIndex = data.slideIndex;
         }
         this.renderSubtitle();
-        if (this.pendingNarrationText && !this.narrationSourceText) {
-            this.finalizeSubtitleText(this.pendingNarrationText);
+        if (this.pendingNarrationText) {
+            this.narrationSourceText = this.pendingNarrationText;
+            this.fullNarrationTranscript = this.pendingNarrationText;
+            if (this.wordBoundaries.length > 0 || this.transcriptChunks.length === 0) {
+                this.refreshTranscriptReel();
+            }
             this.pendingNarrationText = '';
         }
         
@@ -865,7 +875,23 @@ class VoicePPTApp {
             ? data.slideIndex
             : (typeof this.activeAudioSlideIndex === 'number' ? this.activeAudioSlideIndex : this.currentSlideIndex);
         
+        let pollCount = 0;
+        const MAX_POLLS = 600;
+
         const poll = () => {
+            pollCount++;
+            if (pollCount > MAX_POLLS) {
+                console.warn(`[Audio] Playback poll exceeded max iterations, forcing completion`);
+                this.awaitingPlaybackComplete = false;
+                this.stopWaveform();
+                this.stopTranscriptProgress();
+                this.clearTranscriptChunkTimers();
+                this.pendingPlaybackStartAt = null;
+                this.activeAudioSlideIndex = null;
+                this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+                return;
+            }
+
             // If slide changed while we were waiting, bail out to avoid sending completion for wrong slide
             if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {
                 console.log(`[Audio] Slide changed during poll: was ${data.slideIndex}, now ${this.currentSlideIndex}. Bailing.`);
@@ -874,7 +900,7 @@ class VoicePPTApp {
             }
 
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
-            if (!this.slideAudioStarted) { setTimeout(poll, 120); return; }
+            if (!this.slideAudioStarted && pollCount < 30) { setTimeout(poll, 120); return; }
             
             this.stopWaveform();
             this.stopTranscriptProgress();

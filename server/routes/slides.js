@@ -138,6 +138,7 @@ router.post('/advance', requireSessionControl(), async (req, res) => {
             // Emit slide change
             io.to(sessionId).emit('slide-change', {
                 slideIndex: newSlideIndex,
+                totalSlides,
                 slide: newSlide,
                 reason: decision.reason
             });

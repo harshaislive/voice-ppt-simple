@@ -47,6 +47,9 @@ export class SocketClient {
 
         this.socket.on('presentation-start', (data) => {
             this.app.isQAPhase = false;
+            if (data?.totalSlides) {
+                this.app.totalSlides = data.totalSlides;
+            }
             if (!this.app.voiceModeEnabled) {
                 this.app.restorePresentationStatus();
             }

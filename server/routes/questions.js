@@ -61,7 +61,7 @@ function buildQuestionKnowledgeContext({ sessionMetadata = {}, presentation = nu
         sections.push(`FULL PRESENTATION CONTENT:\n${slides.map((slide, index) => `Slide ${index + 1}: "${slide.title || ''}"\n${slide.content || ''}${slide.notes ? `\nPresenter notes: ${slide.notes}` : ''}`).join('\n\n')}`);
     }
 
-    return sections.join('\n\n').slice(0, 8000);
+    return sections.join('\n\n').slice(0, 16000);
 }
 
 async function loadQuestionAnswerContext(db, sessionId) {
@@ -101,7 +101,7 @@ async function loadQuestionAnswerContext(db, sessionId) {
 
     let presentation = null;
     const deckId = session.deck_id || metadata.presentationSlug || metadata.deckId || null;
-    if (deckId && (!metadata.knowledgeDocs || Object.keys(metadata.knowledgeDocs).length === 0)) {
+    if (deckId) {
         try {
             presentation = await cmsService.loadPresentation(deckId);
         } catch (error) {
