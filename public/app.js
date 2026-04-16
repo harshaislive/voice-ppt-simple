@@ -1893,12 +1893,55 @@ class VoicePPTApp {
     }
 
     drawWaveformFrame() {
-        if (!this.waveformCtx) return; const ctx = this.waveformCtx; const w = this.waveformCanvas.getBoundingClientRect().width; const h = this.waveformCanvas.getBoundingClientRect().height;
-        ctx.clearRect(0,0,w,h); const slot = w/64; const bw = slot*0.52;
-        for (let i = 0; i < 64; i++) {
-            const val = Math.min(Math.abs(this.waveformData[i]), 1); const bh = Math.max(val*h*0.82, 2);
-            ctx.fillStyle = this.voiceModeEnabled ? `rgba(159,216,209,${0.3+val*0.6})` : (this.isQAPhase ? `rgba(159,216,209,${0.32+val*0.6})` : `rgba(241,194,125,${0.26+val*0.64})`);
-            ctx.beginPath(); ctx.roundRect(i*slot+(slot-bw)/2, (h-bh)/2, bw, bh, bw/2); ctx.fill();
+        if (!this.waveformCtx) return; 
+        const ctx = this.waveformCtx; 
+        const rect = this.waveformCanvas.getBoundingClientRect();
+        const w = rect.width; 
+        const h = rect.height;
+        ctx.clearRect(0,0,w,h); 
+        
+        const time = performance.now() / 1000;
+        const layers = 3;
+        // Biodiversity colors: Dark Green, Rust, Soft Amber
+        const colors = [
+            'rgba(52, 71, 54, 0.4)',  // Beforest Green
+            'rgba(213, 77, 42, 0.3)',  // Beforest Rust
+            'rgba(255, 192, 131, 0.2)' // Beforest Amber
+        ];
+
+        // Combine the bar data into a smooth path for an organic, "biodiversity" feel
+        for (let l = 0; l < layers; l++) {
+            ctx.beginPath();
+            ctx.strokeStyle = colors[l];
+            ctx.lineWidth = 1.5;
+            ctx.lineJoin = 'round';
+            
+            for (let i = 0; i < 64; i++) {
+                const val = Math.min(Math.abs(this.waveformData[i]), 1);
+                const x = (i / 63) * w;
+                
+                // Add secondary organic noise based on time
+                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * 4;
+                const bh = (val * h * 0.7) + organicNoise;
+                const y = (h / 2) + (l * 4) - 6; // Slight offset for each layer
+
+                if (i === 0) ctx.moveTo(x, y - bh / 2);
+                else ctx.lineTo(x, y - bh / 2);
+            }
+            ctx.stroke();
+
+            // Mirror path for symmetry
+            ctx.beginPath();
+            for (let i = 0; i < 64; i++) {
+                const val = Math.min(Math.abs(this.waveformData[i]), 1);
+                const x = (i / 63) * w;
+                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * 4;
+                const bh = (val * h * 0.7) + organicNoise;
+                const y = (h / 2) + (l * 4) - 6;
+                if (i === 0) ctx.moveTo(x, y + bh / 2);
+                else ctx.lineTo(x, y + bh / 2);
+            }
+            ctx.stroke();
         }
     }
 
