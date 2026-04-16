@@ -776,11 +776,6 @@ h1, h2, h3, h4 {
     display: none;               /* Chrome/Safari */
 }
 
-/* Desktop reaction bar inside content panel — hidden on mobile */
-.slide-copy-reactions {
-    display: none;
-}
-
 .narration-controls {
     display: flex;
     align-items: center;
@@ -2895,9 +2890,6 @@ h1, h2, h3, h4 {
         min-height: 0;
         height: 100%;
         background-color: #fff;
-        /* Soft right-edge fade into right content panel */
-        -webkit-mask-image: linear-gradient(to right, black 82%, transparent 100%);
-        mask-image: linear-gradient(to right, black 82%, transparent 100%);
     }
 
     .slide-copy {
@@ -2908,18 +2900,10 @@ h1, h2, h3, h4 {
         overflow-y: auto;
         height: 100%;
         background: var(--bg);
-        position: relative; /* Anchor for .slide-copy-reactions */
     }
 
-    /* Desktop-only reaction pills floating in bottom-right of content panel */
-    .slide-copy-reactions {
-        display: flex;
-        gap: 10px;
-        position: absolute;
-        bottom: 28px;
-        right: 40px;
-    }
-    .slide-copy-reactions .reaction-btn {
+    /* Desktop-only reaction pills floating inside footer */
+    .reaction-btn {
         width: 44px;
         height: 44px;
         border-radius: 50%;
@@ -2933,14 +2917,23 @@ h1, h2, h3, h4 {
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         box-shadow: 0 2px 12px rgba(0,0,0,0.07);
     }
-    .slide-copy-reactions .reaction-btn:hover {
+    .reaction-btn:hover {
         transform: scale(1.18) translateY(-2px);
         box-shadow: 0 6px 20px rgba(0,0,0,0.12);
     }
 
-    /* Hide footer-right reaction bar on desktop — shown inside .slide-copy instead */
+    /* We keep footer-right visible because presentation-footer now spans only the right column */
     .footer-right {
-        display: none;
+        display: flex;
+    }
+
+    .presentation-footer {
+        padding: 20px 48px;
+        justify-content: space-between;
+        gap: 20px;
+        /* Align footer perfectly with the right column (1.2fr 1fr grid) */
+        left: 54.545%;
+        border-top: 1px solid rgba(52, 46, 41, 0.08); /* Subtle separator from text */
     }
 
     .folio-bar {
