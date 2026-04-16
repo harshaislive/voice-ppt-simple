@@ -2104,7 +2104,7 @@ h1, h2, h3, h4 {
 
 .transcript-reel-phrase {
     font-family: var(--font-serif);
-    font-size: clamp(1.55rem, 3vw, 2.6rem);
+    font-size: clamp(1.2rem, 2.5vw, 2.1rem);
     line-height: 1.16;
     letter-spacing: -0.04em;
     max-width: 18ch;
