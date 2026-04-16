@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mobile Single-Fold Balanced Layout</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+    --bg: #fdfbf7;
+    --text: #342e29;
+    --border-color: #342e29;
+    --font-sans: 'Sora', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    font-family: var(--font-sans);
+    background: #1a1816;
+    color: var(--text);
+    overflow: hidden;
+}
+
+.phone-frame {
+    width: 393px;
+    height: 852px;
+    margin: 20px auto;
+    border: 8px solid #333;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+}
+
+/* TOPBAR */
+.topbar {
+    height: 54px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--bg);
+    z-index: 10;
+}
+
+.topbar-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.slide-counter { font-family: var(--font-mono); font-size: 0.7rem; opacity: 0.5; }
+
+/* THE IMAGE - BALANCED SCALE */
+.visual-shell {
+    height: 30%; 
+    width: 100%;
+    background: #000;
+    border-bottom: 2px solid var(--border-color);
+    position: relative;
+}
+
+.visual-shell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* CONTENT AREA - BALANCED BREATHING SPACE */
+.content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px;
+    overflow: hidden;
+    justify-content: flex-start; /* Control vertical spacing */
+}
+
+.folio-bar {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.4;
+    margin-bottom: 20px; /* Breathe more */
+}
+
+.slide-title {
+    font-size: 1.8rem;
+    line-height: 1.1;
+    margin-bottom: 16px; /* Breathe more */
+    font-weight: 600;
+}
+
+.slide-subtitle {
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: rgba(52, 46, 41, 0.75);
+    margin-bottom: 24px; /* Breathe more */
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(52, 46, 41, 0.1);
+}
+
+/* STREAMING TEXT - CENTERED IN REMAINING SPACE FOR BALANCE */
+.streaming-text-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.streaming-text {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--text);
+}
+
+.streaming-text .word {
+    display: inline;
+    opacity: 0.25;
+}
+
+.streaming-text .word.spoken {
+    opacity: 1;
+    transition: opacity 0.1s ease;
+}
+
+/* FOOTER - CLEAN & SPACED */
+.footer {
+    height: 84px;
+    border-top: 2px solid var(--border-color);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+}
+
+.mic-btn {
+    width: 48px;
+    height: 48px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 2px 0 var(--border-color);
+    transition: transform 0.1s ease;
+}
+
+.mic-btn:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 var(--border-color);
+}
+
+.reaction-group {
+    display: flex;
+    gap: 12px;
+}
+
+.reaction {
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(52, 46, 41, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: rgba(52, 46, 41, 0.02);
+}
+
+/* WAVEFORM OVERLAY */
+.wave-overlay {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 24px;
+}
+.wave-overlay span {
+    width: 3px;
+    height: 6px;
+    background: #fff;
+    border-radius: 1px;
+    animation: pulse 0.8s infinite alternate;
+}
+@keyframes pulse { from { height: 4px; } to { height: 22px; } }
+
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+    <div class="topbar">
+        <span class="topbar-label">10% Club</span>
+        <span class="slide-counter">03 / 12</span>
+    </div>
+
+    <div class="visual-shell">
+        <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80" alt="Forest">
+        <div class="wave-overlay">
+            <span></span><span style="animation-delay: 0.1s"></span><span style="animation-delay: 0.2s"></span><span style="animation-delay: 0.3s"></span>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <div class="folio-bar">APR 16, 2026</div>
+        
+        <h1 class="slide-title">Rhythm, Not Routine</h1>
+        <p class="slide-subtitle">Thirty nights a year. Ten years. Three hundred nights of intentional calibration.</p>
+
+        <div class="streaming-text-container">
+            <div class="streaming-text">
+                <span class="word spoken">The</span> <span class="word spoken">forest</span> <span class="word spoken">doesn't</span> <span class="word spoken">operate</span> <span class="word spoken">on</span> <span class="word spoken">your</span> <span class="word spoken">calendar.</span> <span class="word spoken">It</span> <span class="word spoken">operates</span> <span class="word spoken">on</span> <span class="word spoken">its</span> <span class="word">own</span> <span class="word">rhythm—seasonal,</span> <span class="word">deliberate,</span> <span class="word">unstoppable.</span> <span class="word">The</span> <span class="word">10%</span> <span class="word">Club</span> <span class="word">was</span> <span class="word">built</span> <span class="word">on</span> <span class="word">that</span> <span class="word">same</span> <span class="word">principle.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="mic-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="reaction-group">
+            <div class="reaction">👏</div>
+            <div class="reaction">❤️</div>
+            <div class="reaction">💡</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

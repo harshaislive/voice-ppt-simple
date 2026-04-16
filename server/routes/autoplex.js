@@ -493,39 +493,52 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
         // If this deck has a master session, we can skip all LLM/TTS generation
         // and just "pre-warm" the caches from the master assets.
         const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
-        if (deckId) {
+        const bypassMaster = sessionMetadata.bypassMaster === true;
+
+        if (deckId && !bypassMaster) {
+            console.log(`[PreGen] Checking for master assets for deck: ${deckId}`);
             const masterData = await masterSessionService.getMasterAssets(deckId);
             if (masterData && masterData.assets && masterData.assets.size > 0) {
-                console.log(`[PreGen] Found master assets for ${deckId}. Attempting instant load.`);
+                console.log(`[PreGen] Found ${masterData.assets.size} master assets for ${deckId}. Starting parallel pre-warm.`);
                 
-                const pregeneratedSlides = [];
-                let loadedCount = 0;
-
-                for (let i = 0; i < totalSlides; i++) {
+                const assetIndices = Array.from({ length: totalSlides }, (_, i) => i);
+                const loadPromises = assetIndices.map(async (i) => {
                     const slide = slides[i];
                     const masterAsset = masterData.assets.get(i);
                     
                     if (masterAsset) {
-                        const cached = await loadPersistedReplayPlayback(db, sessionId, i, masterAsset);
-                        if (cached) {
-                            setPrewarmedSlide(sessionId, i, cached);
-                            setReplayCache(sessionId, i, cached);
-                            pregeneratedSlides.push({ ...slide, narration: cached.text, audio: cached });
-                            loadedCount++;
+                        try {
+                            const cached = await loadPersistedReplayPlayback(db, sessionId, i, masterAsset);
+                            if (cached) {
+                                setPrewarmedSlide(sessionId, i, cached);
+                                setReplayCache(sessionId, i, cached);
+                                updatePreGenProgress(sessionId, i + 1, totalSlides, 'persisting');
+                                return { index: i, slide, cached };
+                            }
+                        } catch (err) {
+                            console.warn(`[PreGen] Failed to load master asset for slide ${i}:`, err.message);
                         }
                     }
-                    updatePreGenProgress(sessionId, i + 1, totalSlides, 'persisting');
-                }
+                    return null;
+                });
+
+                const results = await Promise.all(loadPromises);
+                const pregeneratedSlides = results
+                    .filter(r => r !== null)
+                    .sort((a, b) => a.index - b.index)
+                    .map(r => ({ ...r.slide, narration: r.cached.text, audio: r.cached }));
 
                 // If we loaded assets for all slides, we are done!
-                if (loadedCount === totalSlides) {
+                if (pregeneratedSlides.length === totalSlides) {
                     pregeneratedSessions.set(sessionId, pregeneratedSlides);
                     updatePreGenProgress(sessionId, totalSlides, totalSlides, 'complete');
-                    console.log(`[PreGen] All master assets loaded for ${sessionId}. Ready.`);
+                    console.log(`[PreGen] All master assets pre-warmed in parallel for ${sessionId}. Instant start ready.`);
                     return pregeneratedSlides;
                 } else {
-                    console.warn(`[PreGen] Only loaded ${loadedCount}/${totalSlides} master assets. Falling back to generation.`);
+                    console.warn(`[PreGen] Loaded ${pregeneratedSlides.length}/${totalSlides} master assets. Falling back to generation for missing parts.`);
                 }
+            } else {
+                console.log(`[PreGen] No master session linked for deck ${deckId} yet.`);
             }
         }
         // --- END MASTER SESSION OPTIMIZATION ---
@@ -1077,10 +1090,12 @@ async function runPresentation(db, io, sessionId) {
     }
     presentationStartTimes.set(sessionId, Date.now());
     const participantName = getParticipantName(db, sessionId);
+    const sessionMetadata = getSessionMetadata(db, sessionId);
+    const bypassMaster = sessionMetadata.bypassMaster === true;
 
     // Check for master assets for this deck
     let masterData = null;
-    if (session.deck_id) {
+    if (session.deck_id && !bypassMaster) {
         masterData = await masterSessionService.getMasterAssets(session.deck_id);
         if (masterData) {
             console.log(`[AutoPlex] Using master session ${masterData.masterSessionId} for deck ${session.deck_id}`);

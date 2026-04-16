@@ -40,7 +40,7 @@ router.get('/config', (req, res) => {
 // Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
-        const { deckId = 'beforest_pitch', participantName = '', passcode = '' } = req.body;
+        const { deckId = 'beforest_pitch', participantName = '', passcode = '', bypassMaster = false } = req.body;
         const db = req.app.get('db');
         
         const configuredPasscode = process.env.DEFAULT_PASSCODE;
@@ -81,7 +81,8 @@ router.post('/start', async (req, res) => {
             knowledgeDocs: presentation?.knowledgeDocs || {},
             deckSchema: presentation?.deckSchema || null,
             flowConfig: presentation?.flowConfig || null,
-            designConfig: presentation?.designConfig || null
+            designConfig: presentation?.designConfig || null,
+            bypassMaster: Boolean(bypassMaster)
         });
 
         // Write to SQLite (for current server operations)

@@ -8,6 +8,9 @@ class CMSService {
         this.supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
         this.supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
         this.supabaseSchema = process.env.SUPABASE_SCHEMA || 'public';
+        // In-memory TTL cache — avoids repeated Supabase round-trips during pre-generation
+        this._presentationCache = new Map(); // identifier -> { data, expiresAt }
+        this._cacheTtlMs = 5 * 60 * 1000; // 5 minutes
     }
 
     isSupabaseConfigured() {
@@ -42,12 +45,20 @@ class CMSService {
     }
 
     async loadPresentation(identifier) {
+        // Check cache first — prevents redundant Supabase calls during per-slide pre-generation
+        const cached = this._presentationCache.get(identifier);
+        if (cached && cached.expiresAt > Date.now()) {
+            console.log(`[CMS] loadPresentation: cache hit for '${identifier}'`);
+            return cached.data;
+        }
+
+        let result = null;
         if (this.isSupabaseConfigured()) {
             try {
                 const remote = await this.loadPresentationFromSupabase(identifier);
                 if (remote) {
                     console.log(`[CMS] loadPresentation: using Supabase for '${identifier}'`);
-                    return remote;
+                    result = remote;
                 }
             } catch (error) {
                 console.error('CMS remote presentation load failed, using local fallback:', error.message);
@@ -56,7 +67,26 @@ class CMSService {
             console.warn('[CMS] loadPresentation: Supabase not configured, using local');
         }
 
-        return this.loadPresentationFromLocal(identifier);
+        if (!result) {
+            result = await this.loadPresentationFromLocal(identifier);
+        }
+
+        // Store in cache regardless of source (local or remote)
+        if (result) {
+            this._presentationCache.set(identifier, { data: result, expiresAt: Date.now() + this._cacheTtlMs });
+        }
+        return result;
+    }
+
+    /**
+     * Manually invalidate the cache for a presentation (e.g. after CMS update).
+     */
+    invalidateCache(identifier) {
+        if (identifier) {
+            this._presentationCache.delete(identifier);
+        } else {
+            this._presentationCache.clear();
+        }
     }
 
     async loadProject(projectSlug) {

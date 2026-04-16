@@ -602,7 +602,13 @@ class VoicePPTApp {
         const btn = document.getElementById('start-presentation');
         btn.disabled = true; btn.querySelector('span').textContent = 'Starting...';
         try {
-            const res = await this.apiFetch('/api/session/start', { method: 'POST', body: JSON.stringify({ deckId, participantName, passcode }) });
+            const urlParams = new URLSearchParams(window.location.search);
+            const bypassMaster = urlParams.get('force_fresh') === 'true' || urlParams.has('fresh');
+            
+            const res = await this.apiFetch('/api/session/start', { 
+                method: 'POST', 
+                body: JSON.stringify({ deckId, participantName, passcode, bypassMaster }) 
+            });
             const data = await res.json();
             if (!data.success) {
                 if (data.error === 'Wrong passcode') {
