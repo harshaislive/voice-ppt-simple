@@ -156,8 +156,8 @@ class SupabaseSessionService {
             image: slide.image || null,
             notes: slide.notes || null,
             narration_text: slide.narrationText || null,
-            narration_audio_path: slide.narrationAudioPath || null,
-            narration_audio_url: slide.narrationAudioUrl || null,
+            // narration_audio_path: slide.narrationAudioPath || null, // Column missing in schema
+            // narration_audio_url: slide.narrationAudioUrl || null,   // Column missing in schema
             narration_audio_source: slide.narrationAudioSource || 'local',
             narration_metadata_json: slide.narrationMetadataJson || {},
             narration_generated_at: slide.narrationGeneratedAt || null
@@ -191,8 +191,8 @@ class SupabaseSessionService {
         // Only include columns that exist in the Supabase schema
         const allowed = [
             'narration_text',
-            'narration_audio_path',
-            'narration_audio_url',
+            // 'narration_audio_path', // Column missing in schema
+            // 'narration_audio_url',  // Column missing in schema
             'narration_audio_source',
             'narration_metadata_json',
             'narration_generated_at'
