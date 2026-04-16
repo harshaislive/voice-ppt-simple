@@ -1895,25 +1895,24 @@ class VoicePPTApp {
     drawWaveformFrame() {
         if (!this.waveformCtx) return; 
         const ctx = this.waveformCtx; 
-        const rect = this.waveformCanvas.getBoundingClientRect();
-        const w = rect.width; 
-        const h = rect.height;
+        const w = this.waveformCanvas.width; 
+        const h = this.waveformCanvas.height;
         ctx.clearRect(0,0,w,h); 
         
         const time = performance.now() / 1000;
         const layers = 3;
         // Biodiversity colors: Dark Green, Rust, Soft Amber
         const colors = [
-            'rgba(52, 71, 54, 0.4)',  // Beforest Green
-            'rgba(213, 77, 42, 0.3)',  // Beforest Rust
-            'rgba(255, 192, 131, 0.2)' // Beforest Amber
+            'rgba(52, 71, 54, 0.6)',  // Beforest Green
+            'rgba(213, 77, 42, 0.5)',  // Beforest Rust
+            'rgba(255, 192, 131, 0.4)' // Beforest Amber
         ];
 
         // Combine the bar data into a smooth path for an organic, "biodiversity" feel
         for (let l = 0; l < layers; l++) {
             ctx.beginPath();
             ctx.strokeStyle = colors[l];
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 2;
             ctx.lineJoin = 'round';
             
             for (let i = 0; i < 64; i++) {
@@ -1921,8 +1920,8 @@ class VoicePPTApp {
                 const x = (i / 63) * w;
                 
                 // Add secondary organic noise based on time
-                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * 4;
-                const bh = (val * h * 0.7) + organicNoise;
+                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * (h * 0.08);
+                const bh = (val * h * 0.6) + organicNoise;
                 const y = (h / 2) + (l * 4) - 6; // Slight offset for each layer
 
                 if (i === 0) ctx.moveTo(x, y - bh / 2);
@@ -1935,8 +1934,8 @@ class VoicePPTApp {
             for (let i = 0; i < 64; i++) {
                 const val = Math.min(Math.abs(this.waveformData[i]), 1);
                 const x = (i / 63) * w;
-                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * 4;
-                const bh = (val * h * 0.7) + organicNoise;
+                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * (h * 0.08);
+                const bh = (val * h * 0.6) + organicNoise;
                 const y = (h / 2) + (l * 4) - 6;
                 if (i === 0) ctx.moveTo(x, y + bh / 2);
                 else ctx.lineTo(x, y + bh / 2);
