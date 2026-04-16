@@ -10,6 +10,7 @@ const realtimePresenter = require('../services/realtimePresenter');
 const analyticsService = require('../services/analytics');
 const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
+const masterSessionService = require('../services/masterSession');
 const { requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
@@ -177,13 +178,13 @@ async function readPersistedNarrationBuffer({ narrationAudioPath, narrationAudio
     return null;
 }
 
-async function loadPersistedReplayPlayback(db, sessionId, slideIndex) {
-    let slide = db.get(
+async function loadPersistedReplayPlayback(db, sessionId, slideIndex, existingSlide = null) {
+    let slide = existingSlide || db.get(
         'SELECT * FROM slides WHERE session_id = ? AND slide_index = ?',
         [sessionId, slideIndex]
     );
 
-    if ((!slide || (!slide.narration_audio_path && !slide.narration_audio_url)) && supabaseSession.isConfigured()) {
+    if (!existingSlide && (!slide || (!slide.narration_audio_path && !slide.narration_audio_url)) && supabaseSession.isConfigured()) {
         try {
             const remoteSlide = await supabaseSession.getSlideByIndex(sessionId, slideIndex);
             if (remoteSlide) {
@@ -1036,6 +1037,15 @@ async function runPresentation(db, io, sessionId) {
     presentationStartTimes.set(sessionId, Date.now());
     const participantName = getParticipantName(db, sessionId);
 
+    // Check for master assets for this deck
+    let masterData = null;
+    if (session.deck_id) {
+        masterData = await masterSessionService.getMasterAssets(session.deck_id);
+        if (masterData) {
+            console.log(`[AutoPlex] Using master session ${masterData.masterSessionId} for deck ${session.deck_id}`);
+        }
+    }
+
     const slides = db.all('SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC', [sessionId]);
     if (!slides.length) {
         io.to(sessionId).emit('presentation-error', { error: 'No slides found' });
@@ -1082,10 +1092,25 @@ async function runPresentation(db, io, sessionId) {
 
         await sleep(SLIDE_CHANGE_SETTLE_MS);
 
-        const cached = pregeneratedSlides[currentSlideIndex]?.audio
-            || consumePrewarmedSlide(sessionId, currentSlideIndex)
-            || getPrewarmedSlide(sessionId, currentSlideIndex)
-            || await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex);
+        const masterAsset = masterData?.assets?.get(currentSlideIndex);
+        let cached = null;
+
+        if (masterAsset) {
+            console.log(`[AutoPlex] Slide ${currentSlideIndex + 1}: Attempting to use master asset`);
+            cached = await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex, masterAsset);
+            if (cached) {
+                console.log(`[AutoPlex] Slide ${currentSlideIndex + 1}: Master asset loaded successfully`);
+            } else {
+                console.warn(`[AutoPlex] Slide ${currentSlideIndex + 1}: Master asset failed to load, falling back`);
+            }
+        }
+
+        if (!cached) {
+            cached = pregeneratedSlides[currentSlideIndex]?.audio
+                || consumePrewarmedSlide(sessionId, currentSlideIndex)
+                || getPrewarmedSlide(sessionId, currentSlideIndex)
+                || await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex);
+        }
 
         if (cached) {
             if (!getReplayCache(sessionId, currentSlideIndex)) {
@@ -1794,6 +1819,31 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
 
     io.to(sessionId).emit('qa-end', { totalAnswered: questions.length, inline: true });
 }
+
+router.post('/seal-master', requireSessionControl(), async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    try {
+        const db = req.app.get('db');
+        const session = db.get('SELECT * FROM sessions WHERE id = ?', [sessionId]);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        if (!session.deck_id) {
+            return res.status(400).json({ error: 'Session has no deck_id' });
+        }
+
+        await masterSessionService.sealAsMaster(session.deck_id, sessionId);
+        res.json({ success: true, message: `Session ${sessionId} sealed as master for deck ${session.deck_id}` });
+    } catch (error) {
+        console.error('Seal master failed:', error);
+        res.status(500).json({ error: 'Failed to seal master session' });
+    }
+});
 
 module.exports = router;
 module.exports.markPlaybackComplete = markPlaybackComplete;
