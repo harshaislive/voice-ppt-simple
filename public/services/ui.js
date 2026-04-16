@@ -204,6 +204,8 @@ export class UIManager {
         const el = document.getElementById('full-transcription');
         if (el) {
             el.textContent = transcript.trim() || '';
+            // Auto-scroll to bottom so latest narration is always visible
+            el.scrollTop = el.scrollHeight;
         }
     }
 
@@ -240,8 +242,6 @@ export class UIManager {
         const label = document.getElementById('interrupt-label');
         const slideTurnMic = document.getElementById('slide-turn-mic');
         const slideTurnMicLabel = document.getElementById('slide-turn-mic-label');
-        const wrapupMic = document.getElementById('wrapup-mic');
-        const wrapupMicLabel = document.getElementById('wrapup-mic-label');
 
         if (button) {
             button.classList.remove('listening', 'armed');
@@ -257,14 +257,6 @@ export class UIManager {
         
         if (slideTurnMicLabel) {
             slideTurnMicLabel.textContent = 'Queue Question';
-        }
-
-        if (wrapupMic) {
-            wrapupMic.classList.remove('listening');
-        }
-
-        if (wrapupMicLabel) {
-            wrapupMicLabel.textContent = 'Questions';
         }
     }
 

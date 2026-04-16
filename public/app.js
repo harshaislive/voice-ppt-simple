@@ -1763,26 +1763,36 @@ class VoicePPTApp {
     async submitFinalQuestion() {
         const input = document.getElementById('completion-question-input');
         if (!input || !input.value.trim()) return;
-        
+
         const text = input.value.trim();
         input.value = '';
-        
-        // Use existing question submission logic but handle UI update locally
-        const res = await this.apiFetch('/api/questions', {
-            method: 'POST',
-            body: JSON.stringify({
-                sessionId: this.sessionId,
-                text,
-                participantName: this.participantName
-            })
-        });
 
-        if (res.success) {
-            // Socket will normally update this, but we force a refresh for the final list
-            this.renderFinalQAList();
-            const list = document.getElementById('completion-qa-list');
-            if (list) list.scrollTop = 0;
+        // Optimistically add to UI immediately
+        const tempId = 'temp-' + Date.now();
+        this.questions.set(tempId, { id: tempId, text, status: 'pending', timestamp: Date.now() });
+        this.renderFinalQAList();
+
+        try {
+            // apiFetch returns a Response — must parse JSON before checking success
+            const res = await this.apiFetch('/api/questions', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    text,
+                    participantName: this.participantName
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Remove temp entry — socket event will bring it back with real ID
+                this.questions.delete(tempId);
+            }
+        } catch (err) {
+            console.warn('[Chat] submitFinalQuestion error:', err.message);
         }
+
+        const list = document.getElementById('completion-qa-list');
+        if (list) list.scrollTop = list.scrollHeight;
     }
 
     async loadCtaBlocks() {
@@ -1824,30 +1834,96 @@ class VoicePPTApp {
     }
 
     renderWrapUpMcqs() {
-        const container = document.getElementById('wrapup-mcqs'); container.innerHTML = '';
-        document.getElementById('wrapup-progress').textContent = '';
-        document.getElementById('wrapup-prev').style.display = 'none';
-        document.getElementById('wrapup-next').style.display = 'none';
-        
-        if (!this.wrapUpMcqs || !this.wrapUpMcqs.length) return;
-        
-        // Compact list of all MCQs
-        this.wrapUpMcqs.forEach((mcq) => {
-            const card = document.createElement('div'); card.className = 'wrapup-card compact-mcq';
-            const title = document.createElement('div'); title.className = 'wrapup-card-title compact-title'; title.textContent = mcq.prompt; card.appendChild(title);
-            const options = document.createElement('div'); options.className = 'wrapup-options compact-options';
-            const votes = this.votes.get(mcq.id) || {}; const total = Object.values(votes).reduce((s,v)=>s+v,0);
-            
-            (mcq.options || []).forEach((opt, idx) => {
-                const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'wrapup-option compact-option';
-                const count = votes[opt] || 0; const pct = total > 0 ? (count/total)*100 : 0;
-                btn.innerHTML = `<span class="option-text">${opt}</span><div class="option-bar-bg"><div class="option-bar" style="width:${pct}%;"></div></div><span class="option-count">${count > 0 ? count : ''}</span>`;
-                if (this.wrapUpSelections[mcq.id] === opt) btn.classList.add('is-selected');
-                btn.addEventListener('click', () => { if (this.wrapUpSelections[mcq.id] === opt) return; this.wrapUpSelections[mcq.id] = opt; this.socketClient.submitVote(mcq.id, opt); this.renderWrapUpMcqs(); });
-                options.appendChild(btn);
+        const container = document.getElementById('wrapup-mcqs');
+        if (!container) return;
+        container.innerHTML = '';
+
+        // Reset nav — we drive navigation via dots+auto-advance, not prev/next text buttons
+        const progressEl = document.getElementById('wrapup-progress');
+        const prevBtn = document.getElementById('wrapup-prev');
+        const nextBtn = document.getElementById('wrapup-next');
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+
+        if (!this.wrapUpMcqs || !this.wrapUpMcqs.length) {
+            if (progressEl) progressEl.textContent = '';
+            return;
+        }
+
+        const total = this.wrapUpMcqs.length;
+        const idx = Math.min(this.wrapUpIndex, total - 1);
+        const mcq = this.wrapUpMcqs[idx];
+
+        // --- Dot progress ---
+        if (progressEl) {
+            progressEl.innerHTML = '';
+            progressEl.className = 'wrapup-dots';
+            for (let i = 0; i < total; i++) {
+                const dot = document.createElement('span');
+                dot.className = 'wrapup-dot' + (i === idx ? ' active' : (i < idx ? ' done' : ''));
+                progressEl.appendChild(dot);
+            }
+        }
+
+        // --- Single Typeform card ---
+        const card = document.createElement('div');
+        card.className = 'wrapup-card typeform-card';
+        card.style.animation = 'typeformEnter 400ms cubic-bezier(0.2, 1, 0.3, 1) both';
+
+        const qNum = document.createElement('span');
+        qNum.className = 'typeform-qnum';
+        qNum.textContent = `${idx + 1} / ${total}`;
+
+        const title = document.createElement('div');
+        title.className = 'wrapup-card-title typeform-title';
+        title.textContent = mcq.prompt;
+
+        const options = document.createElement('div');
+        options.className = 'wrapup-options typeform-options';
+
+        const votes = this.votes.get(mcq.id) || {};
+        const voteTotal = Object.values(votes).reduce((s, v) => s + v, 0);
+        const selected = this.wrapUpSelections[mcq.id];
+        const hasAnswered = !!selected;
+
+        (mcq.options || []).forEach((opt) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'wrapup-option typeform-option' + (selected === opt ? ' is-selected' : '');
+
+            const count = votes[opt] || 0;
+            const pct = voteTotal > 0 ? Math.round((count / voteTotal) * 100) : 0;
+
+            btn.innerHTML = `
+                <span class="typeform-opt-letter">${'ABCDEF'[mcq.options.indexOf(opt)]}</span>
+                <span class="option-text">${opt}</span>
+                ${hasAnswered ? `<span class="typeform-pct">${pct}%</span>
+                <div class="typeform-bar-wrap"><div class="typeform-bar" style="width:${pct}%"></div></div>` : ''}
+            `;
+
+            btn.addEventListener('click', () => {
+                if (this.wrapUpSelections[mcq.id] === opt) return;
+                this.wrapUpSelections[mcq.id] = opt;
+                this.socketClient.submitVote(mcq.id, opt);
+                this.renderWrapUpMcqs();
+                // Auto-advance after brief pause to let selection register visually
+                if (idx < total - 1) {
+                    setTimeout(() => { this.wrapUpIndex = idx + 1; this.renderWrapUpMcqs(); }, 700);
+                } else {
+                    // All done — reveal CTA blocks after a breath
+                    setTimeout(() => {
+                        const ctaSection = document.getElementById('completion-cta');
+                        if (ctaSection) { ctaSection.style.opacity = '0'; ctaSection.classList.remove('hidden'); setTimeout(() => { ctaSection.style.transition = 'opacity 0.6s ease'; ctaSection.style.opacity = '1'; }, 50); }
+                        const wrapupPanel = document.getElementById('wrapup-panel');
+                        if (wrapupPanel) { wrapupPanel.style.transition = 'opacity 0.4s ease'; wrapupPanel.style.opacity = '0'; setTimeout(() => wrapupPanel.classList.add('hidden'), 400); }
+                    }, 900);
+                }
             });
-            card.appendChild(options); container.appendChild(card);
+            options.appendChild(btn);
         });
+
+        card.append(qNum, title, options);
+        container.appendChild(card);
     }
 
     renderQASlides(questions) {

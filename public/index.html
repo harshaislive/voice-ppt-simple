@@ -109,6 +109,12 @@
                                         <p id="full-transcription" class="full-transcription"></p>
                                     </div>
                                 </div>
+                                <!-- Desktop-only reaction bar inside content panel -->
+                                <div class="slide-copy-reactions" aria-label="React">
+                                    <button class="reaction-btn reaction-clap" data-emoji="👏" aria-label="Clap">👏</button>
+                                    <button class="reaction-btn reaction-heart" data-emoji="❤️" aria-label="Heart">❤️</button>
+                                    <button class="reaction-btn reaction-idea" data-emoji="💡" aria-label="Idea">💡</button>
+                                </div>
                             </div>
                         </div>
 
@@ -280,14 +286,7 @@
                                             <button id="wrapup-next" class="btn-text" type="button">Next</button>
                                         </div>
                                         
-                                        <div class="wrapup-actions">
-                                            <button id="wrapup-mic" class="wrapup-mic" type="button">
-                                                <span class="wrapup-mic-icon">
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                                                </span>
-                                                <span id="wrapup-mic-label">Ask Anything</span>
-                                            </button>
-                                        </div>
+                                        <!-- Mic removed: chat panel is always-on for questions -->
                                         
                                         <div id="wrapup-deadline" class="completion-footer-note" style="text-align: center; margin-top: 12px;"></div>
                                     </div>

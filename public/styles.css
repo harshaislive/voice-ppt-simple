@@ -767,6 +767,18 @@ h1, h2, h3, h4 {
     flex: 1;
     opacity: 1;
     overflow-y: auto;
+    scroll-behavior: smooth;
+    /* Hide scrollbar — keep scroll functionality */
+    scrollbar-width: none;       /* Firefox */
+    -ms-overflow-style: none;    /* IE/Edge */
+}
+.full-transcription::-webkit-scrollbar {
+    display: none;               /* Chrome/Safari */
+}
+
+/* Desktop reaction bar inside content panel — hidden on mobile */
+.slide-copy-reactions {
+    display: none;
 }
 
 .narration-controls {
@@ -2412,7 +2424,29 @@ h1, h2, h3, h4 {
 .wrapup-mcqs {
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 0;
+}
+
+/* Dot progress row */
+.wrapup-dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+.wrapup-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(52, 46, 41, 0.18);
+    transition: all 0.3s ease;
+}
+.wrapup-dot.active {
+    width: 24px;
+    border-radius: 4px;
+    background: var(--text);
+}
+.wrapup-dot.done {
+    background: rgba(52, 46, 41, 0.45);
 }
 
 .wrapup-header {
@@ -2471,6 +2505,129 @@ h1, h2, h3, h4 {
     overflow: hidden;
     gap: 12px;
     width: 100%;
+}
+
+/* Typeform-style MCQ card */
+.typeform-card {
+    gap: 0;
+}
+
+.typeform-qnum {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    opacity: 0.4;
+    margin-bottom: 16px;
+}
+
+.typeform-title {
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    line-height: 1.2;
+    margin-bottom: 32px;
+    letter-spacing: -0.02em;
+}
+
+.typeform-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.typeform-option {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: rgba(253, 251, 247, 0.7);
+    border: 2px solid rgba(52, 46, 41, 0.12);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    border-radius: 6px;
+}
+
+.typeform-option:hover {
+    border-color: rgba(52, 46, 41, 0.3);
+    border-left-color: var(--text);
+    background: #fff;
+    transform: translateX(3px);
+}
+
+.typeform-option.is-selected {
+    background: #fff;
+    border-color: var(--text);
+    border-left-color: var(--accent-green);
+    border-left-width: 4px;
+    box-shadow: 0 4px 20px rgba(52, 46, 41, 0.08);
+    grid-template-columns: 32px 1fr auto;
+    grid-template-rows: auto auto;
+}
+
+.typeform-opt-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1.5px solid rgba(52, 46, 41, 0.2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: bold;
+    opacity: 0.6;
+    flex-shrink: 0;
+    transition: all 0.18s ease;
+}
+
+.typeform-option.is-selected .typeform-opt-letter {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #fff;
+    opacity: 1;
+}
+
+.typeform-option .option-text {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 1rem;
+    z-index: 1;
+    text-align: left;
+}
+
+.typeform-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: bold;
+    opacity: 0.65;
+    grid-column: 3;
+}
+
+.typeform-bar-wrap {
+    grid-column: 1 / -1;
+    height: 3px;
+    background: rgba(52, 46, 41, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.typeform-bar {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 2px;
+    transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes typeformEnter {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .wrapup-option.is-selected {
@@ -2608,10 +2765,7 @@ h1, h2, h3, h4 {
 
 
 /* Compact MCQ & QA Slides */
-.compact-mcq { gap: 12px; margin-bottom: 24px; }
-.compact-title { font-size: 1.1rem; margin-bottom: 4px; }
-.compact-options { gap: 6px; }
-.compact-option { padding: 8px 12px; font-size: 0.95rem; }
+/* QA Slides */
 .wrapup-qa-slides { margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px; }
 .qa-slides-title { font-family: var(--font-serif); font-size: 1.2rem; margin-bottom: 16px; }
 .qa-slides-scroll { display: flex; overflow-x: auto; gap: 16px; padding-bottom: 16px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
@@ -2741,16 +2895,52 @@ h1, h2, h3, h4 {
         min-height: 0;
         height: 100%;
         background-color: #fff;
+        /* Soft right-edge fade into right content panel */
+        -webkit-mask-image: linear-gradient(to right, black 82%, transparent 100%);
+        mask-image: linear-gradient(to right, black 82%, transparent 100%);
     }
 
     .slide-copy {
-        padding: 80px 64px 140px 64px;
+        padding: 80px 64px 100px 64px;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
         overflow-y: auto;
         height: 100%;
         background: var(--bg);
+        position: relative; /* Anchor for .slide-copy-reactions */
+    }
+
+    /* Desktop-only reaction pills floating in bottom-right of content panel */
+    .slide-copy-reactions {
+        display: flex;
+        gap: 10px;
+        position: absolute;
+        bottom: 28px;
+        right: 40px;
+    }
+    .slide-copy-reactions .reaction-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(52, 46, 41, 0.18);
+        background: rgba(253, 251, 247, 0.9);
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    .slide-copy-reactions .reaction-btn:hover {
+        transform: scale(1.18) translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+
+    /* Hide footer-right reaction bar on desktop — shown inside .slide-copy instead */
+    .footer-right {
+        display: none;
     }
 
     .folio-bar {
