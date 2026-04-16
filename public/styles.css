@@ -131,7 +131,7 @@ h1, h2, h3, h4 {
 }
 
 .start-hero {
-    height: 60vh;
+    height: 50vh; /* Exactly 50% of the viewport height */
     width: 100%;
     background-image:
         radial-gradient(circle at 18% 24%, rgba(255, 205, 136, 0.28), transparent 26%),
@@ -144,6 +144,7 @@ h1, h2, h3, h4 {
     background-color: #1a1612;
     position: relative;
     overflow: hidden;
+    flex-shrink: 0; /* Prevent the image from being squished by keyboard or content */
 }
 
 .start-hero::after {
