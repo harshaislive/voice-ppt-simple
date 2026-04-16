@@ -1042,7 +1042,7 @@ h1, h2, h3, h4 {
     justify-content: space-between;
     align-items: flex-end; /* Align to bottom so hints sit above */
     padding: 24px 32px;
-    border-top: 1px solid var(--border-color);
+    border-top: none;
     background: var(--bg);
     z-index: 10;
 }
@@ -2011,7 +2011,7 @@ h1, h2, h3, h4 {
         right: 0;
         background: var(--bg);
         z-index: 100;
-        border-top: 2px solid var(--border-color);
+        border-top: none;
         padding: 0 24px;
         height: 84px;
         display: flex;
@@ -2804,7 +2804,7 @@ h1, h2, h3, h4 {
     display: flex;
     flex-direction: column;
     background: var(--bg);
-    border-top: 2px solid var(--border-color);
+    border-top: none;
 }
 
 .completion-chat-header {
