@@ -767,6 +767,15 @@ class VoicePPTApp {
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
         
+        // --- SLIDE MISMATCH PROTECTION ---
+        // If we receive audio for a slide that isn't the current one, and it's not a replay/QA/wrapup,
+        // we should ignore it to prevent "ghost" narration from old loops.
+        const isBackgroundPhase = data?.isQA || data?.isWrapUp || data?.isReplay;
+        if (!isBackgroundPhase && typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex) {
+            console.log(`[Audio] Ignoring chunk for slide ${data.slideIndex} because app is at ${this.currentSlideIndex}`);
+            return;
+        }
+
         // Reset audio player when slide changes to avoid stale state issues
         if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.activeAudioSlideIndex) {
             this.streamPlayer.reset();
@@ -782,6 +791,13 @@ class VoicePPTApp {
             this.finalizeSubtitleText(this.pendingNarrationText);
             this.pendingNarrationText = '';
         }
+        
+        // Record first chunk time for accurate progress bar
+        if (!this.pendingPlaybackStartAt) {
+            this.pendingPlaybackStartAt = performance.now();
+            this.startTranscriptProgress();
+        }
+
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
         this.startWaveform();
     }
@@ -816,9 +832,18 @@ class VoicePPTApp {
         const completedSlideIndex = typeof data?.slideIndex === 'number'
             ? data.slideIndex
             : (typeof this.activeAudioSlideIndex === 'number' ? this.activeAudioSlideIndex : this.currentSlideIndex);
+        
         const poll = () => {
+            // If slide changed while we were waiting, bail out to avoid sending completion for wrong slide
+            if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {
+                console.log(`[Audio] Slide changed during poll: was ${data.slideIndex}, now ${this.currentSlideIndex}. Bailing.`);
+                this.awaitingPlaybackComplete = false;
+                return;
+            }
+
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
             if (!this.slideAudioStarted) { setTimeout(poll, 120); return; }
+            
             this.stopWaveform();
             this.stopTranscriptProgress();
             this.clearTranscriptChunkTimers();
