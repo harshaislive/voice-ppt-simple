@@ -831,8 +831,13 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-thumb:hover {
-    opacity: 0.8;
-    transform: translateY(-2px);
+    opacity: 0.95;
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,0.4);
+}
+
+.scrubber-thumb.active:hover {
+    border-color: var(--accent-red);
 }
 
 .scrubber-thumb.active {
