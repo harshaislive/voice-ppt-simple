@@ -486,9 +486,44 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
 
     const totalSlides = slides.length;
     updatePreGenProgress(sessionId, 0, totalSlides, 'starting');
-    console.log(`[PreGen] Starting pre-generation for session ${sessionId}, ${totalSlides} slides`);
+    console.log(`[PreGen] Starting pre-generation check for session ${sessionId}, ${totalSlides} slides`);
 
     try {
+        // --- MASTER SESSION OPTIMIZATION ---
+        // If this deck has a master session, we can skip all LLM/TTS generation
+        // and just "pre-warm" the caches from the master assets.
+        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
+        if (deckId) {
+            const masterData = await masterSessionService.getMasterAssets(deckId);
+            if (masterData && masterData.assets && masterData.assets.size > 0) {
+                console.log(`[PreGen] Found master assets for ${deckId}. Skipping generation.`);
+                
+                const pregeneratedSlides = [];
+                for (let i = 0; i < totalSlides; i++) {
+                    const slide = slides[i];
+                    const masterAsset = masterData.assets.get(i);
+                    
+                    if (masterAsset) {
+                        const cached = await loadPersistedReplayPlayback(db, sessionId, i, masterAsset);
+                        if (cached) {
+                            setPrewarmedSlide(sessionId, i, cached);
+                            setReplayCache(sessionId, i, cached);
+                            pregeneratedSlides.push({ ...slide, narration: cached.text, audio: cached });
+                        }
+                    }
+                    updatePreGenProgress(sessionId, i + 1, totalSlides, 'loading-master');
+                }
+
+                if (pregeneratedSlides.length > 0) {
+                    pregeneratedSessions.set(sessionId, pregeneratedSlides);
+                    updatePreGenProgress(sessionId, totalSlides, totalSlides, 'complete');
+                    console.log(`[PreGen] Master assets loaded for ${sessionId}. Ready.`);
+                    return pregeneratedSlides;
+                }
+            }
+        }
+        // --- END MASTER SESSION OPTIMIZATION ---
+
         const pendingQuestions = db.all(
             'SELECT question_text FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC LIMIT 5',
             [sessionId]
