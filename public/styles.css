@@ -185,10 +185,42 @@ h1, h2, h3, h4 {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    padding: clamp(32px, 5vw, 64px) clamp(24px, 8vw, 96px);
+    justify-content: flex-start; /* Align to top to control spacing better */
+    padding: 48px 32px;
     background: var(--bg);
     position: relative;
+    margin-top: -40px; /* Pull content UP into the image area */
+    border-top-left-radius: 40px; /* Elegant rounded corner transition */
+    border-top-right-radius: 40px;
+    z-index: 5;
+}
+
+.start-header-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 32px; /* Tightened from 48px */
+    animation: editorialFadeIn 1s cubic-bezier(0.2, 1, 0.3, 1) both;
+}
+
+.start-title {
+    font-size: clamp(2.2rem, 8vw, 4rem); /* Slightly smaller on mobile to save vertical space */
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: var(--text);
+    text-transform: uppercase;
+    text-wrap: balance;
+}
+
+.name-input, .session-passcode {
+    width: 100%;
+    height: 56px; /* Tightened from 64px */
+    border: none;
+    border-bottom: 1px solid rgba(52, 46, 41, 0.15);
+    background: transparent;
+    font-size: 1rem; /* Better mobile readability */
+    padding: 0 8px;
+    appearance: none;
 }
 
 .start-header-group {
