@@ -1992,11 +1992,11 @@ class VoicePPTApp {
         
         const time = performance.now() / 1000;
         const layers = 3;
-        // Biodiversity colors: Dark Green, Rust, Soft Amber
+        // Beforest Brand Colors for waveform representation
         const colors = [
-            'rgba(52, 71, 54, 0.6)',  // Beforest Green
-            'rgba(213, 77, 42, 0.5)',  // Beforest Rust
-            'rgba(255, 192, 131, 0.4)' // Beforest Amber
+            'rgba(52, 71, 54, 0.95)',    // Forest Green (#344736)
+            'rgba(134, 49, 43, 0.85)',   // Rich Red (#86312b)
+            'rgba(255, 192, 131, 0.75)'  // Warm Yellow (#ffc083)
         ];
 
         // Combine the bar data into a smooth path for an organic, "biodiversity" feel

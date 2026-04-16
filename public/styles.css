@@ -1228,10 +1228,21 @@ h1, h2, h3, h4 {
 
 /* Waveform */
 .waveform {
-    height: 80px;
+    position: fixed;
+    bottom: 84px; /* Just above mobile footer */
+    left: 0;
+    right: 0;
+    height: 60px;
     width: 100%;
-    border-top: 1px solid var(--border-color);
-    background: #fff;
+    z-index: 90;
+    pointer-events: none;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    border-top: none;
+}
+.waveform.active {
+    opacity: 1;
 }
 
 /* Dialogue / Q&A Panel — Editorial Style */
@@ -3012,8 +3023,15 @@ h1, h2, h3, h4 {
 
     /* --- Waveform: Subtle on Desktop --- */
     .waveform {
-        height: 48px;
-        opacity: 0.3;
+        position: absolute;
+        bottom: 90px; /* Above desktop footer */
+        left: 54.545%; /* Exact width of the right panel start */
+        width: 45.455%;
+        height: 60px;
+        opacity: 0;
+    }
+    .waveform.active {
+        opacity: 1;
     }
 
 /* --- Completion Overlay --- */
