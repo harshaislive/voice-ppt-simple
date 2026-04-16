@@ -693,11 +693,11 @@ async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {
     if (Array.isArray(cached.wordBoundaries) && cached.wordBoundaries.length > 0) {
         const lastWord = cached.wordBoundaries[cached.wordBoundaries.length - 1];
         const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
-        waitMs = Math.max(actualDurationMs + 2000, 8000);
+        waitMs = Math.max(actualDurationMs + 5000, 10000);
     } else {
         waitMs = Math.max(
-            Math.ceil(audioDurationSec * 1000) + 4500,
-            options.isQA ? 7000 : 9000
+            Math.ceil(audioDurationSec * 1000) + 6000,
+            options.isQA ? 8000 : 12000
         );
     }
     await waitForPlaybackCompletion(sessionId, waitMs);
@@ -1556,11 +1556,11 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
         if (Array.isArray(lastWordBoundaries) && lastWordBoundaries.length > 0) {
             const lastWord = lastWordBoundaries[lastWordBoundaries.length - 1];
             const actualDurationMs = (lastWord.offsetMs || 0) + (lastWord.durationMs || 0);
-            waitMs = Math.max(actualDurationMs + 2000, 8000);
+            waitMs = Math.max(actualDurationMs + 5000, 10000);
         } else {
             waitMs = Math.max(
-                Math.ceil(audioDurationSec * 1000) + (options.isQA ? 4500 : 5500),
-                options.isQA ? 7000 : 9000
+                Math.ceil(audioDurationSec * 1000) + (options.isQA ? 5000 : 7000),
+                options.isQA ? 8000 : 12000
             );
         }
         await waitForPlaybackCompletion(sessionId, waitMs);
