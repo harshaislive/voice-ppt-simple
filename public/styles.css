@@ -752,12 +752,59 @@ h1, h2, h3, h4 {
     font-family: var(--font-serif);
 }
 
+.transcription-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
 .full-transcription {
     margin: 0;
     width: 100%;
     max-width: 720px;
-    min-height: 128px;
+    flex: 1;
     opacity: 1;
+    overflow-y: auto;
+}
+
+.narration-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 0;
+    margin-top: auto;
+    background: var(--bg);
+}
+
+.narration-progress-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(52, 46, 41, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.narration-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--text);
+    border-radius: 2px;
+    transition: width 120ms linear;
+}
+
+.slide-pause-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
 }
 
 /* Scrubber / Slide History Carousel Modal */
@@ -1972,7 +2019,7 @@ h1, h2, h3, h4 {
 
     .slide-copy {
         flex: 1;
-        padding: 24px 20px;
+        padding: 24px 20px 108px 20px; /* Account for 84px footer + 24px spacing */
         background: var(--bg);
         display: flex;
         flex-direction: column;
@@ -1989,6 +2036,14 @@ h1, h2, h3, h4 {
         margin-bottom: 16px;
     }
 
+    .slide-content-flow {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        gap: 16px;
+    }
+
     .slide-subtitle {
         font-size: 1.05rem;
         line-height: 1.5;
@@ -1997,11 +2052,25 @@ h1, h2, h3, h4 {
         border-bottom: 1px solid rgba(52, 46, 41, 0.1);
     }
 
+    .transcription-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+    }
+
     .full-transcription {
         font-size: 1.05rem;
         line-height: 1.6;
         flex: 1;
-        overflow-y: hidden;
+        overflow-y: auto;
+    }
+
+    .narration-controls {
+        padding: 12px 0;
+        gap: 16px;
+        background: var(--bg);
     }
 
     .presentation-footer {
@@ -2334,6 +2403,18 @@ h1, h2, h3, h4 {
     justify-content: center;
 }
 
+.wrapup-panel {
+    margin-top: 40px;
+    text-align: left;
+    width: 100%;
+}
+
+.wrapup-mcqs {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
 .wrapup-header {
     display: flex;
     justify-content: space-between;
@@ -2416,6 +2497,7 @@ h1, h2, h3, h4 {
 
 .option-bar {
     height: 100%;
+    background: var(--accent-green);
     transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

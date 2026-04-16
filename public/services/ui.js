@@ -143,15 +143,13 @@ export class UIManager {
             return;
         }
 
-        // Check if we already have a transcript reel - reuse it to avoid progress bar flicker
+        // Check if we already have a transcript reel - reuse it
         let wrap = container.querySelector('.transcript-reel');
         let meta = container.querySelector('.transcript-reel-meta');
         let phraseEl = container.querySelector('.transcript-reel-phrase');
-        let progressTrack = container.querySelector('.transcript-reel-progress');
-        let progressFill = container.querySelector('.transcript-reel-progress-fill');
 
         if (!wrap) {
-            // First time - create all elements
+            // First time - create elements
             wrap = document.createElement('div');
             wrap.className = `transcript-reel transcript-reel-${state}`;
 
@@ -161,20 +159,14 @@ export class UIManager {
             phraseEl = document.createElement('div');
             phraseEl.className = 'transcript-reel-phrase';
 
-            progressTrack = document.createElement('div');
-            progressTrack.className = 'transcript-reel-progress';
-            progressFill = document.createElement('div');
-            progressFill.className = 'transcript-reel-progress-fill';
-            progressTrack.appendChild(progressFill);
-
-            wrap.append(meta, phraseEl, progressTrack);
+            wrap.append(meta, phraseEl);
             container.appendChild(wrap);
         } else {
-            // Reuse existing - just update class for state
+            // Reuse existing
             wrap.className = `transcript-reel transcript-reel-${state}`;
         }
 
-        // Update content without recreating DOM
+        // Update content
         meta.textContent = data.headline || 'Speaking';
         phraseEl.textContent = phrase;
     }

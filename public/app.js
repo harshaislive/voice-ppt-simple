@@ -915,11 +915,8 @@ class VoicePPTApp {
             this.activeAudioSlideIndex = null;
             
             // Set progress to 100% before rendering
-            const container = document.getElementById('full-transcription');
-            if (container) {
-                const fill = container.querySelector('.transcript-reel-progress-fill');
-                if (fill) fill.style.width = '100%';
-            }
+            const fill = document.getElementById('narration-progress-fill');
+            if (fill) fill.style.width = '100%';
             
             this.renderFullTranscription();
             if (this.awaitingPlaybackComplete) {
@@ -1011,9 +1008,7 @@ class VoicePPTApp {
     }
 
     updateTranscriptProgress() {
-        const container = document.getElementById('full-transcription');
-        if (!container) return;
-        const fill = container.querySelector('.transcript-reel-progress-fill');
+        const fill = document.getElementById('narration-progress-fill');
         if (!fill) return;
 
         if (this.isAudioPaused) {
@@ -1021,11 +1016,6 @@ class VoicePPTApp {
         }
 
         if (!this.pendingPlaybackStartAt || this.totalAudioDurationMs <= 0) {
-            // Debug logging for progress bar issues
-            if (this.slideAudioStarted && !this._progressDebugLogged) {
-                console.log('[ProgressBar] Reset to 0% - pendingPlaybackStartAt:', this.pendingPlaybackStartAt, 'totalAudioDurationMs:', this.totalAudioDurationMs);
-                this._progressDebugLogged = true;
-            }
             fill.style.width = '0%';
             return;
         }
@@ -1035,13 +1025,6 @@ class VoicePPTApp {
         const totalDuration = this.totalAudioDurationMs;
 
         const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100;
-        
-        // Debug first progress update
-        if (!this._firstProgressLogged) {
-            console.log('[ProgressBar] First update - elapsed:', Math.round(elapsed), 'ms, total:', totalDuration, 'ms, progress:', Math.round(progress), '%');
-            this._firstProgressLogged = true;
-        }
-        
         fill.style.width = `${progress}%`;
     }
 
