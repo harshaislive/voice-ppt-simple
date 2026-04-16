@@ -496,9 +496,11 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
         if (deckId) {
             const masterData = await masterSessionService.getMasterAssets(deckId);
             if (masterData && masterData.assets && masterData.assets.size > 0) {
-                console.log(`[PreGen] Found master assets for ${deckId}. Skipping generation.`);
+                console.log(`[PreGen] Found master assets for ${deckId}. Attempting instant load.`);
                 
                 const pregeneratedSlides = [];
+                let loadedCount = 0;
+
                 for (let i = 0; i < totalSlides; i++) {
                     const slide = slides[i];
                     const masterAsset = masterData.assets.get(i);
@@ -509,16 +511,20 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
                             setPrewarmedSlide(sessionId, i, cached);
                             setReplayCache(sessionId, i, cached);
                             pregeneratedSlides.push({ ...slide, narration: cached.text, audio: cached });
+                            loadedCount++;
                         }
                     }
-                    updatePreGenProgress(sessionId, i + 1, totalSlides, 'loading-master');
+                    updatePreGenProgress(sessionId, i + 1, totalSlides, 'persisting');
                 }
 
-                if (pregeneratedSlides.length > 0) {
+                // If we loaded assets for all slides, we are done!
+                if (loadedCount === totalSlides) {
                     pregeneratedSessions.set(sessionId, pregeneratedSlides);
                     updatePreGenProgress(sessionId, totalSlides, totalSlides, 'complete');
-                    console.log(`[PreGen] Master assets loaded for ${sessionId}. Ready.`);
+                    console.log(`[PreGen] All master assets loaded for ${sessionId}. Ready.`);
                     return pregeneratedSlides;
+                } else {
+                    console.warn(`[PreGen] Only loaded ${loadedCount}/${totalSlides} master assets. Falling back to generation.`);
                 }
             }
         }
