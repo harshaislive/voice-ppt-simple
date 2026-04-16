@@ -415,19 +415,51 @@ class VoicePPTApp {
         const color = colorMap[emoji] || '#342e29';
         const count = 3 + Math.floor(Math.random() * 3);
         
+        // Find the reaction bar on the screen to use as the origin point
+        const reactionButtons = document.querySelectorAll('.reaction-btn');
+        let sourceRect = null;
+        
+        // Try to find the button for this specific emoji
+        for (const btn of reactionButtons) {
+            if (btn.getAttribute('data-emoji') === emoji) {
+                sourceRect = btn.getBoundingClientRect();
+                break;
+            }
+        }
+        
+        // Fallback to the first button or a reasonable position
+        if (!sourceRect && reactionButtons.length > 0) {
+            sourceRect = reactionButtons[0].getBoundingClientRect();
+        }
+
+        const stageRect = container.getBoundingClientRect();
+
         for (let i = 0; i < count; i++) {
             const el = document.createElement('div');
             el.className = 'floating-reaction';
             el.textContent = emoji;
             el.style.color = color;
-            const startX = window.innerWidth > 720 ? (window.innerWidth - 100 + (Math.random() * 60 - 30)) : (window.innerWidth / 2 + (Math.random() * 100 - 50));
+            
+            let startX, startBottom;
+
+            if (sourceRect) {
+                // Position relative to the source button, but adjusted for the stage container
+                startX = (sourceRect.left + sourceRect.width / 2) - stageRect.left + (Math.random() * 40 - 20);
+                startBottom = stageRect.bottom - sourceRect.top - 10;
+            } else {
+                // Old fallback logic
+                startX = window.innerWidth > 720 ? (window.innerWidth - 100 + (Math.random() * 60 - 30)) : (window.innerWidth / 2 + (Math.random() * 100 - 50));
+                startBottom = 100;
+            }
+
             const drift = (Math.random() * 120 - 60) + 'px';
             const rotation = (Math.random() * 40 - 20) + 'deg';
             const scale = 0.8 + Math.random() * 1.2;
             const duration = 1.5 + Math.random() * 1;
             const delay = Math.random() * 0.2;
+            
             el.style.left = `${startX}px`;
-            el.style.bottom = '100px';
+            el.style.bottom = `${startBottom}px`;
             el.style.setProperty('--drift', drift);
             el.style.setProperty('--rotation', rotation);
             el.style.setProperty('--scale', scale);
