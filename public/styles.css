@@ -838,8 +838,7 @@ h1, h2, h3, h4 {
 .scrubber-thumb.active {
     opacity: 1;
     border-color: var(--accent-red);
-    transform: scale(1.1);
-    box-shadow: 0 16px 28px rgba(0,0,0,0.12);
+    box-shadow: 0 0 0 4px rgba(134, 49, 43, 0.2), 0 16px 28px rgba(0,0,0,0.12);
 }
 
 .scrubber-thumb::after {
