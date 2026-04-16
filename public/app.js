@@ -876,7 +876,7 @@ class VoicePPTApp {
             : (typeof this.activeAudioSlideIndex === 'number' ? this.activeAudioSlideIndex : this.currentSlideIndex);
         
         let pollCount = 0;
-        const MAX_POLLS = 600;
+        const MAX_POLLS = 1500; // ~3 minutes (1500 * 120ms) - narrations can be long
 
         const poll = () => {
             pollCount++;
