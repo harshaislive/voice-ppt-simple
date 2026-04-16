@@ -253,38 +253,54 @@
 
                     <!-- Completion Overlay -->
                     <div id="completion-overlay" class="completion-overlay hidden">
-                        <div class="completion-content">
-                            <div class="completion-icon">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                            </div>
-                            <h2>Thank you</h2>
-                            <p id="completion-summary"></p>
-                            <div id="completion-cta" class="completion-cta hidden">
-                                <div id="cta-blocks" class="cta-blocks"></div>
-                            </div>
-                            <div id="wrapup-panel" class="wrapup-panel hidden">
-                                <div class="wrapup-header">
-                                    <div class="wrapup-header-copy">
-                                        <span class="wrapup-eyebrow">Final Minute</span>
-                                        <span id="wrapup-deadline" class="wrapup-deadline">Agent ends in 60 seconds</span>
+                        <div class="completion-grid">
+                            <div class="completion-action-side">
+                                <div id="completion-hero" class="completion-hero"></div>
+                                <div class="completion-action-content">
+                                    <div class="completion-header">
+                                        <span class="completion-eyebrow">Conclusion</span>
+                                        <h2 class="completion-title">Your Next Step</h2>
+                                        <p id="completion-summary" class="completion-summary"></p>
                                     </div>
-                                    <span id="wrapup-timer" class="wrapup-timer">1:00</span>
-                                </div>
-                                <p id="wrapup-message" class="wrapup-message"></p>
+                                    
+                                    <div id="completion-cta" class="completion-cta">
+                                        <div id="cta-blocks" class="cta-blocks"></div>
+                                    </div>
 
-                                <div class="wrapup-actions">
-                                    <button id="wrapup-mic" class="wrapup-mic" type="button" aria-label="Open questions">
-                                        <span class="wrapup-mic-icon">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h10"/><path d="M7 12h6"/></svg>
-                                        </span>
-                                        <span id="wrapup-mic-label">Questions</span>
-                                    </button>
+                                    <div class="completion-footer-note">
+                                        <p>You decide with your feet, not your eyes. See you in the slow lane.</p>
+                                    </div>
+                                    <button id="restart-btn" class="btn-start">Start Over</button>
                                 </div>
-                                <p class="wrapup-question-copy">Type a question and watch the answer animate in real time while it is being narrated.</p>
+                            </div>
 
-                                <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
-                                <div id="wrapup-qa-slides" class="wrapup-qa-slides" style="display: none;"></div>
-                                <button id="restart-btn" class="btn-start">Start Over</button>
+                            <div class="completion-chat-side">
+                                <div class="completion-chat-header">
+                                    <div class="chat-header-left">
+                                        <span class="chat-eyebrow">Dialogue</span>
+                                        <h3 class="chat-title">Ask me anything</h3>
+                                    </div>
+                                    <div class="chat-header-presence">
+                                        <span class="presence-dot"></span>
+                                        <span class="presence-label">Agent Online</span>
+                                    </div>
+                                </div>
+
+                                <div id="completion-qa-list" class="completion-qa-list">
+                                    <div class="qa-empty-state">
+                                        <p>The presentation has ended, but I am still here. Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
+                                    </div>
+                                </div>
+
+                                <div class="completion-chat-footer">
+                                    <div class="qa-input-container">
+                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Type your final questions..." rows="1"></textarea>
+                                        <button id="completion-submit-question" class="qa-send-btn" aria-label="Send question">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                                        </button>
+                                    </div>
+                                    <p class="qa-input-hint">The agent will answer in real-time.</p>
+                                </div>
                             </div>
                         </div>
                     </div>

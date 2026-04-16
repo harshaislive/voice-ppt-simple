@@ -1600,13 +1600,117 @@ class VoicePPTApp {
     finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
 
     showCompletion(data) {
-        document.getElementById('completion-summary').textContent = `${data.totalSlides} slides, ${data.totalQuestionsAnswered} answered.`;
-        const activity = { participantName: this.participantName, deckTitle: document.getElementById('deck-label').textContent, totalSlides: data.totalSlides, questionsAnswered: data.totalQuestionsAnswered, userQuestions: this.userQuestions, userReactions: this.userReactions, timestamp: new Date().toISOString() };
+        this.isFinalState = true;
+        const summaryEl = document.getElementById('completion-summary');
+        if (summaryEl) summaryEl.textContent = `${data.totalSlides} slides delivered. ${data.totalQuestionsAnswered} questions discussed.`;
+        
+        const activity = { 
+            participantName: this.participantName, 
+            deckTitle: document.getElementById('deck-label').textContent, 
+            totalSlides: data.totalSlides, 
+            questionsAnswered: data.totalQuestionsAnswered, 
+            userQuestions: this.userQuestions, 
+            userReactions: this.userReactions, 
+            timestamp: new Date().toISOString() 
+        };
         localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
-        document.getElementById('completion-overlay').classList.remove('hidden');
+        
+        const overlay = document.getElementById('completion-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+        
+        // Set final hero image from last slide
+        const hero = document.getElementById('completion-hero');
+        if (hero && this.currentSlide?.image) {
+            hero.style.backgroundImage = `url(${this.currentSlide.image})`;
+        }
+
         this.stopWaveform();
         this.loadCtaBlocks();
-        this.ui.toggleQuestionDrawer(true);
+        
+        // Re-render Q&A into the new final side panel
+        this.renderFinalQAList();
+
+        // Setup final question input
+        const finalInput = document.getElementById('completion-question-input');
+        const finalSubmit = document.getElementById('completion-submit-question');
+        if (finalInput && finalSubmit) {
+            finalInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.submitFinalQuestion();
+                }
+            });
+            finalSubmit.onclick = () => this.submitFinalQuestion();
+        }
+
+        this.setStatus('Engagement', 'paused', 'Dialogue remains open');
+    }
+
+    renderFinalQAList() {
+        const container = document.getElementById('completion-qa-list');
+        if (!container) return;
+        
+        const questions = Array.from(this.questions.values())
+            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        if (questions.length === 0) {
+            container.innerHTML = `
+                <div class="qa-empty-state">
+                    <p>The presentation has ended, but I am still here. Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        questions.forEach(q => {
+            const card = document.createElement('div');
+            card.className = `qa-card ${q.status === 'answered' ? 'is-answered' : 'is-pending'}`;
+            card.id = `final-q-${q.id}`;
+            
+            const qText = document.createElement('div');
+            qText.className = 'qa-card-question';
+            qText.textContent = q.text;
+            card.appendChild(qText);
+
+            if (q.status === 'answered') {
+                const aWrap = document.createElement('div');
+                aWrap.className = 'qa-card-answer';
+                this.renderQuestionAnswer(aWrap, q.meta || {});
+                card.appendChild(aWrap);
+            } else {
+                const pending = document.createElement('div');
+                pending.className = 'qa-card-meta';
+                pending.textContent = 'Agent is preparing an answer...';
+                card.appendChild(pending);
+            }
+            
+            container.appendChild(card);
+        });
+    }
+
+    async submitFinalQuestion() {
+        const input = document.getElementById('completion-question-input');
+        if (!input || !input.value.trim()) return;
+        
+        const text = input.value.trim();
+        input.value = '';
+        
+        // Use existing question submission logic but handle UI update locally
+        const res = await this.apiFetch('/api/questions', {
+            method: 'POST',
+            body: JSON.stringify({
+                sessionId: this.sessionId,
+                text,
+                participantName: this.participantName
+            })
+        });
+
+        if (res.success) {
+            // Socket will normally update this, but we force a refresh for the final list
+            this.renderFinalQAList();
+            const list = document.getElementById('completion-qa-list');
+            if (list) list.scrollTop = 0;
+        }
     }
 
     async loadCtaBlocks() {
