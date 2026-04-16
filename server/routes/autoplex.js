@@ -1047,6 +1047,15 @@ async function runPresentation(db, io, sessionId) {
     while (currentSlideIndex < slides.length) {
         await waitWhilePaused(db, io, sessionId);
         const slide = slides[currentSlideIndex];
+        
+        // --- DEBOUNCE / RE-ENTRY CHECK ---
+        // Verify we are still the primary runner for this slide
+        const sessionCheck = db.get('SELECT current_slide_index FROM sessions WHERE id = ?', [sessionId]);
+        if (sessionCheck && sessionCheck.current_slide_index > currentSlideIndex) {
+            console.log(`[AutoPlex] Bailing from redundant loop for slide ${currentSlideIndex + 1}. Session already at ${sessionCheck.current_slide_index + 1}.`);
+            return;
+        }
+
         console.log(`[AutoPlex] Playing slide ${currentSlideIndex + 1}/${slides.length}: ${slide.title}`);
 
         db.run('UPDATE sessions SET current_slide_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [currentSlideIndex, sessionId]);
