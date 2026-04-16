@@ -25,8 +25,8 @@ const pregeneratedSessions = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 100;
-const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 60;
-const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 150;
+const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 120;
+const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 500;
 
 setInterval(() => {
     const now = Date.now();
@@ -763,24 +763,26 @@ async function buildFullQAContext(sessionMetadata, slides) {
     const sections = [];
     let knowledgeDocs = sessionMetadata.knowledgeDocs || {};
     
+    // Always attempt to reload CMS knowledge to ensure we have the absolute latest Supabase docs
+    const deckId = sessionMetadata.deckId || sessionMetadata.presentationSlug || sessionMetadata.projectSlug;
+    if (deckId) {
+        try {
+            const presentation = await cmsService.loadPresentation(deckId);
+            if (presentation?.knowledgeDocs && Object.keys(presentation.knowledgeDocs).length > 0) {
+                knowledgeDocs = { ...knowledgeDocs, ...presentation.knowledgeDocs };
+                console.log(`[QAContext] Reloaded knowledge from CMS for ${deckId}. Total docs:`, Object.keys(knowledgeDocs).length);
+            }
+        } catch (error) {
+            console.warn('[Autoplex] Failed to reload QA knowledge docs from CMS:', error.message);
+        }
+    }
+
     try {
         const frameworkPath = path.join(__dirname, '..', '..', 'AGENTS.md');
         if (fs.existsSync(frameworkPath)) {
             sections.push(`AGENT FRAMEWORK / CONSTITUTION:\n${fs.readFileSync(frameworkPath, 'utf8')}`);
         }
     } catch {}
-
-    if (!knowledgeDocs || Object.keys(knowledgeDocs).length === 0) {
-        const deckId = sessionMetadata.deckId || sessionMetadata.presentationSlug || sessionMetadata.projectSlug;
-        if (deckId) {
-            try {
-                const presentation = await cmsService.loadPresentation(deckId);
-                knowledgeDocs = presentation?.knowledgeDocs || {};
-            } catch (error) {
-                console.warn('[Autoplex] Failed to load QA knowledge docs from CMS:', error.message);
-            }
-        }
-    }
 
     if (knowledgeDocs && Object.keys(knowledgeDocs).length > 0) {
         if (knowledgeDocs.soul) sections.push(`PROJECT SOUL:\n${stringifyDoc(knowledgeDocs.soul)}`);
@@ -798,7 +800,7 @@ async function buildFullQAContext(sessionMetadata, slides) {
         });
     }
 
-    return sections.join('\n\n');
+    return sections.join('\n\n').slice(0, 16000);
 }
 
 function stringifyDoc(value) {
