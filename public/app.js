@@ -59,10 +59,7 @@ class VoicePPTApp {
         this.isAudioPaused = false;
         this.pauseStartMs = null;
 
-        this.waveformCanvas = document.getElementById('waveform');
-        this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
-        this.waveformData = new Array(64).fill(0);
-        this.waveformAnimFrame = null;
+
         this.questionAudioPlayer = document.getElementById('audio-player');
         this.activeQuestionAudioButton = null;
         this.questionAudioPausedNarration = false;
@@ -83,7 +80,7 @@ class VoicePPTApp {
         this.loadPresentationCatalog();
         this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
-        this.resizeWaveform();
+        
     }
 
     async loadLoadingQuotes() {
@@ -381,7 +378,7 @@ class VoicePPTApp {
             }
         });
 
-        window.addEventListener('resize', () => this.resizeWaveform());
+        window.addEventListener('resize', () => );
     }
 
     bindQuestionAudioControls() {
@@ -769,7 +766,7 @@ class VoicePPTApp {
         }
         const main = document.querySelector('.slide-main');
         if (main) main.scrollTop = 0;
-        if (!this.voiceModeEnabled) { this.streamPlayer.reset(); this.stopWaveform(); }
+        if (!this.voiceModeEnabled) { this.streamPlayer.reset();  }
         if (this.azureVoice.connected) this.azureVoice.syncSlideContext();
         this.updateFolio();
         this.renderScrubber();
@@ -847,7 +844,7 @@ class VoicePPTApp {
         }
 
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
-        this.startWaveform();
+        
     }
 
     handleWordBoundaries(data) {
@@ -889,7 +886,7 @@ class VoicePPTApp {
             if (pollCount > MAX_POLLS) {
                 console.warn(`[Audio] Playback poll exceeded max iterations, forcing completion`);
                 this.awaitingPlaybackComplete = false;
-                this.stopWaveform();
+                
                 this.stopTranscriptProgress();
                 this.clearTranscriptChunkTimers();
                 this.pendingPlaybackStartAt = null;
@@ -908,7 +905,7 @@ class VoicePPTApp {
             if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
             if (!this.slideAudioStarted && pollCount < 30) { setTimeout(poll, 120); return; }
             
-            this.stopWaveform();
+            
             this.stopTranscriptProgress();
             this.clearTranscriptChunkTimers();
             if (this.transcriptChunks.length > 0) {
@@ -1554,7 +1551,7 @@ class VoicePPTApp {
     }
 
     async requestInterrupt() {
-        this.streamPlayer.reset(); this.stopWaveform(); this.showTranscript(false);
+        this.streamPlayer.reset();  this.showTranscript(false);
         if (!this.sessionId) return;
         try { await this.apiFetch('/api/autoplex/interrupt', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error(err); }
     }
@@ -1584,7 +1581,7 @@ class VoicePPTApp {
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
             this.stopTranscriptProgress();
-            this.stopWaveform();
+            
             
             if (btn) btn.classList.add('is-paused');
             if (iconPause) iconPause.style.display = 'none';
@@ -1600,7 +1597,7 @@ class VoicePPTApp {
             }
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
-            this.startWaveform();
+            
             
             if (btn) btn.classList.remove('is-paused');
             if (iconPause) iconPause.style.display = 'block';
@@ -1696,7 +1693,7 @@ class VoicePPTApp {
             hero.style.backgroundImage = `url(${this.currentSlide.image})`;
         }
 
-        this.stopWaveform();
+        
         this.loadCtaBlocks();
         
         // Re-render Q&A into the new final side panel
@@ -1965,75 +1962,6 @@ class VoicePPTApp {
 
     changeWrapUpCard(dir) { if (!this.wrapUpMcqs.length) return; const next = this.wrapUpIndex + dir; if (next >= 0 && next < this.wrapUpMcqs.length) { this.wrapUpIndex = next; this.renderWrapUpMcqs(); } }
 
-    resizeWaveform() {
-        if (!this.waveformCanvas || !this.waveformCtx) return;
-        const dpr = window.devicePixelRatio || 1; const rect = this.waveformCanvas.getBoundingClientRect();
-        this.waveformCanvas.width = rect.width * dpr; this.waveformCanvas.height = rect.height * dpr;
-        this.waveformCtx.setTransform(1,0,0,1,0,0); this.waveformCtx.scale(dpr, dpr);
-    }
-
-    startWaveform() { if (this.waveformAnimFrame) return; this.waveformCanvas.classList.add('active'); const anim = () => { this.updateWaveformData(); this.drawWaveformFrame(); this.waveformAnimFrame = requestAnimationFrame(anim); }; anim(); }
-    stopWaveform() { if (this.waveformAnimFrame) { cancelAnimationFrame(this.waveformAnimFrame); this.waveformAnimFrame = null; } this.waveformData.fill(0); this.drawWaveformFrame(); setTimeout(() => { if (!this.waveformAnimFrame) this.waveformCanvas.classList.remove('active'); }, 250); }
-
-    updateWaveformData() {
-        const t = performance.now() / 1000; const p = this.streamPlayer.isPlaying || this.voiceModeEnabled;
-        for (let i = 0; i < 64; i++) {
-            const target = p ? (Math.sin(t*1.7+i*0.25)*0.12 + Math.sin(t*4+i*0.55)*0.22 + Math.random()*0.12 + 0.18) : 0.02;
-            this.waveformData[i] += (target - this.waveformData[i]) * (p ? 0.14 : 0.08);
-        }
-    }
-
-    drawWaveformFrame() {
-        if (!this.waveformCtx) return; 
-        const ctx = this.waveformCtx; 
-        const w = this.waveformCanvas.width; 
-        const h = this.waveformCanvas.height;
-        ctx.clearRect(0,0,w,h); 
-        
-        const time = performance.now() / 1000;
-        const layers = 3;
-        // Beforest Brand Colors for waveform representation
-        const colors = [
-            'rgba(52, 71, 54, 0.95)',    // Forest Green (#344736)
-            'rgba(134, 49, 43, 0.85)',   // Rich Red (#86312b)
-            'rgba(255, 192, 131, 0.75)'  // Warm Yellow (#ffc083)
-        ];
-
-        // Combine the bar data into a smooth path for an organic, "biodiversity" feel
-        for (let l = 0; l < layers; l++) {
-            ctx.beginPath();
-            ctx.strokeStyle = colors[l];
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-            
-            for (let i = 0; i < 64; i++) {
-                const val = Math.min(Math.abs(this.waveformData[i]), 1);
-                const x = (i / 63) * w;
-                
-                // Add secondary organic noise based on time
-                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * (h * 0.08);
-                const bh = (val * h * 0.6) + organicNoise;
-                const y = (h / 2) + (l * 4) - 6; // Slight offset for each layer
-
-                if (i === 0) ctx.moveTo(x, y - bh / 2);
-                else ctx.lineTo(x, y - bh / 2);
-            }
-            ctx.stroke();
-
-            // Mirror path for symmetry
-            ctx.beginPath();
-            for (let i = 0; i < 64; i++) {
-                const val = Math.min(Math.abs(this.waveformData[i]), 1);
-                const x = (i / 63) * w;
-                const organicNoise = Math.sin(time * (1.2 + l) + (i * 0.15)) * (h * 0.08);
-                const bh = (val * h * 0.6) + organicNoise;
-                const y = (h / 2) + (l * 4) - 6;
-                if (i === 0) ctx.moveTo(x, y + bh / 2);
-                else ctx.lineTo(x, y + bh / 2);
-            }
-            ctx.stroke();
-        }
-    }
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
     onVoiceSessionConnected() { this.voiceModeEnabled = false; this.updateMicState(); this.setStatus('Questions', 'paused', 'Type a question to queue it'); }
