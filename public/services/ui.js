@@ -58,7 +58,12 @@ export class UIManager {
         if (!progressFill) return;
         
         const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-        progressFill.style.width = `${Math.min(percent, 100)}%`;
+        
+        // Prevent progress bar from going backwards (important for parallel pre-gen stability)
+        const currentWidth = parseFloat(progressFill.style.width) || 0;
+        if (percent > currentWidth) {
+            progressFill.style.width = `${Math.min(percent, 100)}%`;
+        }
         
         if (progressLabel) {
             const statusMessages = {
@@ -70,7 +75,7 @@ export class UIManager {
                 'failed': 'Some slides may load during presentation',
                 'no-slides': 'No slides to load'
             };
-            progressLabel.textContent = statusMessages[progress.status] || `Preparing... ${percent}%`;
+            progressLabel.textContent = statusMessages[progress.status] || `Preparing... ${Math.max(percent, Math.round(currentWidth))}%`;
         }
     }
 
