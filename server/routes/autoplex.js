@@ -1229,8 +1229,8 @@ async function runPresentation(db, io, sessionId) {
 
     await runWrapUp(db, io, sessionId, session.deck_id, participantName);
 
-    const sessionMetadata = getSessionMetadata(db, sessionId);
-    const qaKnowledgeContext = await buildFullQAContext(sessionMetadata, slides);
+    // sessionMetadata already declared above — refresh it after wrapup in case metadata changed
+    const qaKnowledgeContext = await buildFullQAContext(getSessionMetadata(db, sessionId), slides);
 
     const allQuestions = db.all(
         'SELECT * FROM questions WHERE session_id = ? ORDER BY created_at ASC',
