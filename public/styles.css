@@ -142,30 +142,29 @@ h1, h2, h3, h4 {
     background-position: center;
     background-repeat: no-repeat;
     background-color: #1a1612;
-    position: fixed; /* Fixed image background */
+    position: absolute; /* Changed from fixed to absolute to stay pinned to the top of the fixed parent */
     top: 0;
     left: 0;
     right: 0;
     overflow: hidden;
-    flex-shrink: 0;
-    z-index: 1;
+    z-index: 1; /* Lowest level */
 }
 
 .start-content-scroll-wrapper {
-    position: relative;
-    z-index: 5;
-    flex: 1;
-    overflow-y: auto; /* Scroll ONLY the content layer */
+    position: absolute; /* Overlay the hero completely */
+    inset: 0;
+    z-index: 10; /* High level to ensure it is in front of the hero */
+    overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    height: 100%;
     display: flex;
     flex-direction: column;
 }
 
 .start-content-spacer {
-    height: 50vh; /* This allows the user to see 50% of the image before content starts */
+    height: 50vh; /* This defines how much of the image is seen initially */
     flex-shrink: 0;
-    pointer-events: none;
+    pointer-events: none; /* Let clicks pass through to the hero if needed */
 }
 
 .start-content {
@@ -174,11 +173,11 @@ h1, h2, h3, h4 {
     flex-direction: column;
     justify-content: flex-start;
     padding: 64px 32px 120px;
-    background: var(--bg);
+    background: var(--bg); /* Opaque background ensures it covers the hero as it scrolls up */
     position: relative;
     border-top-left-radius: 40px;
     border-top-right-radius: 40px;
-    box-shadow: 0 -20px 60px rgba(0,0,0,0.2); /* Deep shadow to separate from fixed image */
+    box-shadow: 0 -30px 60px rgba(0,0,0,0.3); /* Stronger shadow for depth */
 }
 
 .start-screen.hidden {
