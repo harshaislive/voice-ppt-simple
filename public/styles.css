@@ -2638,12 +2638,37 @@ h1, h2, h3, h4 {
     /* --- Start Screen: Editorial Split --- */
     .start-screen {
         flex-direction: row;
+        overflow: hidden;
     }
 
     .start-hero {
         width: 50%;
         height: 100vh;
         flex: none;
+        position: relative; /* Reset from absolute if base had it */
+    }
+
+    .start-content-scroll-wrapper {
+        position: relative; /* Disable absolute overlay */
+        width: 50%;
+        height: 100vh;
+        flex: none;
+        z-index: 10;
+        overflow-y: auto;
+    }
+
+    .start-content-spacer {
+        display: none; /* No need for mobile spacer on desktop */
+    }
+
+    .start-content {
+        width: 100%;
+        margin-top: 0; /* Reset mobile pull-up */
+        padding: clamp(48px, 6vh, 96px) clamp(48px, 5vw, 96px);
+        border-radius: 0; /* No rounded corners on desktop split */
+        box-shadow: none;
+        min-height: 100vh;
+        justify-content: center;
     }
 
     .start-hero::after {
