@@ -122,9 +122,7 @@ h1, h2, h3, h4 {
     flex-direction: column;
     background: var(--bg);
     transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow-y: auto; /* Enable scrolling for the whole screen */
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden; /* Lock the outer container */
 }
 
 .start-screen.hidden {
@@ -133,7 +131,7 @@ h1, h2, h3, h4 {
 }
 
 .start-hero {
-    height: 60vh; /* Taller hero initially */
+    height: 60vh;
     width: 100%;
     background-image:
         radial-gradient(circle at 18% 24%, rgba(255, 205, 136, 0.28), transparent 26%),
@@ -144,11 +142,30 @@ h1, h2, h3, h4 {
     background-position: center;
     background-repeat: no-repeat;
     background-color: #1a1612;
-    position: sticky; /* Sticky hero image */
+    position: fixed; /* Fixed image background */
     top: 0;
+    left: 0;
+    right: 0;
     overflow: hidden;
     flex-shrink: 0;
     z-index: 1;
+}
+
+.start-content-scroll-wrapper {
+    position: relative;
+    z-index: 5;
+    flex: 1;
+    overflow-y: auto; /* Scroll ONLY the content layer */
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.start-content-spacer {
+    height: 50vh; /* This allows the user to see 50% of the image before content starts */
+    flex-shrink: 0;
+    pointer-events: none;
 }
 
 .start-content {
@@ -156,14 +173,12 @@ h1, h2, h3, h4 {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding: 64px 32px 120px; /* Large bottom padding for scroll space */
+    padding: 64px 32px 120px;
     background: var(--bg);
     position: relative;
-    margin-top: -60px; /* Overlap the sticky hero */
     border-top-left-radius: 40px;
     border-top-right-radius: 40px;
-    z-index: 5;
-    box-shadow: 0 -20px 40px rgba(0,0,0,0.1); /* Shadow to emphasize depth during scroll */
+    box-shadow: 0 -20px 60px rgba(0,0,0,0.2); /* Deep shadow to separate from fixed image */
 }
 
 .start-screen.hidden {
