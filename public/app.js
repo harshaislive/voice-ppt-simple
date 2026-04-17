@@ -1450,6 +1450,9 @@ class VoicePPTApp {
     async handleScrubberSelect(index) {
         if (!this.sessionId || index < 0 || index >= this.slideDeck.length) return;
 
+        const scrubber = document.getElementById('scrubber-container');
+        if (scrubber) scrubber.classList.add('hidden');
+
         // Selecting a previously viewed slide is always allowed
         // Selecting a future slide temporarily unlocks it
         if (index > this.maxViewedSlideIndex) {
@@ -1462,13 +1465,9 @@ class VoicePPTApp {
             console.warn('Replay request failed, falling back to direct jump:', err);
             if (index !== this.currentSlideIndex) {
                 await this.jumpToSlide(index);
+                await this.resumePresentationAfterHistory();
             }
         }
-
-        // Close the scrubber modal and resume presentation
-        const scrubber = document.getElementById('scrubber-container');
-        if (scrubber) scrubber.classList.add('hidden');
-        this.resumePresentationAfterHistory();
 
         // Re-render scrubber to update locked/unlocked state after action
         this.renderScrubber();
