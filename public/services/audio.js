@@ -223,5 +223,14 @@ export class StreamAudioPlayer {
         source.start(0);
         source.stop(0);
         this._resumeContext();
+        // Track this source for proper hasPendingPlayback
+        this.activeSources.push(source);
+        this.isPlaying = true;
+        source.onended = () => {
+            this.activeSources = this.activeSources.filter((item) => item !== source);
+            if (this.activeSources.length === 0) {
+                this.isPlaying = false;
+            }
+        };
     }
 }
