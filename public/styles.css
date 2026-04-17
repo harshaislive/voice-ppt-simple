@@ -327,6 +327,11 @@ h1, h2, h3, h4 {
     position: relative;
 }
 
+.start-form {
+    display: flex;
+    flex-direction: column;
+}
+
 .start-actions::before {
     content: 'Join the room';
     margin-bottom: 10px;

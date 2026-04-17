@@ -211,6 +211,15 @@ class VoicePPTApp {
         }
     }
 
+    setStartScreenMode(mode = 'form') {
+        const recoveryMsg = document.getElementById('session-recovery-msg');
+        const startForm = document.getElementById('start-form');
+        const showRecovery = mode === 'recovery';
+
+        if (recoveryMsg) recoveryMsg.classList.toggle('hidden', !showRecovery);
+        if (startForm) startForm.classList.toggle('hidden', showRecovery);
+    }
+
     getPersistedSession() {
         try {
             const raw = localStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION);
@@ -307,13 +316,10 @@ class VoicePPTApp {
             
             if (persistedSession) {
                 console.log('[Session] Have persisted session, showing recovery choice');
-                const msg = document.getElementById('session-recovery-msg');
-                if (msg) msg.classList.remove('hidden');
-                
-                // Hide normal start button until they decide? Or keep it as "Begin anyway"?
-                // Let's keep "Begin Experience" as a fallback to start a fresh one if they fill name.
+                this.setStartScreenMode('recovery');
             } else {
                 console.log('[Session] No persisted session found');
+                this.setStartScreenMode('form');
             }
         } catch (err) {
             console.warn('Could not load session config:', err);
@@ -432,12 +438,12 @@ class VoicePPTApp {
         });
         on('new-session', 'click', () => {
             this.clearPersistedSession();
-            const msg = document.getElementById('session-recovery-msg');
-            if (msg) msg.classList.add('hidden');
+            this.setStartScreenMode('form');
             this.resetSessionRuntimeState();
             this.forceFreshSession = true; // Flag to bypass master assets
             // Refresh catalog to ensure fresh state
             this.loadPresentationCatalog();
+            document.getElementById('participant-name')?.focus();
         });
     }
 
