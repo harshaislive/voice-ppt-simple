@@ -1239,13 +1239,17 @@ class VoicePPTApp {
             return;
         }
 
-        // Skip full rebuild if deck size hasn't changed — just update active thumb
+        // Skip full rebuild if deck size hasn't changed — just update active thumb and disabled state
         const existingCount = filmstrip.dataset.slideCount;
+        const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
         if (existingCount === String(this.slideDeck.length)) {
             filmstrip.querySelectorAll('.scrubber-thumb').forEach((btn, i) => {
                 btn.classList.toggle('active', i === this.currentSlideIndex);
+                // Update disabled state: future slides (index > accessibleIndex) should be locked
+                const isFuture = i > accessibleIndex;
+                btn.classList.toggle('disabled', isFuture);
+                btn.disabled = isFuture;
             });
-            const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
             if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
             if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
             return;
@@ -1305,6 +1309,13 @@ class VoicePPTApp {
 
     async handleScrubberSelect(index) {
         if (!this.sessionId || index < 0 || index >= this.slideDeck.length) return;
+
+        // Selecting a previously viewed slide is always allowed
+        // Selecting a future slide temporarily unlocks it
+        if (index > this.maxViewedSlideIndex) {
+            this.maxViewedSlideIndex = index;
+        }
+
         try {
             await this.replaySlide(index);
         } catch (err) {
@@ -1313,6 +1324,9 @@ class VoicePPTApp {
                 await this.jumpToSlide(index);
             }
         }
+
+        // Re-render scrubber to update locked/unlocked state after action
+        this.renderScrubber();
     }
 
     async navigateScrubber(direction) {
