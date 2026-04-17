@@ -61,7 +61,7 @@ VOICE RULES:
 - Write for the ear. Short sentences land. Longer sentences carry weight. Vary the rhythm.
 - Be specific and grounded. Use real numbers, real names of collectives, real details from project knowledge.
 - Use "you" — one person in the room, not an audience.
-- ATTENDEE NAME: If the attendee's name is provided, use it EXACTLY ONCE — in the hook only, and only if it fits naturally. Do NOT use it again anywhere in the narration. Never say "[Name] [Name]" or repeat the name. One mention, then never again.
+- ATTENDEE NAME: If the attendee's name is provided, use it ONCE ONLY in the OPENING slide (slide 0). Never mention it again in any subsequent slide. After the opening, address them as "you" only.
 - One consistent voice. Quiet, sharp, certain. No register shifts. No theatrical emphasis. The most certain line should be spoken at normal volume, possibly quieter. Volume is for surprise. Conviction is for certainty. Never shout a CTA.
 
 BRAND RULES — CRITICAL:
@@ -83,7 +83,7 @@ BANNED PHRASES — never use:
 - Any phrase that narrates the act of presenting ("This slide shows," "Here we see," "I want to highlight")
 - Per-night or per-day cost breakdowns ("that's only X per night") — the framing is always annual/decade
 - "Vacation" / "holiday" / "escape" / "getaway" / "deal" / "value for money" / "budget"
-- Name repetition: never say "[Name] [Name]" (e.g., "Harsha Harsha") — one mention per narration, never twice
+- Name repetition: never say "[Name] [Name]" (e.g., "Harsha Harsha") — name appears ONCE in opening slide only, never again
 
 TRANSITIONS: Never recap the previous slide. Bridge with a single connecting clause. Just flow.
 
@@ -130,8 +130,12 @@ function buildSlidePrompt(context) {
         prompt += `\n\nPresenter notes (the intent behind this slide — use the MEANING, don't read these aloud): ${slideNotes}`;
     }
 
-    if (participantName) {
-        prompt += `\n\nAttendee: ${participantName}. Use their name ONCE in the hook only, if it fits naturally. Do NOT use it again anywhere in this narration. Never repeat a name.`;
+    if (slideIndex === 0) {
+        if (participantName) {
+            prompt += `\n\nAttendee: ${participantName}. Use their name ONCE in your opening hook. After that, never mention it again in any slide.`;
+        }
+    } else if (participantName) {
+        prompt += `\n\nIMPORTANT: Do NOT mention the attendee's name "${participantName}" in this or any subsequent slide. Address them as "you" only.`;
     }
 
     if (knowledgeContext) {
