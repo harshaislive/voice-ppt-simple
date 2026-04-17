@@ -13,6 +13,7 @@ export class StreamAudioPlayer {
         this.isBuffering = false;
         this.onStreamStart = null;
         this._streamStartNotified = false;
+        this._iosAudioUnlocked = false;
     }
 
     _ensureContext() {
@@ -20,25 +21,63 @@ export class StreamAudioPlayer {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: this.sampleRate });
             this.gainNode = this.audioContext.createGain();
             this.gainNode.gain.value = 1.5;
-            
+
             const compressor = this.audioContext.createDynamicsCompressor();
             compressor.threshold.value = -24;
             compressor.knee.value = 30;
             compressor.ratio.value = 12;
             compressor.attack.value = 0.003;
             compressor.release.value = 0.25;
-            
+
             this.analyserNode = this.audioContext.createAnalyser();
             this.analyserNode.fftSize = 256;
-            
+
             this.gainNode.connect(compressor);
             compressor.connect(this.analyserNode);
             this.analyserNode.connect(this.audioContext.destination);
         }
+        return this._resumeContext();
+    }
+
+    async _resumeContext() {
+        if (!this.audioContext) return Promise.resolve();
+
+        // iOS Safari requires explicit user gesture to unlock audio
+        // Try multiple times because iOS is picky about when resume() works
         if (this.audioContext.state === 'suspended') {
-            return this.audioContext.resume();
+            try {
+                await this.audioContext.resume();
+                // Double-check it actually resumed
+                if (this.audioContext.state === 'suspended') {
+                    // Try again after small delay (iOS quirk)
+                    await new Promise(r => setTimeout(r, 50));
+                    await this.audioContext.resume();
+                }
+                this._iosAudioUnlocked = true;
+            } catch (e) {
+                console.warn('[Audio] Failed to resume AudioContext:', e);
+            }
         }
         return Promise.resolve();
+    }
+
+    // Call this method on user interaction (tap/click) to unlock iOS audio
+    unlockIOSAudio() {
+        if (!this.audioContext) {
+            this._ensureContext();
+        } else {
+            this._resumeContext();
+        }
+        // Also create a silent buffer to help iOS unlock
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            const buffer = this.audioContext.createBuffer(1, 1, 22050);
+            const source = this.audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(this.audioContext.destination);
+            source.start(0);
+            source.stop(0);
+            this._resumeContext();
+        }
     }
 
     playChunk(pcmBase64, sampleRate, channels) {

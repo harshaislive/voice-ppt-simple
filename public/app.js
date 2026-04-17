@@ -641,6 +641,10 @@ class VoicePPTApp {
         if (passcodeEl && passcodeEl.offsetParent !== null && !passcode) { passcodeEl.focus(); this.setStatus('Enter passcode', 'paused', 'A passcode is required for this presentation'); return; }
         const btn = document.getElementById('start-presentation');
         btn.disabled = true; btn.querySelector('span').textContent = 'Starting...';
+
+        // iOS Safari requires user gesture to unlock audio - call BEFORE async operations
+        this.streamPlayer?.unlockIOSAudio();
+
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const bypassMaster = urlParams.get('force_fresh') === 'true' || urlParams.has('fresh');
@@ -1202,6 +1206,9 @@ class VoicePPTApp {
     handleMicPermissionError() { this.openQuestionComposer(); }
 
     async submitQuestion(forcedText, options = {}) {
+        // Unlock iOS audio on any user interaction
+        this.streamPlayer?.unlockIOSAudio();
+
         const input = options.source === 'slide-turn' ? document.getElementById('slide-question-input') : document.getElementById('question-input');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) return;
@@ -1826,6 +1833,9 @@ class VoicePPTApp {
     }
 
     async submitFinalQuestion() {
+        // Unlock iOS audio on user interaction
+        this.streamPlayer?.unlockIOSAudio();
+
         const input = document.getElementById('completion-question-input');
         if (!input || !input.value.trim()) return;
 
