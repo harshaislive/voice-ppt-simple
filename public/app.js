@@ -305,16 +305,12 @@ class VoicePPTApp {
             }
             
             if (persistedSession) {
-                console.log('[Session] Have persisted session, attempting restore...');
-                const restored = await this.restorePersistedSession(persistedSession);
-                if (restored) {
-                    console.log('[Session] Restore succeeded, skipping start screen');
-                    return;
-                }
-                // Restore failed but session might be recoverable - show message
-                console.log('[Session] Restore failed, showing recovery message');
+                console.log('[Session] Have persisted session, showing recovery choice');
                 const msg = document.getElementById('session-recovery-msg');
                 if (msg) msg.classList.remove('hidden');
+                
+                // Hide normal start button until they decide? Or keep it as "Begin anyway"?
+                // Let's keep "Begin Experience" as a fallback to start a fresh one if they fill name.
             } else {
                 console.log('[Session] No persisted session found');
             }
@@ -427,6 +423,19 @@ class VoicePPTApp {
             if (overlay && e.target === overlay) {
                 overlay.classList.remove('open');
             }
+        });
+
+        on('resume-session', 'click', () => {
+            const persisted = this.getPersistedSession();
+            if (persisted) this.restorePersistedSession(persisted);
+        });
+        on('new-session', 'click', () => {
+            this.clearPersistedSession();
+            const msg = document.getElementById('session-recovery-msg');
+            if (msg) msg.classList.add('hidden');
+            this.resetSessionRuntimeState();
+            // Refresh catalog to ensure fresh state
+            this.loadPresentationCatalog();
         });
     }
 

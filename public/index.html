@@ -27,7 +27,13 @@
                     </div>
 
                     <div class="start-actions">
-                        <div id="session-recovery-msg" class="session-recovery-msg hidden">Active session found — welcome back</div>
+                        <div id="session-recovery-msg" class="session-recovery-msg hidden">
+                            <p>Active session found — welcome back.</p>
+                            <div class="recovery-actions">
+                                <button id="resume-session" class="btn-resume">Resume Session</button>
+                                <button id="new-session" class="btn-start-new">Start Fresh</button>
+                            </div>
+                        </div>
                         <input id="participant-name" type="text" class="name-input" placeholder="Your Name" autocomplete="name">
                         <input id="session-passcode" type="password" class="session-passcode" placeholder="Passcode (if required)">
                         <button id="start-presentation" class="btn-start">
