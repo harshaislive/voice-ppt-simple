@@ -266,11 +266,15 @@ export class UIManager {
     toggleQuestionDrawer(forceOpen) {
         const panel = document.getElementById('qa-panel');
         const scrim = document.getElementById('qa-scrim');
+        const completionToggle = document.getElementById('chat-widget-toggle');
         if (!panel || !scrim) return;
 
         const open = typeof forceOpen === 'boolean' ? forceOpen : panel.classList.contains('hidden');
         panel.classList.toggle('hidden', !open);
         scrim.classList.toggle('hidden', !open);
+        if (completionToggle) {
+            completionToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
         
         if (open) {
             this.app.clearQuestionBadge?.();

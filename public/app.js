@@ -379,14 +379,6 @@ class VoicePPTApp {
         on('qa-scrim', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('restart-btn', 'click', () => location.reload());
         on('chat-widget-toggle', 'click', () => this.toggleChatWidget());
-        on('chat-widget-close', 'click', () => this.toggleChatWidget(false));
-        on('completion-submit-question', 'click', () => this.submitFinalQuestion());
-        on('completion-question-input', 'keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.submitFinalQuestion();
-            }
-        });
         on('slide-pause-btn', 'click', () => this.toggleAudioPause());
         on('interrupt-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-mic', 'click', () => this.openQuestionComposer());
@@ -936,17 +928,6 @@ class VoicePPTApp {
     handleAudioEnd(data = {}) {
         this.showTranscript(false);
         this.subtitleReady = false;
-        // Reset audio player state
-        this.streamPlayer.reset();
-        this.streamPlayer.resume();  // Clear paused state
-        // Reset play/pause button to play state (since audio ended)
-        const btn = document.getElementById('slide-pause-btn');
-        const iconPause = btn?.querySelector('.icon-pause');
-        const iconPlay = btn?.querySelector('.icon-play');
-        if (btn) btn.classList.remove('is-paused');
-        if (iconPause) iconPause.style.display = 'none';
-        if (iconPlay) iconPlay.style.display = 'block';
-        this.isAudioPaused = false;
         this.waitForPlaybackFinish(data);
     }
 
@@ -1012,6 +993,16 @@ class VoicePPTApp {
                 this.awaitingPlaybackComplete = false;
                 this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
             }
+
+            this.streamPlayer.reset();
+            this.streamPlayer.resume();
+            this.isAudioPaused = false;
+            const btn = document.getElementById('slide-pause-btn');
+            const iconPause = btn?.querySelector('.icon-pause');
+            const iconPlay = btn?.querySelector('.icon-play');
+            if (btn) btn.classList.remove('is-paused');
+            if (iconPause) iconPause.style.display = 'none';
+            if (iconPlay) iconPlay.style.display = 'block';
         };
         setTimeout(poll, 120);
     }
@@ -1794,14 +1785,13 @@ class VoicePPTApp {
     finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
 
     toggleChatWidget(force) {
-        const win = document.getElementById('chat-widget-window');
         const toggle = document.getElementById('chat-widget-toggle');
-        if (!win) return;
-        const isHidden = win.classList.contains('hidden');
-        const show = force !== undefined ? force : isHidden;
-        win.classList.toggle('hidden', !show);
+        const panel = document.getElementById('qa-panel');
+        const show = typeof force === 'boolean'
+            ? force
+            : Boolean(panel?.classList.contains('hidden'));
         if (toggle) toggle.setAttribute('aria-expanded', show ? 'true' : 'false');
-        if (show) document.getElementById('completion-question-input')?.focus();
+        this.ui.toggleQuestionDrawer(show);
     }
 
     showCompletion(data) {
@@ -1839,97 +1829,8 @@ class VoicePPTApp {
         }
 
         this.loadCtaBlocks();
-        this.renderFinalQAList();
 
         this.setStatus('Engagement', 'paused', 'Dialogue remains open');
-    }
-
-    renderFinalQAList() {
-        const container = document.getElementById('completion-qa-list');
-        if (!container) return;
-        
-        const questions = Array.from(this.questions.values())
-            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-        if (questions.length === 0) {
-            container.innerHTML = `
-                <div class="qa-empty-state">
-                    <p>The presentation has ended, but the dialogue is still open. Ask about the 10% lifestyle, the collective model, pricing, or the next step.</p>
-                </div>`;
-            return;
-        }
-
-        container.innerHTML = '';
-        questions.forEach(q => {
-            const card = document.createElement('div');
-            card.className = `qa-card completion-chat-card ${q.status === 'answered' ? 'is-answered' : 'is-pending'}`;
-            card.id = `final-q-${q.id}`;
-
-            const meta = document.createElement('div');
-            meta.className = 'qa-card-meta completion-chat-meta';
-            meta.innerHTML = `
-                <span class="completion-chat-meta-label">Question</span>
-                <span class="completion-chat-meta-state">${q.status === 'answered' ? 'Answered' : 'Thinking'}</span>
-            `;
-            card.appendChild(meta);
-            
-            const qText = document.createElement('div');
-            qText.className = 'qa-card-question';
-            qText.textContent = q.text;
-            card.appendChild(qText);
-
-            if (q.status === 'answered') {
-                const aWrap = document.createElement('div');
-                aWrap.className = 'qa-card-answer';
-                this.renderQuestionAnswer(aWrap, q.meta || {});
-                card.appendChild(aWrap);
-            } else {
-                const pending = document.createElement('div');
-                pending.className = 'qa-card-meta completion-chat-pending';
-                pending.textContent = 'Agent is preparing a grounded answer...';
-                card.appendChild(pending);
-            }
-            
-            container.appendChild(card);
-        });
-    }
-
-    async submitFinalQuestion() {
-        // Unlock iOS audio on user interaction
-        this.streamPlayer?.unlockIOSAudio();
-
-        const input = document.getElementById('completion-question-input');
-        if (!input || !input.value.trim()) return;
-
-        const text = input.value.trim();
-        input.value = '';
-
-        // Optimistically add to UI immediately
-        const tempId = 'temp-' + Date.now();
-        this.questions.set(tempId, { id: tempId, text, status: 'pending', timestamp: Date.now() });
-        this.renderFinalQAList();
-
-        try {
-            // apiFetch returns a Response — must parse JSON before checking success
-            const res = await this.apiFetch('/api/questions', {
-                method: 'POST',
-                body: JSON.stringify({
-                    sessionId: this.sessionId,
-                    text,
-                    participantName: this.participantName
-                })
-            });
-            const data = await res.json();
-            if (data.success) {
-                // Remove temp entry — socket event will bring it back with real ID
-                this.questions.delete(tempId);
-            }
-        } catch (err) {
-            console.warn('[Chat] submitFinalQuestion error:', err.message);
-        }
-
-        const list = document.getElementById('completion-qa-list');
-        if (list) list.scrollTop = list.scrollHeight;
     }
 
     async loadCtaBlocks() {

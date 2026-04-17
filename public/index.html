@@ -211,7 +211,7 @@
                     <header class="qa-header">
                         <div class="qa-header-left">
                             <span class="qa-eyebrow">Dialogue</span>
-                            <h2 class="qa-display-title">Q&A</h2>
+                            <h2 class="qa-display-title">Field Notes</h2>
                         </div>
                         <div class="qa-header-actions">
                             <div class="qa-status-pill">
@@ -230,19 +230,19 @@
                                 <div class="qa-empty-icon">
                                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                 </div>
-                                <p>The floor is open. Type a question about the collective, the 10% life, or the restoration work.</p>
+                                <p>The dialogue stays open. Ask about pricing, stays, the collective model, or what happens next.</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="qa-footer">
                         <div class="qa-input-container">
-                            <textarea id="question-input" class="qa-textarea" placeholder="Type your question..." rows="1" disabled></textarea>
+                            <textarea id="question-input" class="qa-textarea" placeholder="Ask a follow-up..." rows="1" disabled></textarea>
                             <button id="submit-question" class="qa-send-btn" disabled aria-label="Send question">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                             </button>
                         </div>
-                                <p class="qa-input-hint">Ask anything — I'll answer in the final Q&A.</p>
+                        <p class="qa-input-hint">Text-only answers. Short, grounded, and specific.</p>
                     </div>
                 </div>
             </aside>
@@ -274,48 +274,17 @@
                             <div id="completion-hero" class="completion-image-panel"></div>
                         </div>
 
-                        <!-- Floating Chatbot Widget -->
+                        <!-- Shared Q&A Launcher -->
                         <div id="completion-chat-widget" class="completion-chat-widget">
-                            <button id="chat-widget-toggle" class="chat-widget-toggle" aria-label="Open Chat" aria-controls="chat-widget-window" aria-expanded="false">
+                            <button id="chat-widget-toggle" class="chat-widget-toggle" aria-label="Open Chat" aria-controls="qa-panel" aria-expanded="false">
                                 <span class="chat-widget-toggle-icon">
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                 </span>
                                 <span class="chat-widget-toggle-copy">
-                                    <span class="chat-widget-toggle-eyebrow">After The Deck</span>
-                                    <span class="chat-widget-toggle-title">Field Notes</span>
+                                    <span class="chat-widget-toggle-eyebrow">Field Notes</span>
+                                    <span class="chat-widget-toggle-title">Open Dialogue</span>
                                 </span>
                             </button>
-                            
-                            <div id="chat-widget-window" class="chat-widget-window hidden">
-                                <div class="chat-widget-header">
-                                    <div class="chat-header-info">
-                                        <span class="chat-eyebrow">Private Dialogue</span>
-                                        <h3 class="chat-title">Field Notes</h3>
-                                        <p class="chat-header-summary">Ask about pricing, stays, collectives, or anything that needs a quieter explanation.</p>
-                                        <div class="chat-presence">
-                                            <span class="presence-dot"></span>
-                                            <span class="presence-label">Agent Online</span>
-                                        </div>
-                                    </div>
-                                    <button id="chat-widget-close" class="chat-widget-close" aria-label="Close chat">✕</button>
-                                </div>
-
-                                <div id="completion-qa-list" class="completion-qa-list">
-                                    <div class="qa-empty-state">
-                                        <p>The deck is over, but the conversation is still open. Ask about the 10% lifestyle, the collective model, or what comes next.</p>
-                                    </div>
-                                </div>
-
-                                <div class="completion-chat-footer">
-                                    <div class="completion-chat-footer-copy">Text-only answers. Short, grounded, and specific.</div>
-                                    <div class="qa-input-container">
-                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Ask a follow-up..." rows="1"></textarea>
-                                        <button id="completion-submit-question" class="qa-send-btn" aria-label="Send question">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
         </div>
@@ -381,6 +350,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- Socket.IO -->
