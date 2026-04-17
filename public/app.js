@@ -383,7 +383,7 @@ class VoicePPTApp {
             if (e.key === 'Enter') { e.preventDefault(); this.startSession(); }
         });
         on('submit-question', 'click', () => this.submitQuestion());
-        on('question-input', 'keypress', (e) => {
+        on('question-input', 'keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submitQuestion(); }
         });
         on('chat-toggle', 'click', () => this.ui.toggleQuestionDrawer(true));
@@ -398,7 +398,7 @@ class VoicePPTApp {
         on('slide-turn-continue', 'click', () => this.continuePresentationFlow());
         on('footer-continue-btn', 'click', () => this.continuePresentationFlow());
         on('slide-question-send', 'click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
-        on('slide-question-input', 'keypress', (e) => {
+        on('slide-question-input', 'keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
@@ -1328,17 +1328,34 @@ class VoicePPTApp {
         this.streamPlayer?.unlockIOSAudio();
 
         const input = options.source === 'slide-turn' ? document.getElementById('slide-question-input') : document.getElementById('question-input');
+        const button = options.source === 'slide-turn' ? document.getElementById('slide-question-send') : document.getElementById('submit-question');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) return;
         this.pendingQuestionText = text;
         try {
-            const res = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: this.sessionId, questionText: text, submittedBy: options.submittedBy || 'Audience' }) });
-            if (!(await res.json()).success) throw new Error('Failed');
-            input.value = ''; this.pendingQuestionText = null;
+            if (input) input.blur();
+            if (button) button.disabled = true;
+            const res = await this.apiFetch('/api/questions', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    questionText: text,
+                    submittedBy: options.submittedBy || 'Audience'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
+            input.value = '';
+            this.pendingQuestionText = null;
             this.setStatus('Question queued', 'paused', 'Answered after the current slide');
             this.userQuestions.push({ id: null, text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
-            this.ui.toggleQuestionDrawer(true);
-        } catch (err) { console.error(err); this.setStatus('Question failed', 'paused', 'Retry'); }
+            this.ui.toggleQuestionDrawer(true, { focusInput: false });
+        } catch (err) {
+            console.error(err);
+            this.setStatus('Question failed', 'paused', 'Retry');
+        } finally {
+            if (button) button.disabled = false;
+        }
     }
 
     renderScrubber() {
@@ -1785,6 +1802,20 @@ class VoicePPTApp {
         const iconPause = btn?.querySelector('.icon-pause');
         const iconPlay = btn?.querySelector('.icon-play');
 
+        // If we are currently paused, resume regardless of AudioContext state.
+        // The pause path stops sources and marks the stream player paused; it does not
+        // necessarily suspend the AudioContext.
+        if (this.isAudioPaused) {
+            this.streamPlayer.resume();
+            this.isAudioPaused = false;
+            this.pauseStartMs = null;
+            if (btn) btn.classList.remove('is-paused');
+            if (iconPause) iconPause.style.display = 'block';
+            if (iconPlay) iconPlay.style.display = 'none';
+            this.pauseAutoplex(false);
+            return;
+        }
+
         // If audio is running, pause it
         if (this.streamPlayer.audioContext.state === 'running') {
             // Use the audio player's pause() method - it sets _isPaused = true
@@ -1800,7 +1831,7 @@ class VoicePPTApp {
             if (iconPlay) iconPlay.style.display = 'block';
             this.pauseAutoplex(true);
         }
-        // If audio is suspended, resume it
+        // Fallback for browsers that really suspend the AudioContext
         else if (this.streamPlayer.audioContext.state === 'suspended') {
             this.streamPlayer.audioContext.resume().then(() => {
                 // Use the audio player's resume() method - it sets _isPaused = false
