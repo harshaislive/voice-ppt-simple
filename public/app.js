@@ -1633,7 +1633,15 @@ class VoicePPTApp {
 
         const summaryText = String(payload.answerSummary || '').trim();
         const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
-        const shouldShowTitle = titleText && titleText !== 'Answer' && !detailsText.startsWith(titleText);
+        
+        // Avoid showing summary if it's just a truncated version of the details
+        const summaryIsTruncatedDetails = detailsText.length > summaryText.length && 
+                                        summaryText.endsWith('...') && 
+                                        detailsText.startsWith(summaryText.slice(0, -3).trim());
+        
+        const shouldShowSummary = summaryText && 
+                                summaryText !== detailsText && 
+                                !summaryIsTruncatedDetails;
 
         const summary = document.createElement('div');
         summary.className = 'qa-answer-thread-summary';
@@ -1646,7 +1654,7 @@ class VoicePPTApp {
         if (shouldShowTitle || payload.answerAudioUrl) {
             wrap.appendChild(header);
         }
-        if (summaryText && summaryText !== detailsText) {
+        if (shouldShowSummary) {
             wrap.appendChild(summary);
         }
         if (detailsText) {
