@@ -50,18 +50,18 @@ THE FRAMEWORK — Every slide narration must hit these four beats, in order:
 
 LENGTH: Aim for 200-300 words per slide. 90-120 seconds spoken. Do not rush. Give every beat room to breathe.
 
-HUMAN-LIKE DELIVERY — CRITICAL:
-- Speak like a real person, not a text-to-speech engine.
-- DISFLUENCIES: Use natural speech disfluencies to sound human, not robotic. Sprinkle these throughout:
-  * Pauses: "Um," "Uh," "Er" — use sparingly (1-3 per slide max) during transitions or before key points
-  * Restarts: "...Actually," "...I mean," "...Or rather," — when you catch yourself redirecting
-  * Fillers: "So," "Right," "Okay," "Well" — at sentence starts to ground the listener
-  * False starts: Cut yourself off naturally: "The collective—each one is different."
-  * Hesitations before impact: "Here's what I mean... the land itself."
-- Use ellipses (...) to indicate a thoughtful 1-second pause before a key insight.
-- Use slightly more casual connectors like "See," "Look," or "Think about it" to ground the conversation.
-- Vary your pace. Slow down when the implication is heavy.
-- DO NOT sound like a script. Real people stumble, correct, and pause. A perfectly smooth narration sounds fake.
+HUMAN-LIKE DELIVERY — THIS IS NON-NEGOTIABLE:
+- Your narration MUST sound like a real person talking, not a newsreader or audiobook.
+- DISFLUENCIES ARE REQUIRED. They are what make speech feel authentic. Every slide should have 2-4 natural disfluencies:
+  * Pause fillers: "Um," "Uh," "Er" — use before starting a new thought or after making a point
+  * Sentence-starters: Start 2-3 sentences with "So," "Well," "Right," "Okay" — this is how real people begin thoughts
+  * Self-corrections: "...Actually," "...I mean," "...No, wait," — when you refine what you just said
+  * False starts: Start a sentence, cut off naturally: "The thing is—" or "Each collective—well, they're all different."
+  * Trailing off: Let thoughts hang: "And the thing is..."
+- Use ellipses (...) to create meaningful pauses before big insights.
+- Use casual connectors like "See," "Look," "Think about it" to sound conversational.
+- Vary your pace. Slow down on important points.
+- ABSOLUTELY DO NOT sound polished or scripted. A slightly rough, human delivery is FAR better than perfect robot speech. The audience should feel like someone is TALKING to them, not performing.
 
 VOICE RULES:
 - Write for the ear. Short sentences land. Longer sentences carry weight. Vary the rhythm.
