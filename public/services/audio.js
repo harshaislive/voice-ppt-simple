@@ -80,15 +80,31 @@ export class StreamAudioPlayer {
 
     pause() {
         this._isPaused = true;
-        this._stopAllSources();
-        this._clearBuffers();
+        if (this.bufferTimer) {
+            clearTimeout(this.bufferTimer);
+            this.bufferTimer = null;
+        }
+        if (this.audioContext && this.audioContext.state === 'running') {
+            return this.audioContext.suspend().catch((err) => {
+                console.warn('[Audio] Failed to suspend AudioContext:', err);
+            });
+        }
+        return Promise.resolve();
     }
 
     resume() {
         this._isPaused = false;
-        // Reset buffering state so queued chunks get processed
-        // The next chunk will trigger a fresh buffer cycle
-        this.isBuffering = false;
+        return this._resumeContext().then(() => {
+            if (this.chunkQueue.length > 0 && !this.isBuffering) {
+                this.isBuffering = true;
+                if (this.bufferTimer) clearTimeout(this.bufferTimer);
+                this.bufferTimer = setTimeout(() => {
+                    this.isBuffering = false;
+                    this.bufferTimer = null;
+                    this._flushQueue();
+                }, 10);
+            }
+        });
     }
 
     _stopAllSources() {
@@ -116,9 +132,12 @@ export class StreamAudioPlayer {
     }
 
     playChunk(pcmBase64, sampleRate, channels) {
-        if (this._isPaused) return;
-
         this._ensureContext();
+
+        if (this._isPaused) {
+            this.chunkQueue.push({ pcmBase64, sampleRate, channels });
+            return;
+        }
 
         if (!this.isPlaying && !this.isBuffering) {
             this.isBuffering = true;
@@ -217,6 +236,21 @@ export class StreamAudioPlayer {
     reset() {
         this._stopAllSources();
         this._clearBuffers();
+        this._isPaused = false;
+    }
+
+    shiftPlaybackWindow(deltaMs = 0) {
+        if (!Number.isFinite(deltaMs) || deltaMs === 0) return;
+        if (Number.isFinite(this.playbackStartedAtMs)) {
+            this.playbackStartedAtMs += deltaMs;
+        }
+        if (Number.isFinite(this.playbackEndsAtMs)) {
+            this.playbackEndsAtMs += deltaMs;
+        }
+        this.onTimelineUpdate?.({
+            startedAtMs: this.playbackStartedAtMs,
+            endsAtMs: this.playbackEndsAtMs
+        });
     }
 
     _base64ToArrayBuffer(base64) {

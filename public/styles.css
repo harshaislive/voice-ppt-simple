@@ -2295,21 +2295,42 @@ h1, h2, h3, h4 {
 }
 
 .transcript-reel-word {
-    display: inline;
-    padding: 0 0.15em;
-    margin: 0 -0.05em;
-    border-radius: 0.18em;
-    transition: background-color 220ms cubic-bezier(0.4, 0, 0.2, 1), 
-                color 220ms cubic-bezier(0.4, 0, 0.2, 1), 
-                box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1),
-                transform 220ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: inline-block;
+    position: relative;
+    z-index: 0;
+    padding: 0 0.18em;
+    margin: 0 -0.04em;
+    border-radius: 0.24em;
+    color: rgba(58, 43, 38, 0.72);
+    transition: color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.transcript-reel-word::before {
+    content: '';
+    position: absolute;
+    inset: -0.08em -0.02em;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(190, 89, 69, 0.22), rgba(161, 67, 51, 0.32));
+    box-shadow: 0 0.14em 0.4em rgba(154, 66, 52, 0.12);
+    opacity: 0;
+    transform: scaleX(0.82) scaleY(0.92);
+    transform-origin: center;
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .transcript-reel-word.is-active {
-    background: var(--accent-warm); /* Using the warm accent color */
-    color: var(--text);
-    box-shadow: 0 0.1em 0.3em rgba(255, 192, 131, 0.35);
-    transform: translateY(-1px) scale(1.04);
+    color: #6d2419;
+    transform: translateY(-1px);
+}
+
+.transcript-reel-word.is-active::before {
+    opacity: 1;
+    transform: scaleX(1) scaleY(1);
+    box-shadow: 0 0.18em 0.48em rgba(154, 66, 52, 0.2);
 }
 
 .transcript-reel-lines {

@@ -171,15 +171,13 @@ export class UIManager {
         // Update content
         meta.textContent = data.headline || 'Speaking';
         if (words.length > 0) {
-            const renderKey = `${state}:${words.join('|')}:${activeWordIndex}`;
+            const renderKey = `${state}:${words.join('|')}`;
             if (phraseEl.dataset.renderKey !== renderKey) {
                 phraseEl.innerHTML = '';
                 words.forEach((word, index) => {
                     const span = document.createElement('span');
                     span.className = 'transcript-reel-word';
-                    if (state === 'live' && index === activeWordIndex) {
-                        span.classList.add('is-active');
-                    }
+                    span.dataset.wordIndex = String(index);
                     span.textContent = word;
                     phraseEl.appendChild(span);
                     if (index < words.length - 1) {
@@ -187,6 +185,18 @@ export class UIManager {
                     }
                 });
                 phraseEl.dataset.renderKey = renderKey;
+            }
+
+            const activeEl = phraseEl.querySelector('.transcript-reel-word.is-active');
+            const nextActiveEl = state === 'live' && activeWordIndex >= 0
+                ? phraseEl.querySelector(`.transcript-reel-word[data-word-index="${activeWordIndex}"]`)
+                : null;
+
+            if (activeEl && activeEl !== nextActiveEl) {
+                activeEl.classList.remove('is-active');
+            }
+            if (nextActiveEl && !nextActiveEl.classList.contains('is-active')) {
+                nextActiveEl.classList.add('is-active');
             }
         } else {
             if (phraseEl.dataset.renderKey !== `plain:${state}:${phrase}`) {
