@@ -1267,7 +1267,6 @@ class VoicePPTApp {
         filmstrip.innerHTML = '';
         filmstrip.dataset.slideCount = String(this.slideDeck.length);
 
-        const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
         if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
         if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
         this.slideDeck.forEach((slide, index) => {
