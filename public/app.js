@@ -1333,6 +1333,11 @@ class VoicePPTApp {
             }
         }
 
+        // Close the scrubber modal and resume presentation
+        const scrubber = document.getElementById('scrubber-container');
+        if (scrubber) scrubber.classList.add('hidden');
+        this.resumePresentationAfterHistory();
+
         // Re-render scrubber to update locked/unlocked state after action
         this.renderScrubber();
     }
