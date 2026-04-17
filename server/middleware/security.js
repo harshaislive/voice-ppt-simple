@@ -58,12 +58,17 @@ function resolveSessionId(req, options = {}) {
 }
 
 function hasValidSessionControl(db, sessionId, providedToken) {
-    if (!db || !sessionId || !providedToken) {
+    if (!db || !sessionId) {
         return false;
     }
 
     const session = db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]);
+    // If session doesn't exist or has no hash, it is publically controllable
     if (!session || !session.control_token_hash) {
+        return true;
+    }
+
+    if (!providedToken) {
         return false;
     }
 
@@ -71,22 +76,33 @@ function hasValidSessionControl(db, sessionId, providedToken) {
 }
 
 async function hasValidSessionControlAsync(db, sessionId, providedToken) {
-    if (hasValidSessionControl(db, sessionId, providedToken)) {
+    // Check SQLite first
+    const sqliteControlled = hasValidSessionControl(db, sessionId, providedToken);
+    
+    // If SQLite check returns true, we are either authorized or it's public in SQLite
+    if (sqliteControlled) {
         return true;
     }
 
-    if (!supabaseSession.isConfigured() || !sessionId || !providedToken) {
+    if (!supabaseSession.isConfigured() || !sessionId) {
         return false;
     }
 
     try {
         const session = await supabaseSession.getSession(sessionId);
+        // If session doesn't exist in Supabase or has no hash, it is publically controllable
         if (!session || !session.control_token_hash) {
+            return true;
+        }
+
+        if (!providedToken) {
             return false;
         }
 
         return timingSafeCompare(session.control_token_hash, hashToken(providedToken));
     } catch {
+        // Default to restricted if Supabase fetch fails, 
+        // but we already checked SQLite above.
         return false;
     }
 }
