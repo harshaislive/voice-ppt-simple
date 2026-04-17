@@ -249,17 +249,17 @@ export class UIManager {
         if (button) {
             button.classList.remove('listening', 'armed');
         }
-        
+
         if (label) {
-            label.textContent = 'Questions';
+            label.textContent = 'Q&A';
         }
 
         if (slideTurnMic) {
             slideTurnMic.classList.remove('is-live');
         }
-        
+
         if (slideTurnMicLabel) {
-            slideTurnMicLabel.textContent = 'Queue Question';
+            slideTurnMicLabel.textContent = 'Ask a Question';
         }
     }
 

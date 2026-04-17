@@ -1370,6 +1370,18 @@ class VoicePPTApp {
             node = document.createElement('div');
             node.className = 'qa-card-answer';
             target.appendChild(node);
+        } else {
+            // Already rendered - check if content changed
+            const existingSummary = node.querySelector('.qa-answer-thread-summary');
+            const existingDetails = node.querySelector('.qa-answer-thread-details');
+            const newSummary = meta.answerSummary || ans;
+            const newDetails = meta.answerDetails || ans;
+            if (existingSummary && existingDetails &&
+                existingSummary.textContent === newSummary &&
+                existingDetails.textContent === newDetails) {
+                // Content unchanged, skip re-render to avoid flicker
+                return;
+            }
         }
 
         const answerTitle = meta.answerTitle || this.getQuestionAnswerMeta(id)?.answerTitle || 'Answer';
@@ -1666,11 +1678,11 @@ class VoicePPTApp {
         this.ui.toggleQuestionDrawer(true);
         const input = document.getElementById('question-input');
         if (input) input.focus();
-        this.setStatus('Questions', 'paused', 'Type a question to queue it');
+        this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer');
     }
 
     restorePresentationStatus() {
-        if (this.voiceModeEnabled) { this.setStatus('Questions', 'paused', 'Type a question to queue it'); return; }
+        if (this.voiceModeEnabled) { this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer'); return; }
         if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Type a question to queue it'); return; }
         if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Type a question or continue'); return; }
         if (this.isQAPhase) { this.setStatus('Q&A', 'paused', 'Answering questions'); return; }
@@ -2016,7 +2028,7 @@ class VoicePPTApp {
         if (scrollArea.children.length > 0) {
             const title = document.createElement('h3');
             title.className = 'qa-slides-title';
-            title.textContent = 'Audience Questions';
+            title.textContent = 'Your Q&A';
             container.appendChild(title);
             container.appendChild(scrollArea);
         }
@@ -2026,7 +2038,7 @@ class VoicePPTApp {
 
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
-    onVoiceSessionConnected() { this.voiceModeEnabled = false; this.updateMicState(); this.setStatus('Questions', 'paused', 'Type a question to queue it'); }
+    onVoiceSessionConnected() { this.voiceModeEnabled = false; this.updateMicState(); this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer'); }
     onVoiceSessionDisconnected() { this.voiceModeEnabled = false; this.updateMicState(); this.restorePresentationStatus(); }
 
     getRealtimeTools() {

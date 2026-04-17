@@ -1326,9 +1326,9 @@ h1, h2, h3, h4 {
     gap: 24px;
 }
 
-/* Question Cards */
+/* Question Cards - Personal Chat Style */
 .qa-card {
-    padding: 24px;
+    padding: 20px 24px;
     background: #fff;
     border: 1px solid rgba(52, 46, 41, 0.08);
     position: relative;
@@ -1342,28 +1342,34 @@ h1, h2, h3, h4 {
 .qa-card-meta {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
     text-transform: uppercase;
-    opacity: 0.4;
+    opacity: 0.5;
+    gap: 12px;
+}
+
+.qa-card-meta .question-author {
+    font-weight: 600;
 }
 
 .qa-card-question {
     font-family: var(--font-serif);
-    font-size: 1.25rem;
-    line-height: 1.4;
+    font-size: 1.15rem;
+    line-height: 1.5;
     color: var(--text);
+    padding-left: 0;
 }
 
 .qa-card-answer {
-    margin-top: 20px;
-    padding-top: 20px;
+    margin-top: 16px;
+    padding-top: 16px;
     border-top: 1px dashed rgba(52, 46, 41, 0.1);
     font-family: var(--font-sans);
-    font-size: 1rem;
-    line-height: 1.6;
-    opacity: 0.8;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--text);
 }
 
 .qa-answer-thread {
@@ -1512,19 +1518,32 @@ h1, h2, h3, h4 {
 .qa-send-btn {
     width: 48px;
     height: 48px;
-    background: var(--text);
-    color: var(--bg);
+    min-width: 48px;
+    min-height: 48px;
+    background: var(--accent-green);
+    color: #fff;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    border-radius: 50%;
 }
 
 .qa-send-btn:hover {
-    background: var(--accent-green);
-    color: #fff;
+    background: var(--text);
+    transform: scale(1.05);
+}
+
+.qa-send-btn:disabled {
+    background: rgba(52, 46, 41, 0.15);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.qa-send-btn svg {
+    margin-left: 2px;
 }
 
 .qa-input-hint {
@@ -3015,8 +3034,33 @@ h1, h2, h3, h4 {
 }
 
 .completion-chat-footer {
-    padding: 20px;
-    border-top: 1px solid rgba(52, 46, 41, 0.05);
+    padding: 16px 20px 20px;
+    border-top: 1px solid rgba(52, 46, 41, 0.08);
+    background: #faf9f7;
+}
+
+.completion-chat-footer .qa-input-container {
+    background: #fff;
+    border: 1px solid rgba(52, 46, 41, 0.12);
+    padding: 6px 6px 6px 16px;
+    border-radius: 24px;
+    box-shadow: 0 2px 12px rgba(52, 46, 41, 0.06);
+}
+
+.completion-chat-footer .qa-textarea {
+    font-size: 0.95rem;
+    padding: 10px 0;
+}
+
+.completion-chat-footer .qa-send-btn {
+    width: 44px;
+    height: 44px;
+    background: var(--accent-green);
+    border-radius: 50%;
+}
+
+.completion-chat-footer .qa-send-btn:hover {
+    background: var(--text);
 }
 
 .completion-title {
