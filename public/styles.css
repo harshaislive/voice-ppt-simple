@@ -768,15 +768,16 @@ h1, h2, h3, h4 {
 .narration-controls {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 12px 0;
+    gap: 12px;
+    padding: 10px 0;
     margin-bottom: 8px;
     background: var(--bg);
     position: relative;
 }
 
 .narration-progress-track {
-    flex: 1;
+    flex: 0 0 80%;
+    width: 80%;
     height: 4px;
     background: rgba(52, 46, 41, 0.1);
     border-radius: 2px;
@@ -793,9 +794,10 @@ h1, h2, h3, h4 {
 }
 
 .slide-pause-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
+    flex: 0 0 20%;
+    width: 20%;
+    height: 36px;
+    border-radius: 8px;
     border: none;
     background: var(--text);
     color: var(--bg);
@@ -803,7 +805,6 @@ h1, h2, h3, h4 {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    flex-shrink: 0;
     order: 2;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
