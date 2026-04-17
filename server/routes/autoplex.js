@@ -1108,8 +1108,13 @@ async function runPresentation(db, io, sessionId) {
         return;
     }
 
+    const resumeSlideIndex = Math.max(0, Math.min(
+        Number(session.current_slide_index || 0),
+        Math.max(0, slides.length - 1)
+    ));
+
     db.run('UPDATE sessions SET status = \'presenting\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
-    syncSessionState(sessionId, { status: 'presenting', current_slide_index: 0 });
+    syncSessionState(sessionId, { status: 'presenting', current_slide_index: resumeSlideIndex });
 
     io.to(sessionId).emit('presentation-start', {
         totalSlides: slides.length,
@@ -1119,7 +1124,7 @@ async function runPresentation(db, io, sessionId) {
     await sleep(PRESENTATION_START_DELAY_MS);
 
     const pregeneratedSlides = pregeneratedSessions.get(sessionId) || [];
-    let currentSlideIndex = 0;
+    let currentSlideIndex = resumeSlideIndex;
     console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}, pregenerated: ${pregeneratedSlides.length}`);
 
     while (currentSlideIndex < slides.length) {

@@ -245,6 +245,7 @@ class VoicePPTApp {
     async restorePersistedSession(session) {
         console.log('[Session] Attempting to restore session:', session.sessionId, 'participant:', session.participantName);
         try {
+            this.streamPlayer?.unlockIOSAudio();
             const res = await this.apiFetch(`/api/session/${session.sessionId}`);
             console.log('[Session] Restore response status:', res.status);
             
@@ -282,7 +283,12 @@ class VoicePPTApp {
             await this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
-            this.setStatus('Resumed', 'live', 'Session restored');
+            if (['active', 'presenting'].includes(String(data.session.status || ''))) {
+                await this.triggerAutoPlex();
+                this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
+            } else {
+                this.setStatus('Resumed', 'live', 'Session restored');
+            }
             this.syncQuestionCount();
             console.log('[Session] Restore successful!');
             return true;
