@@ -919,6 +919,14 @@ class VoicePPTApp {
     handleAudioEnd(data = {}) {
         this.showTranscript(false);
         this.subtitleReady = false;
+        // Reset play/pause button to play state (since audio ended)
+        const btn = document.getElementById('slide-pause-btn');
+        const iconPause = btn?.querySelector('.icon-pause');
+        const iconPlay = btn?.querySelector('.icon-play');
+        if (btn) btn.classList.remove('is-paused');
+        if (iconPause) iconPause.style.display = 'none';
+        if (iconPlay) iconPlay.style.display = 'block';
+        this.isAudioPaused = false;
         this.waitForPlaybackFinish(data);
     }
 

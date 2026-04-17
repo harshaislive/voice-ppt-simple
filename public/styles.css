@@ -768,10 +768,11 @@ h1, h2, h3, h4 {
 .narration-controls {
     display: flex;
     align-items: center;
-    gap: 20px;
-    padding: 16px 0;
-    margin-bottom: 12px;
+    gap: 16px;
+    padding: 12px 0;
+    margin-bottom: 8px;
     background: var(--bg);
+    position: relative;
 }
 
 .narration-progress-track {
@@ -780,6 +781,7 @@ h1, h2, h3, h4 {
     background: rgba(52, 46, 41, 0.1);
     border-radius: 2px;
     overflow: hidden;
+    order: 1;
 }
 
 .narration-progress-fill {
@@ -791,16 +793,38 @@ h1, h2, h3, h4 {
 }
 
 .slide-pause-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    border: 2px solid var(--border-color);
-    background: var(--bg);
+    border: none;
+    background: var(--text);
+    color: var(--bg);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
+    order: 2;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.slide-pause-btn:hover {
+    background: #333;
+}
+
+.slide-pause-btn.is-paused {
+    background: var(--accent-green);
+}
+
+.slide-pause-btn.is-paused:hover {
+    background: #2a8a4a;
+}
+
+.full-transcription {
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    opacity: 1;
 }
 
 /* Scrubber / Slide History Carousel Modal */
