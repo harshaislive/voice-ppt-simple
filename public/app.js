@@ -869,6 +869,16 @@ class VoicePPTApp {
         // Reset audio player when slide changes to avoid stale state issues
         if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.activeAudioSlideIndex) {
             this.streamPlayer.reset();
+            this.isAudioPaused = false;
+            this.pendingPlaybackStartAt = null;
+            this.pauseStartMs = null;
+            // Reset UI to play state
+            const btn = document.getElementById('slide-pause-btn');
+            const iconPause = btn?.querySelector('.icon-pause');
+            const iconPlay = btn?.querySelector('.icon-play');
+            if (btn) btn.classList.remove('is-paused');
+            if (iconPause) iconPause.style.display = 'block';
+            if (iconPlay) iconPlay.style.display = 'none';
         }
         
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
@@ -1657,10 +1667,17 @@ class VoicePPTApp {
 
     toggleAudioPause() {
         if (!this.streamPlayer || !this.streamPlayer.audioContext) return;
+
+        // Guard against rapid double-clicks
+        if (this._isTogglingPause) return;
+        this._isTogglingPause = true;
+        setTimeout(() => { this._isTogglingPause = false; }, 300);
+
         const btn = document.getElementById('slide-pause-btn');
         const iconPause = btn?.querySelector('.icon-pause');
         const iconPlay = btn?.querySelector('.icon-play');
 
+        // If audio is running, pause it
         if (this.streamPlayer.audioContext.state === 'running') {
             this.streamPlayer.audioContext.suspend();
             this.streamPlayer.isPlaying = false;
@@ -1668,28 +1685,29 @@ class VoicePPTApp {
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
             this.stopTranscriptProgress();
-            
-            
+
             if (btn) btn.classList.add('is-paused');
             if (iconPause) iconPause.style.display = 'none';
             if (iconPlay) iconPlay.style.display = 'block';
             this.pauseAutoplex(true);
-        } else if (this.streamPlayer.audioContext.state === 'suspended') {
-            this.streamPlayer.audioContext.resume();
-            this.streamPlayer.isPlaying = true;
-            this.isAudioPaused = false;
-            if (this.pauseStartMs && this.pendingPlaybackStartAt) {
-                this.pendingPlaybackStartAt += (performance.now() - this.pauseStartMs);
-                this.pauseStartMs = null;
-            }
-            this.syncTranscriptReelPlayback();
-            this.startTranscriptProgress();
-            
-            
-            if (btn) btn.classList.remove('is-paused');
-            if (iconPause) iconPause.style.display = 'block';
-            if (iconPlay) iconPlay.style.display = 'none';
-            this.pauseAutoplex(false);
+        }
+        // If audio is suspended, resume it
+        else if (this.streamPlayer.audioContext.state === 'suspended') {
+            this.streamPlayer.audioContext.resume().then(() => {
+                this.streamPlayer.isPlaying = true;
+                this.isAudioPaused = false;
+                if (this.pauseStartMs && this.pendingPlaybackStartAt) {
+                    this.pendingPlaybackStartAt += (performance.now() - this.pauseStartMs);
+                    this.pauseStartMs = null;
+                }
+                this.syncTranscriptReelPlayback();
+                this.startTranscriptProgress();
+
+                if (btn) btn.classList.remove('is-paused');
+                if (iconPause) iconPause.style.display = 'block';
+                if (iconPlay) iconPlay.style.display = 'none';
+                this.pauseAutoplex(false);
+            });
         }
     }
 

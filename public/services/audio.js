@@ -154,17 +154,25 @@ export class StreamAudioPlayer {
     }
 
     reset() {
+        // Clear buffer timer
         if (this.bufferTimer) {
             clearTimeout(this.bufferTimer);
             this.bufferTimer = null;
         }
         this.isBuffering = false;
         this.chunkQueue = [];
+
+        // Stop all active sources and clear their callbacks to prevent race conditions
+        // Do this BEFORE setting activeSources = [] so callbacks can't fire and access the array
         this.activeSources.forEach((source) => {
-            try { source.stop(); } catch {}
+            // Clear onended callback first to prevent race
+            source.onended = null;
+            try { source.stop(0); } catch (e) { /* ignore if already stopped */ }
         });
         this.activeSources = [];
         this.nextStartTime = 0;
+
+        // Set isPlaying to false LAST, after all sources are stopped
         this.isPlaying = false;
         this._streamStartNotified = false;
     }
