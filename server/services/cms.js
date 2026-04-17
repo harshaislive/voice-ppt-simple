@@ -488,7 +488,50 @@ class CMSService {
     }
 
     async getCtaBlocks(projectSlug) {
-        // ... existing getCtaBlocks ...
+        if (!this.isSupabaseConfigured()) {
+            console.warn('[CMS] getCtaBlocks: Supabase not configured, returning defaults');
+            return [
+                { label: 'Book a Trial Stay', url: 'https://hospitality.beforest.co', icon: 'calendar' },
+                { label: 'Join the 10% Lifestyle', url: 'https://beforest.co', icon: 'tree' }
+            ];
+        }
+
+        try {
+            // 1. Resolve project ID from slug
+            const projects = await this.request('projects', {
+                select: 'id',
+                slug: `eq.${projectSlug}`,
+                limit: '1'
+            });
+
+            const projectId = projects?.[0]?.id;
+            if (!projectId) {
+                console.warn(`[CMS] getCtaBlocks: Project not found for slug '${projectSlug}'`);
+                return [];
+            }
+
+            // 2. Fetch CTA blocks for this project
+            const rows = await this.request('cta_blocks', {
+                select: 'title,content_json',
+                project_id: `eq.${projectId}`
+            });
+
+            if (!rows || rows.length === 0) {
+                return [];
+            }
+
+            // 3. Map to standard UI format
+            return rows.map(row => ({
+                title: row.title,
+                label: row.content_json?.label || row.title,
+                url: row.content_json?.url,
+                icon: row.content_json?.icon || 'globe',
+                description: row.content_json?.description
+            }));
+        } catch (err) {
+            console.error(`[CMS] getCtaBlocks failed for ${projectSlug}:`, err.message);
+            return [];
+        }
     }
 
     async getLoadingQuotes(projectSlug) {

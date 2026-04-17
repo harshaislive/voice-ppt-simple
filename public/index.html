@@ -249,78 +249,62 @@
 
                     <!-- Completion Overlay -->
                     <div id="completion-overlay" class="completion-overlay hidden">
-                        <div class="completion-grid">
-                            <div class="completion-action-side">
-                                <div id="completion-hero" class="completion-hero"></div>
-                                <div class="completion-action-content">
-                                    <div class="completion-header">
-                                        <span class="completion-eyebrow">Conclusion</span>
-                                        <h2 class="completion-title">Your Next Step</h2>
-                                        <p id="completion-summary" class="completion-summary"></p>
-                                    </div>
+                        <div class="completion-split-screen">
+                            <!-- Left Side: Content & CTA -->
+                            <div class="completion-content-panel">
+                                <div class="completion-header">
+                                    <span class="completion-eyebrow">Conclusion</span>
+                                    <h2 class="completion-title">Your Next Step</h2>
+                                    <p id="completion-summary" class="completion-summary">Experience the collective first-hand. Most members started with a stay.</p>
+                                </div>
 
-                                    <!-- Wrap Up Interaction Panel -->
-                                    <div id="wrapup-panel" class="wrapup-panel hidden">
-                                        <div class="wrapup-header">
-                                            <div class="wrapup-header-left">
-                                                <span class="wrapup-eyebrow">Interactive Wrap-up</span>
-                                                <h3 id="wrapup-message" class="wrapup-card-title">One minute for final thoughts.</h3>
-                                            </div>
-                                            <div id="wrapup-timer" class="wrapup-timer">1:00</div>
-                                        </div>
-                                        
-                                        <div id="wrapup-mcqs" class="wrapup-mcqs"></div>
-                                        
-                                        <div class="wrapup-slider-nav">
-                                            <button id="wrapup-prev" class="btn-text" type="button">Previous</button>
-                                            <span id="wrapup-progress" class="wrapup-progress"></span>
-                                            <button id="wrapup-next" class="btn-text" type="button">Next</button>
-                                        </div>
-                                        
-                                        <!-- Mic removed: chat panel is always-on for questions -->
-                                        
-                                        <div id="wrapup-deadline" class="completion-footer-note" style="text-align: center; margin-top: 12px;"></div>
+                                <div id="completion-cta" class="completion-cta">
+                                    <div id="cta-blocks" class="cta-blocks">
+                                        <!-- Dynamic CTA buttons -->
                                     </div>
-                                    
-                                    <div id="completion-cta" class="completion-cta">
-                                        <div id="cta-blocks" class="cta-blocks"></div>
-                                    </div>
+                                </div>
 
-                                    <div id="wrapup-qa-slides" class="wrapup-qa-slides" style="display:none;"></div>
-
-                                    <div class="completion-footer-note">
-                                        <p>You decide with your feet, not your eyes. See you in the slow lane.</p>
-                                    </div>
-                                    <button id="restart-btn" class="btn-start">Start Over</button>
+                                <div class="completion-footer-note">
+                                    <p>You decide with your feet, not your eyes. See you in the slow lane.</p>
+                                    <button id="restart-btn" class="btn-restart-minimal">Start Over</button>
                                 </div>
                             </div>
 
-                            <div class="completion-chat-side">
-                                <div class="completion-chat-header">
-                                    <div class="chat-header-left">
-                                        <span class="chat-eyebrow">Dialogue</span>
-                                        <h3 class="chat-title">Ask me anything</h3>
+                            <!-- Right Side: Immersive Image -->
+                            <div id="completion-hero" class="completion-image-panel"></div>
+                        </div>
+
+                        <!-- Floating Chatbot Widget -->
+                        <div id="completion-chat-widget" class="completion-chat-widget">
+                            <button id="chat-widget-toggle" class="chat-widget-toggle" aria-label="Open Chat">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            </button>
+                            
+                            <div id="chat-widget-window" class="chat-widget-window hidden">
+                                <div class="chat-widget-header">
+                                    <div class="chat-header-info">
+                                        <h3 class="chat-title">Dialogue</h3>
+                                        <div class="chat-presence">
+                                            <span class="presence-dot"></span>
+                                            <span>Agent Online</span>
+                                        </div>
                                     </div>
-                                    <div class="chat-header-presence">
-                                        <span class="presence-dot"></span>
-                                        <span class="presence-label">Agent Online</span>
-                                    </div>
+                                    <button id="chat-widget-close" class="chat-widget-close">✕</button>
                                 </div>
 
                                 <div id="completion-qa-list" class="completion-qa-list">
                                     <div class="qa-empty-state">
-                                        <p>The presentation has ended, but I am still here. Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
+                                        <p>Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
                                     </div>
                                 </div>
 
                                 <div class="completion-chat-footer">
                                     <div class="qa-input-container">
-                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Type your final questions..." rows="1"></textarea>
-                                        <button id="completion-submit-question" class="qa-send-btn" aria-label="Send question">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Type your question..." rows="1"></textarea>
+                                        <button id="completion-submit-question" class="qa-send-btn">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                                         </button>
                                     </div>
-                                    <p class="qa-input-hint">The agent will answer in real-time.</p>
                                 </div>
                             </div>
                         </div>

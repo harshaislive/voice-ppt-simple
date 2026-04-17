@@ -403,11 +403,14 @@ router.post('/', async (req, res) => {
                 console.log('[Q&A] Answer generated, length:', answer?.length || 0);
 
                 let audioResult = null;
+                // Skip audio synthesis for question answers as requested for a faster, text-first experience
+                /*
                 try {
                     audioResult = await ttsService.synthesizeDetailed(answer, 'default');
                 } catch (ttsErr) {
                     console.warn('[Background AI] Failed to synthesize answer audio:', ttsErr.message);
                 }
+                */
 
                 await persistQuestionAnswer({
                     db,

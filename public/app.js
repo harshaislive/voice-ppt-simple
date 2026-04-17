@@ -76,11 +76,18 @@ class VoicePPTApp {
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
         };
-        this.loadSessionConfig();
-        this.loadPresentationCatalog();
         this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
-        
+
+        // Testing Hook: skip to completion screen via URL (?state=end)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('state') && urlParams.get('state') === 'end') {
+            console.log('[Test] Skipping to completion screen');
+            this._skipToCompletion();
+        } else {
+            this.loadSessionConfig();
+            this.loadPresentationCatalog();
+        }
     }
 
     async loadLoadingQuotes() {
@@ -105,6 +112,37 @@ class VoicePPTApp {
                 { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
             ];
         }
+    }
+
+    async _skipToCompletion() {
+        try {
+            if (this.presentationCatalog.length === 0) {
+                await this.loadPresentationCatalog();
+            }
+
+            if (this.presentationCatalog.length > 0) {
+                const pres = this.presentationCatalog.find(p => p.source === 'supabase') || this.presentationCatalog[0];
+                const presId = pres.id || pres.slug || 'beforest';
+                try {
+                    const detailRes = await fetch(`/api/cms/presentations/${encodeURIComponent(presId)}`);
+                    if (detailRes.ok) {
+                        const detailData = await detailRes.json();
+                        if (detailData.presentation && Array.isArray(detailData.presentation.slides)) {
+                            this.slideDeck = detailData.presentation.slides;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Test] Could not load presentation detail for slides:', e);
+                }
+            }
+        } catch (err) {
+            console.error('[Test] _skipToCompletion failed:', err);
+        }
+
+        document.getElementById('start-screen')?.classList.add('hidden');
+        document.getElementById('start-screen')?.style.display = 'none';
+        document.getElementById('present-view')?.classList.remove('hidden');
+        this.showCompletion({ totalSlides: this.slideDeck.length || 0, totalQuestionsAnswered: 0 });
     }
 
     resetSessionRuntimeState() {
@@ -337,6 +375,8 @@ class VoicePPTApp {
         on('qa-close', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('qa-scrim', 'click', () => this.ui.toggleQuestionDrawer(false));
         on('restart-btn', 'click', () => location.reload());
+        on('chat-widget-toggle', 'click', () => this.toggleChatWidget());
+        on('chat-widget-close', 'click', () => this.toggleChatWidget(false));
         on('slide-pause-btn', 'click', () => this.toggleAudioPause());
         on('interrupt-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-mic', 'click', () => this.openQuestionComposer());
@@ -1095,28 +1135,25 @@ class VoicePPTApp {
         }
     }
 
-    chunkTranscriptText(text, maxWords = 20) {
+    chunkTranscriptText(text) {
         const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
         const chunks = [];
-        let i = 0;
-        while (i < words.length) {
-            let end = Math.min(i + maxWords, words.length);
-            for (let j = end - 1; j > i + 2; j--) {
-                if (/[.!?]["')\]]?$/.test(words[j])) {
-                    end = j + 1;
-                    break;
-                }
+        let currentStartMs = 0;
+        
+        words.forEach(word => {
+            // roughly 180 words per minute -> ~330ms per word
+            let durationMs = 330;
+            if (/[.,!?:;]["')\]]?$/.test(word)) { // pause briefly on punctuation
+                durationMs += 300;
             }
-            const slice = words.slice(i, end);
-            const startMs = chunks.length === 0 ? 0 : chunks[chunks.length - 1].endMs + 120;
-            const durationMs = Math.max(1400, slice.length * 320);
             chunks.push({
-                text: slice.join(' '),
-                startMs,
-                endMs: startMs + durationMs
+                text: word,
+                startMs: currentStartMs,
+                endMs: currentStartMs + durationMs
             });
-            i = end;
-        }
+            currentStartMs += durationMs;
+        });
+        
         return chunks;
     }
 
@@ -1668,10 +1705,18 @@ class VoicePPTApp {
 
     finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
 
+    toggleChatWidget(force) {
+        const win = document.getElementById('chat-widget-window');
+        if (!win) return;
+        const isHidden = win.classList.contains('hidden');
+        const show = force !== undefined ? force : isHidden;
+        win.classList.toggle('hidden', !show);
+    }
+
     showCompletion(data) {
         this.isFinalState = true;
         const summaryEl = document.getElementById('completion-summary');
-        if (summaryEl) summaryEl.textContent = `${data.totalSlides} slides delivered. ${data.totalQuestionsAnswered} questions discussed.`;
+        if (summaryEl) summaryEl.textContent = `${data.totalSlides || this.slideDeck.length} slides delivered. ${data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length} questions discussed.`;
         
         const activity = { 
             participantName: this.participantName, 
@@ -1687,16 +1732,22 @@ class VoicePPTApp {
         const overlay = document.getElementById('completion-overlay');
         if (overlay) overlay.classList.remove('hidden');
         
-        // Set final hero image from last slide
+        // Random image selection from presentation slides
         const hero = document.getElementById('completion-hero');
-        if (hero && this.currentSlide?.image) {
-            hero.style.backgroundImage = `url(${this.currentSlide.image})`;
+        if (hero) {
+            const allImages = (this.slideDeck || [])
+                .map(s => s.image)
+                .filter(img => img && img.startsWith('http'));
+            
+            if (allImages.length > 0) {
+                const randomImg = allImages[Math.floor(Math.random() * allImages.length)];
+                hero.style.backgroundImage = `url(${randomImg})`;
+            } else if (this.currentSlide?.image) {
+                hero.style.backgroundImage = `url(${this.currentSlide.image})`;
+            }
         }
 
-        
         this.loadCtaBlocks();
-        
-        // Re-render Q&A into the new final side panel
         this.renderFinalQAList();
 
         // Setup final question input
@@ -1797,17 +1848,22 @@ class VoicePPTApp {
         try {
             const res = await fetch(`/api/cms/projects/${projectSlug}/cta-blocks`);
             const data = await res.json();
-            const blocks = data.ctaBlocks || [];
-            if (blocks.length === 0) return;
+            const blocksData = data.ctaBlocks || [];
+            const blocks = blocksData.length > 0 ? blocksData : [
+                { label: 'Book a discovery call', url: 'https://beforest.co/contact', icon: 'calendar' },
+                { label: 'Join a collective', url: 'https://beforest.co/collectives', icon: 'tree' }
+            ];
             const container = document.getElementById('cta-blocks');
-            const section = document.getElementById('completion-cta');
+            if (!container) return;
             container.innerHTML = '';
+            
             const icons = {
                 calendar: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
                 tree: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14l-5-5-5 5"/><path d="M13 20V8"/><path d="M9 20v-4H5l7-7 7 7h-4v4"/></svg>',
                 mail: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
                 globe: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
             };
+
             blocks.forEach(block => {
                 const el = document.createElement('a');
                 el.href = block.url;
@@ -1815,8 +1871,8 @@ class VoicePPTApp {
                 el.rel = 'noopener noreferrer';
                 el.className = 'cta-block';
                 el.innerHTML = `
-                    <div class="cta-block-left">
-                        <div class="cta-block-icon">${icons[block.icon] || icons.globe}</div>
+                    <div class="cta-block-left" style="display:flex; align-items:center; gap:12px;">
+                        <div class="cta-block-icon" style="opacity:0.6;">${icons[block.icon] || icons.globe}</div>
                         <div class="cta-block-label">${block.label}</div>
                     </div>
                     <div class="cta-block-arrow">
@@ -1824,7 +1880,8 @@ class VoicePPTApp {
                     </div>`;
                 container.appendChild(el);
             });
-            section.classList.remove('hidden');
+            const section = document.getElementById('completion-cta');
+            if (section) section.classList.remove('hidden');
         } catch (err) {
             console.warn('Could not load CTA blocks:', err);
         }

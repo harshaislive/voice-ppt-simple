@@ -204,8 +204,11 @@ export class UIManager {
         const el = document.getElementById('full-transcription');
         if (el) {
             el.textContent = transcript.trim() || '';
-            // Auto-scroll to bottom so latest narration is always visible
-            el.scrollTop = el.scrollHeight;
+            // Auto-scroll the main container so latest narration remains visible globally
+            const slideMain = document.querySelector('.slide-main');
+            if (slideMain) {
+                slideMain.scrollTop = slideMain.scrollHeight;
+            }
         }
     }
 

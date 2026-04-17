@@ -1227,20 +1227,8 @@ async function runPresentation(db, io, sessionId) {
         currentSlideIndex += 1;
     }
 
-    await runWrapUp(db, io, sessionId, session.deck_id, participantName);
-
-    // sessionMetadata already declared above — refresh it after wrapup in case metadata changed
-    const qaKnowledgeContext = await buildFullQAContext(getSessionMetadata(db, sessionId), slides);
-
-    const allQuestions = db.all(
-        'SELECT * FROM questions WHERE session_id = ? ORDER BY created_at ASC',
-        [sessionId]
-    );
-
-    if (allQuestions.length > 0) {
-        io.to(sessionId).emit('qa-slides-ready', { questions: allQuestions });
-        await sleep(180);
-    }
+    // Skip the legacy wrap-up phase (polls/audio) to get straight to action
+    // await runWrapUp(db, io, sessionId, session.deck_id, participantName);
 
     db.run('UPDATE sessions SET status = \'completed\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
     syncSessionState(sessionId, { status: 'completed', current_slide_index: Math.max(0, slides.length - 1) });
@@ -1251,7 +1239,7 @@ async function runPresentation(db, io, sessionId) {
 
     io.to(sessionId).emit('presentation-end', {
         totalSlides: slides.length,
-        totalQuestionsAnswered: allQuestions.length
+        totalQuestionsAnswered: questionsAsked
     });
 }
 
