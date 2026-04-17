@@ -60,6 +60,10 @@ class VoicePPTApp {
         this.isAudioPaused = false;
         this.pauseStartMs = null;
         this.forceFreshSession = false;
+        this.currentSlideEnteredAt = null;
+        this.sessionMemory = this.createEmptySessionMemory();
+        this.pendingSlideAdvance = null;
+        this.microCommitmentPromptsShown = new Set();
 
 
         this.questionAudioPlayer = document.getElementById('audio-player');
@@ -159,12 +163,21 @@ class VoicePPTApp {
     }
 
     resetSessionRuntimeState() {
+        this.captureCurrentSlideEngagement();
         this.currentSlideIndex = 0;
         this.currentSlide = null;
+        this.currentSlideEnteredAt = null;
         this.questions = new Map();
         this.userQuestions = [];
         this.unreadAnswerCount = 0;
         this.maxViewedSlideIndex = 0;
+        this.userReactions = [];
+        this.wrapUpSelections = {};
+        this.wrapUpMcqs = [];
+        this.wrapUpIndex = 0;
+        this.sessionMemory = this.createEmptySessionMemory();
+        this.pendingSlideAdvance = null;
+        this.microCommitmentPromptsShown = new Set();
         this.notifiedAnswerIds.clear();
         this.updateHistoryBadge();
         const qaList = document.getElementById('qa-list');
@@ -175,6 +188,293 @@ class VoicePPTApp {
         if (filmstrip) {
             filmstrip.innerHTML = '';
         }
+    }
+
+    createEmptySessionMemory() {
+        return {
+            slideMoments: [],
+            totalSlideDwellMs: 0,
+            microCommitments: [],
+            interests: {
+                returns: 0,
+                philosophy: 0,
+                operations: 0,
+                stay: 0,
+                community: 0,
+                trust: 0
+            }
+        };
+    }
+
+    bumpInterestBucket(bucket, weight = 1) {
+        if (!bucket) return;
+        if (!this.sessionMemory?.interests) {
+            this.sessionMemory = this.createEmptySessionMemory();
+        }
+        if (!Object.prototype.hasOwnProperty.call(this.sessionMemory.interests, bucket)) {
+            this.sessionMemory.interests[bucket] = 0;
+        }
+        this.sessionMemory.interests[bucket] += weight;
+    }
+
+    inferInterestBucketsFromText(text = '') {
+        const value = String(text || '').toLowerCase();
+        if (!value) return [];
+
+        const bucketMatchers = {
+            returns: ['return', 'returns', 'price', 'pricing', 'cost', 'invest', 'investment', 'yield', 'roi', 'membership', 'lakhs', 'money'],
+            philosophy: ['why', 'purpose', 'philosophy', 'vision', 'soul', 'ethos', 'belief', 'meaning', '10%', 'lifestyle'],
+            operations: ['how', 'operate', 'operations', 'model', 'process', 'ownership', 'legal', 'structure', 'works', 'timeline'],
+            stay: ['stay', 'visit', 'book', 'retreat', 'trip', 'experience', 'come', 'travel', 'night', 'weekend'],
+            community: ['community', 'collective', 'members', 'membership', 'people', 'join', 'who else', 'network'],
+            trust: ['proof', 'risk', 'safe', 'guarantee', 'credible', 'team', 'trust', 'track record']
+        };
+
+        return Object.entries(bucketMatchers)
+            .filter(([, terms]) => terms.some((term) => value.includes(term)))
+            .map(([bucket]) => bucket);
+    }
+
+    captureCurrentSlideEngagement() {
+        if (!this.currentSlide || !this.currentSlideEnteredAt || !this.sessionMemory) return;
+
+        const dwellMs = Math.max(0, Date.now() - this.currentSlideEnteredAt);
+        if (dwellMs < 300) return;
+
+        this.sessionMemory.slideMoments.push({
+            slideIndex: this.currentSlideIndex,
+            title: this.currentSlide.title || `Slide ${this.currentSlideIndex + 1}`,
+            dwellMs
+        });
+        this.sessionMemory.totalSlideDwellMs += dwellMs;
+
+        if (dwellMs > 45000) this.bumpInterestBucket('trust', 1);
+        if (dwellMs > 70000) this.bumpInterestBucket('operations', 1);
+    }
+
+    getPrimaryInterestBucket() {
+        const entries = Object.entries(this.sessionMemory?.interests || {}).sort((a, b) => b[1] - a[1]);
+        return entries[0]?.[1] > 0 ? entries[0][0] : null;
+    }
+
+    getMostEngagedSlideMoment() {
+        const slideMoments = Array.isArray(this.sessionMemory?.slideMoments) ? this.sessionMemory.slideMoments : [];
+        if (!slideMoments.length) return null;
+        return slideMoments.slice().sort((a, b) => b.dwellMs - a.dwellMs)[0];
+    }
+
+    buildCompletionSummary(data = {}) {
+        const totalSlides = data.totalSlides || this.slideDeck.length || 0;
+        const answeredQuestions = data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length;
+        const participantName = String(this.participantName || '').trim();
+        const firstName = participantName ? participantName.split(/\s+/)[0] : '';
+        const prefix = firstName ? `${firstName}, ` : '';
+        const engagedSlide = this.getMostEngagedSlideMoment();
+        const primaryInterest = this.getPrimaryInterestBucket();
+        const lastMicroCommitment = Array.isArray(this.sessionMemory?.microCommitments) && this.sessionMemory.microCommitments.length
+            ? this.sessionMemory.microCommitments[this.sessionMemory.microCommitments.length - 1]
+            : null;
+        const interestCopy = {
+            returns: 'You kept steering toward the economics, not just the aesthetics.',
+            philosophy: 'You stayed with the why behind the model, not only the mechanics.',
+            operations: 'You leaned into how this actually works in practice.',
+            stay: 'You responded most to the lived experience, not the brochure version.',
+            community: 'You were reading for the people and the collective shape of the thing.',
+            trust: 'You spent the most attention on signals of credibility and proof.'
+        };
+
+        const lines = [];
+        lines.push(`${prefix}you moved through ${totalSlides} slides and opened ${answeredQuestions} meaningful thread${answeredQuestions === 1 ? '' : 's'}.`);
+        if (engagedSlide?.title) {
+            lines.push(`You lingered longest on “${engagedSlide.title},” which usually signals where the real decision is getting made.`);
+        }
+        if (primaryInterest && interestCopy[primaryInterest]) {
+            lines.push(interestCopy[primaryInterest]);
+        }
+        if (lastMicroCommitment?.label) {
+            lines.push(`By the end, you were clearly leaning toward ${lastMicroCommitment.label.toLowerCase()}.`);
+        }
+
+        return lines.join(' ');
+    }
+
+    buildCompletionMemoryPills(data = {}) {
+        const answeredQuestions = data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length;
+        const engagedSlide = this.getMostEngagedSlideMoment();
+        const primaryInterest = this.getPrimaryInterestBucket();
+        const selectedWrapUp = Object.values(this.wrapUpSelections || {}).filter(Boolean);
+        const primaryInterestLabel = {
+            returns: 'Numbers',
+            philosophy: 'Why',
+            operations: 'How It Works',
+            stay: 'Experience',
+            community: 'Collective Fit',
+            trust: 'Proof'
+        };
+
+        const pills = [];
+        if (engagedSlide?.title) {
+            pills.push({ label: 'Longest pause', value: engagedSlide.title });
+        }
+        if (primaryInterest) {
+            pills.push({ label: 'Signal', value: primaryInterestLabel[primaryInterest] || primaryInterest });
+        }
+        if (answeredQuestions > 0) {
+            pills.push({ label: 'Questions opened', value: String(answeredQuestions) });
+        }
+        if (selectedWrapUp.length > 0) {
+            pills.push({ label: 'Last choice', value: selectedWrapUp[selectedWrapUp.length - 1] });
+        }
+        const microCommitments = Array.isArray(this.sessionMemory?.microCommitments) ? this.sessionMemory.microCommitments : [];
+        if (microCommitments.length > 0 && pills.length < 3) {
+            pills.push({ label: 'Thread chosen', value: microCommitments[microCommitments.length - 1].label });
+        }
+        return pills.slice(0, 3);
+    }
+
+    renderCompletionMemoryPills(pills = []) {
+        const strip = document.getElementById('completion-memory-strip');
+        if (!strip) return;
+        strip.innerHTML = '';
+        if (!pills.length) return;
+
+        pills.forEach((pill) => {
+            const el = document.createElement('div');
+            el.className = 'completion-memory-pill';
+            el.innerHTML = `<span>${this.escapeHtml(pill.label)}</span><strong>${this.escapeHtml(pill.value)}</strong>`;
+            strip.appendChild(el);
+        });
+    }
+
+    personalizeCtaBlocks(blocks = []) {
+        const primaryInterest = this.getPrimaryInterestBucket();
+        const selectedWrapUp = Object.values(this.wrapUpSelections || []).filter(Boolean).join(' ').toLowerCase();
+        const microCommitmentLabels = Array.isArray(this.sessionMemory?.microCommitments)
+            ? this.sessionMemory.microCommitments.map((item) => String(item.label || '').toLowerCase()).join(' ')
+            : '';
+
+        const scoreBlock = (block) => {
+            const text = `${block.label || ''} ${block.url || ''}`.toLowerCase();
+            let score = 0;
+
+            if (primaryInterest === 'returns' && /call|contact|invest|numbers|capital|membership/.test(text)) score += 4;
+            if (primaryInterest === 'operations' && /call|contact|how|collective|model/.test(text)) score += 4;
+            if (primaryInterest === 'stay' && /stay|visit|retreat|experience|book/.test(text)) score += 5;
+            if (primaryInterest === 'community' && /collective|join|community|members/.test(text)) score += 5;
+            if (primaryInterest === 'philosophy' && /story|about|collective|visit|experience/.test(text)) score += 3;
+            if (/call|contact/.test(text)) score += 1;
+            if (/join|collective/.test(text) && /collective|community/.test(selectedWrapUp)) score += 3;
+            if (/stay|visit|retreat|experience/.test(text) && /stay|visit|experience/.test(selectedWrapUp)) score += 3;
+            if (/call|contact|numbers|investment/.test(text) && /numbers|returns/.test(microCommitmentLabels)) score += 2;
+            if (/stay|visit|retreat|experience/.test(text) && /visit|stay|experience/.test(microCommitmentLabels)) score += 2;
+            if (/collective|join|community/.test(text) && /collective|community/.test(microCommitmentLabels)) score += 2;
+
+            return score;
+        };
+
+        return blocks
+            .map((block, index) => ({ block, index, score: scoreBlock(block) }))
+            .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+            .map((item, index) => {
+                if (index !== 0) return item.block;
+                if (primaryInterest === 'returns') return { ...item.block, label: 'Talk through the numbers' };
+                if (primaryInterest === 'operations') return { ...item.block, label: 'See how the model works' };
+                if (primaryInterest === 'stay') return { ...item.block, label: 'Experience it in person' };
+                if (primaryInterest === 'community') return { ...item.block, label: 'Find your collective fit' };
+                return item.block;
+            });
+    }
+
+    buildMicroCommitmentChoices() {
+        const currentTitle = String(this.currentSlide?.title || '').toLowerCase();
+        const currentContent = String(this.currentSlide?.content || '').toLowerCase();
+        const currentNotes = String(this.currentSlide?.notes || '').toLowerCase();
+        const combined = `${currentTitle} ${currentContent} ${currentNotes}`;
+        const options = [];
+        const push = (id, label, bucket) => {
+            if (options.some((item) => item.id === id)) return;
+            options.push({ id, label, bucket });
+        };
+
+        push('returns', 'Show me the numbers', 'returns');
+        push('operations', 'How does it work?', 'operations');
+
+        if (/stay|retreat|visit|experience|forest|place/.test(combined)) {
+            push('stay', 'What does it feel like?', 'stay');
+        } else {
+            push('community', 'Who is this for?', 'community');
+        }
+
+        if (/philosophy|soul|why|collective|life|lifestyle/.test(combined)) {
+            push('philosophy', 'Why does this matter?', 'philosophy');
+        }
+
+        return options.slice(0, 3);
+    }
+
+    shouldOpenMicroCommitment(slideIndex) {
+        if (this.isQAPhase || this.wrapUpEndsAt > Date.now()) return false;
+        if (this.totalSlides < 4) return false;
+        if (slideIndex < 1 || slideIndex >= this.totalSlides - 1) return false;
+        if (this.microCommitmentPromptsShown.has(slideIndex)) return false;
+        return (slideIndex + 1) % 2 === 0;
+    }
+
+    recordMicroCommitment(choice = {}) {
+        if (!choice?.id || !choice?.label) return;
+        if (!Array.isArray(this.sessionMemory.microCommitments)) {
+            this.sessionMemory.microCommitments = [];
+        }
+        this.sessionMemory.microCommitments.push({
+            id: choice.id,
+            label: choice.label,
+            bucket: choice.bucket || '',
+            slideIndex: this.currentSlideIndex,
+            timestamp: Date.now()
+        });
+        if (choice.bucket) {
+            this.bumpInterestBucket(choice.bucket, 4);
+        }
+    }
+
+    prepareMicroCommitmentTurn(slideIndex, payload = {}) {
+        this.pendingSlideAdvance = { completedSlideIndex: slideIndex };
+        this.microCommitmentPromptsShown.add(slideIndex);
+        const pendingQuestionCount = Array.from(this.questions.values()).filter((q) => q.status !== 'answered').length;
+        this.openSlideTurnOverlay({
+            ...payload,
+            pendingQuestionCount,
+            choiceOptions: this.buildMicroCommitmentChoices()
+        });
+    }
+
+    async finalizePendingSlideAdvance() {
+        if (!this.pendingSlideAdvance) return false;
+        const { completedSlideIndex } = this.pendingSlideAdvance;
+        this.pendingSlideAdvance = null;
+        this.awaitingSlideContinue = false;
+        this.ui.closeSlideTurnOverlay();
+        this.updateMicState();
+        this.setStatus('Presenting', 'live', 'Narration live');
+        this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+        return true;
+    }
+
+    handleSlideTurnChoice(event) {
+        const button = event.target?.closest?.('.slide-turn-choice');
+        if (!button) return;
+        const choice = {
+            id: button.dataset.choiceId || '',
+            label: button.dataset.choiceLabel || button.textContent || '',
+            bucket: button.dataset.choiceBucket || ''
+        };
+        this.recordMicroCommitment(choice);
+        this.ui.openSlideTurnOverlay({
+            pendingQuestionCount: Array.from(this.questions.values()).filter((q) => q.status !== 'answered').length,
+            choiceOptions: this.buildMicroCommitmentChoices(),
+            selectedChoiceId: choice.id,
+            selectedChoiceLabel: choice.label
+        });
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -404,6 +704,7 @@ class VoicePPTApp {
                 this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
             }
         });
+        document.getElementById('slide-turn-choices')?.addEventListener('click', (event) => this.handleSlideTurnChoice(event));
         on('wrapup-prev', 'click', () => this.changeWrapUpCard(-1));
         on('wrapup-next', 'click', () => this.changeWrapUpCard(1));
         
@@ -801,10 +1102,12 @@ class VoicePPTApp {
     }
 
     updateSlide(data) {
+        this.captureCurrentSlideEngagement();
         this.currentSlideIndex = data.slideIndex;
         this.totalSlides = data.totalSlides || this.totalSlides;
         this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, this.currentSlideIndex);
         this.currentSlide = data.slide || null;
+        this.currentSlideEnteredAt = Date.now();
         this.slideAudioStarted = false;
         this.activeAudioSlideIndex = null;
 
@@ -1015,7 +1318,11 @@ class VoicePPTApp {
             this.renderFullTranscription();
             if (this.awaitingPlaybackComplete) {
                 this.awaitingPlaybackComplete = false;
-                this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+                if (this.shouldOpenMicroCommitment(completedSlideIndex)) {
+                    this.prepareMicroCommitmentTurn(completedSlideIndex);
+                } else {
+                    this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+                }
             }
 
             this.streamPlayer.reset();
@@ -1332,6 +1639,7 @@ class VoicePPTApp {
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
         if (!text || !this.sessionId) return;
         this.pendingQuestionText = text;
+        this.inferInterestBucketsFromText(text).forEach((bucket) => this.bumpInterestBucket(bucket, 2));
         try {
             if (input) input.blur();
             if (button) button.disabled = true;
@@ -1766,6 +2074,10 @@ class VoicePPTApp {
 
     async continuePresentationFlow() {
         if (!this.sessionId) return;
+        if (this.pendingSlideAdvance) {
+            await this.finalizePendingSlideAdvance();
+            return;
+        }
         this.streamPlayer.reset();
         this.resetSubtitleState();
         try { await this.apiFetch('/api/autoplex/continue', { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); this.ui.closeSlideTurnOverlay(); this.setStatus('Presenting', 'live', 'Narration live'); }
@@ -1922,7 +2234,10 @@ class VoicePPTApp {
     showCompletion(data) {
         this.isFinalState = true;
         const summaryEl = document.getElementById('completion-summary');
-        if (summaryEl) summaryEl.textContent = `${data.totalSlides || this.slideDeck.length} slides delivered. ${data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length} questions discussed.`;
+        this.captureCurrentSlideEngagement();
+        const completionSummary = this.buildCompletionSummary(data);
+        if (summaryEl) summaryEl.textContent = completionSummary;
+        this.renderCompletionMemoryPills(this.buildCompletionMemoryPills(data));
         
         const activity = { 
             participantName: this.participantName, 
@@ -1931,6 +2246,9 @@ class VoicePPTApp {
             questionsAnswered: data.totalQuestionsAnswered, 
             userQuestions: this.userQuestions, 
             userReactions: this.userReactions, 
+            wrapUpSelections: this.wrapUpSelections,
+            sessionMemory: this.sessionMemory,
+            completionSummary,
             timestamp: new Date().toISOString() 
         };
         localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
@@ -1968,6 +2286,7 @@ class VoicePPTApp {
                 { label: 'Book a discovery call', url: 'https://beforest.co/contact', icon: 'calendar' },
                 { label: 'Join a collective', url: 'https://beforest.co/collectives', icon: 'tree' }
             ];
+            const personalizedBlocks = this.personalizeCtaBlocks(blocks);
             const container = document.getElementById('cta-blocks');
             if (!container) return;
             container.innerHTML = '';
@@ -1979,7 +2298,7 @@ class VoicePPTApp {
                 globe: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
             };
 
-            blocks.forEach(block => {
+            personalizedBlocks.forEach(block => {
                 const el = document.createElement('a');
                 el.href = block.url;
                 el.target = block.url.startsWith('http') ? '_blank' : '_self';
@@ -2073,6 +2392,7 @@ class VoicePPTApp {
             btn.addEventListener('click', () => {
                 if (this.wrapUpSelections[mcq.id] === opt) return;
                 this.wrapUpSelections[mcq.id] = opt;
+                this.inferInterestBucketsFromText(`${mcq.prompt} ${opt}`).forEach((bucket) => this.bumpInterestBucket(bucket, 3));
                 this.socketClient.submitVote(mcq.id, opt);
                 this.renderWrapUpMcqs();
                 // Auto-advance after brief pause to let selection register visually

@@ -239,8 +239,7 @@
                 <div class="story-hero">
                     <div class="section-title">Session Summary</div>
                     <h2>${story.participantName}'s Journey</h2>
-                    <p>A personalized retrospective of your experience with <strong>${story.deckTitle}</strong>. 
-                    Across ${story.totalSlides} slides and ${story.questionsAnswered} answered inquiries, you explored the future of collective living.</p>
+                    <p>${story.completionSummary || `A personalized retrospective of your experience with ${story.deckTitle}. Across ${story.totalSlides} slides and ${story.questionsAnswered} answered inquiries, you explored the future of collective living.`}</p>
                 </div>
 
                 <div class="story-grid">

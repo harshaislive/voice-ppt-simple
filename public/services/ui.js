@@ -344,11 +344,29 @@ export class UIManager {
         const continueBtn = document.getElementById('footer-continue-btn');
         const overlay = document.getElementById('slide-turn-overlay');
         const turnDetail = document.getElementById('slide-turn-detail');
+        const choices = document.getElementById('slide-turn-choices');
         if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
         if (statusDetail) statusDetail.textContent = 'Type a question to queue it';
         if (overlay) overlay.classList.remove('hidden');
-        if (turnDetail && data && data.pendingQuestionCount > 0) {
+        if (choices) {
+            choices.innerHTML = '';
+            const choiceOptions = Array.isArray(data.choiceOptions) ? data.choiceOptions : [];
+            choices.classList.toggle('hidden', choiceOptions.length === 0);
+            choiceOptions.forEach((choice) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `slide-turn-choice${data.selectedChoiceId === choice.id ? ' is-selected' : ''}`;
+                button.dataset.choiceId = choice.id || '';
+                button.dataset.choiceLabel = choice.label || '';
+                button.dataset.choiceBucket = choice.bucket || '';
+                button.textContent = choice.label || '';
+                choices.appendChild(button);
+            });
+        }
+        if (turnDetail && data?.selectedChoiceLabel) {
+            turnDetail.textContent = `Staying with ${data.selectedChoiceLabel.toLowerCase()} next. Or type a question before you continue.`;
+        } else if (turnDetail && data && data.pendingQuestionCount > 0) {
             turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — they will be answered after the slide`;
         } else if (turnDetail) {
             turnDetail.textContent = 'Type a question. The answer will appear between slides.';

@@ -60,7 +60,7 @@ export class SocketClient {
         });
 
         this.socket.on('slide-turn-ready', (data) => {
-            // Auto-advance: no overlay popup, slides transition seamlessly
+            this.app.openSlideTurnOverlay(data || {});
         });
 
         this.socket.on('narration-delta', (data) => {
