@@ -1,7 +1,7 @@
-import { StreamAudioPlayer } from './services/audio.js';
-import { AzureVoiceSession } from './services/voice.js';
-import { SocketClient } from './services/socket.js';
-import { UIManager } from './services/ui.js';
+// { StreamAudioPlayer } from './services/audio.js';
+// { AzureVoiceSession } from './services/voice.js';
+// { SocketClient } from './services/socket.js';
+// { UIManager } from './services/ui.js';
 
 class VoicePPTApp {
     constructor() {
@@ -421,7 +421,7 @@ class VoicePPTApp {
             }
         });
 
-        window.addEventListener('resize', () => {});
+        window.addEventListener('resize', () => );
     }
 
     bindQuestionAudioControls() {
