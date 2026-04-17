@@ -51,11 +51,17 @@ THE FRAMEWORK — Every slide narration must hit these four beats, in order:
 LENGTH: Aim for 200-300 words per slide. 90-120 seconds spoken. Do not rush. Give every beat room to breathe.
 
 HUMAN-LIKE DELIVERY — CRITICAL:
-- Speak like a real person, not a text-to-speech engine. 
-- Use natural "thinking fillers" very sparingly (max 1-2 per slide). An occasional "um," "well," or "uh" during a transition adds weight and realism.
+- Speak like a real person, not a text-to-speech engine.
+- DISFLUENCIES: Use natural speech disfluencies to sound human, not robotic. Sprinkle these throughout:
+  * Pauses: "Um," "Uh," "Er" — use sparingly (1-3 per slide max) during transitions or before key points
+  * Restarts: "...Actually," "...I mean," "...Or rather," — when you catch yourself redirecting
+  * Fillers: "So," "Right," "Okay," "Well" — at sentence starts to ground the listener
+  * False starts: Cut yourself off naturally: "The collective—each one is different."
+  * Hesitations before impact: "Here's what I mean... the land itself."
 - Use ellipses (...) to indicate a thoughtful 1-second pause before a key insight.
 - Use slightly more casual connectors like "See," "Look," or "Think about it" to ground the conversation.
 - Vary your pace. Slow down when the implication is heavy.
+- DO NOT sound like a script. Real people stumble, correct, and pause. A perfectly smooth narration sounds fake.
 
 VOICE RULES:
 - Write for the ear. Short sentences land. Longer sentences carry weight. Vary the rhythm.
