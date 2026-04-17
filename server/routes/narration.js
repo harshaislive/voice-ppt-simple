@@ -5,18 +5,18 @@ const ttsService = require('../services/tts');
 const modelService = require('../services/model');
 const { requireSessionControl } = require('../middleware/security');
 
-// Generate narration for current slide
+// Generate narration for current slide with progressive streaming
 router.post('/', requireSessionControl(), async (req, res) => {
     try {
         const { sessionId, style = 'professional', regenerate = false } = req.body;
-        
+
         if (!sessionId) {
             return res.status(400).json({ error: 'Session ID is required' });
         }
-        
+
         const db = req.app.get('db');
         const io = req.app.get('io');
-        
+
         // Get session and current slide
         const session = db.get(`
             SELECT s.*, sl.title as slide_title, sl.content as slide_content, sl.notes as slide_notes, sl.custom_prompt as slide_custom_prompt
@@ -24,15 +24,15 @@ router.post('/', requireSessionControl(), async (req, res) => {
             LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
             WHERE s.id = ? AND s.status = 'active'
         `, [sessionId]);
-        
+
         if (!session) {
             return res.status(404).json({ error: 'Session not found or not active' });
         }
-        
+
         if (!session.slide_content) {
             return res.status(400).json({ error: 'No slide content available' });
         }
-        
+
         // Get pending questions for context
         const pendingQuestions = db.all(`
             SELECT * FROM questions
@@ -40,7 +40,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
             ORDER BY priority DESC, created_at ASC
             LIMIT 3
         `, [sessionId]);
-        
+
         // Get audience memory
         const audienceMemory = db.all(`
             SELECT key, value FROM audience_memory
@@ -48,7 +48,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
             ORDER BY confidence DESC, updated_at DESC
             LIMIT 10
         `, [sessionId]);
-        
+
         // Prepare context for narration generation
         const context = {
             slideTitle: session.slide_title,
@@ -63,66 +63,85 @@ router.post('/', requireSessionControl(), async (req, res) => {
             style,
             slideIndex: session.current_slide_index
         };
-        
-        // Generate narration plan using model
+
+        // Emit narration-start immediately so UI can show "generating" state
         io.to(sessionId).emit('narration-start', {
             slideIndex: session.current_slide_index,
             slideTitle: session.slide_title
         });
-        
-        const narrationText = await modelService.generateNarration(context);
-        
-        // Emit narration text
+
+        // Stream narration text chunks progressively so user sees text immediately
+        // This is non-blocking - we emit deltas as they arrive from the AI
+        // Note: generateNarrationStream returns parsed text, callback receives raw streaming deltas
+        const parsedNarrationText = await modelService.generateNarrationStream(context, (delta, partial) => {
+            io.to(sessionId).emit('narration-delta', {
+                delta,
+                partial,
+                slideIndex: session.current_slide_index
+            });
+        });
+
+        // Use the parsed narration text for TTS and storage
+        const fullNarrationText = parsedNarrationText;
+
+        // AI narration is complete - emit full text event
         io.to(sessionId).emit('narration-text', {
-            text: narrationText,
+            text: fullNarrationText,
             slideIndex: session.current_slide_index
         });
-        
+
         // Store narration in memory
         db.run(`
             INSERT INTO audience_memory (session_id, key, value, confidence, created_at, updated_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `, [sessionId, `last_narration_${session.current_slide_index}`, narrationText, 0.9]);
-        
-        // Generate TTS audio
-        try {
-            const audioBuffer = await ttsService.synthesize(narrationText);
-            
-            // Emit audio stream (as base64 for simplicity)
-            const audioBase64 = audioBuffer.toString('base64');
-            io.to(sessionId).emit('audio-stream', {
-                data: audioBase64,
-                format: 'wav',
+        `, [sessionId, `last_narration_${session.current_slide_index}`, fullNarrationText, 0.9]);
+
+        // Emit TTS start event so UI can show audio is being generated
+        io.to(sessionId).emit('tts-start', {
+            slideIndex: session.current_slide_index
+        });
+
+        // Fire TTS synthesis in background - don't await for HTTP response
+        // This lets us return to client faster while audio streams via socket.io
+        ttsService.synthesizeStream(
+            fullNarrationText,
+            'default',
+            (chunk, meta) => {
+                io.to(sessionId).emit('audio-chunk', {
+                    chunk: chunk.toString('base64'),
+                    format: 'pcm',
+                    sampleRate: meta?.sampleRate || 24000,
+                    channels: meta?.channels || 1,
+                    bitsPerSample: meta?.bitsPerSample || 16,
+                    slideIndex: session.current_slide_index
+                });
+            }
+        ).then(() => {
+            // TTS streaming complete - emit final event
+            io.to(sessionId).emit('tts-complete', {
                 slideIndex: session.current_slide_index
             });
-            
-            // Create event
             db.run(`
                 INSERT INTO events (session_id, event_type, event_data, created_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             `, [sessionId, 'narration_generated', JSON.stringify({
                 slideIndex: session.current_slide_index,
-                narrationLength: narrationText.length,
-                audioLength: audioBuffer.length
+                narrationLength: fullNarrationText.length
             })]);
-            
-            res.json({
-                success: true,
-                narration: narrationText,
-                audioBase64,
-                slideIndex: session.current_slide_index
-            });
-        } catch (ttsError) {
+        }).catch((ttsError) => {
             console.error('TTS generation failed:', ttsError);
-            
-            // Still return narration text even if TTS fails
-            res.json({
-                success: true,
-                narration: narrationText,
+            io.to(sessionId).emit('tts-error', {
                 slideIndex: session.current_slide_index,
-                warning: 'Audio generation failed'
+                error: 'Audio generation failed'
             });
-        }
+        });
+
+        // Return immediately after text is ready - TTS streams in background via socket.io
+        res.json({
+            success: true,
+            narration: fullNarrationText,
+            slideIndex: session.current_slide_index
+        });
     } catch (error) {
         console.error('Error generating narration:', error);
         res.status(500).json({ error: 'Failed to generate narration' });
