@@ -1065,6 +1065,9 @@ router.post('/replay-slide', requireSessionControl(), async (req, res) => {
             reason: 'replay'
         });
 
+        // Keep the deck paused, but clear interrupt so replay generation can emit text/audio.
+        clearInterrupt(sessionId);
+
         const cached = getReplayCache(sessionId, resolvedSlideIndex)
             || getPrewarmedSlide(sessionId, resolvedSlideIndex)
             || await loadPersistedReplayPlayback(db, sessionId, resolvedSlideIndex);
@@ -1073,6 +1076,43 @@ router.post('/replay-slide', requireSessionControl(), async (req, res) => {
                 setReplayCache(sessionId, resolvedSlideIndex, cached);
             }
             await emitCachedPlayback(io, sessionId, resolvedSlideIndex, cached, { isReplay: true });
+        } else {
+            const totalSlides = db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [sessionId])?.count || 0;
+            const pendingQuestions = db.all(
+                'SELECT * FROM questions WHERE session_id = ? AND status = \'pending\' ORDER BY priority DESC, created_at ASC',
+                [sessionId]
+            ).slice(0, 5).map((q) => q.question_text);
+
+            const narrationResult = await narrateSlide({
+                db,
+                io,
+                sessionId,
+                slide,
+                slideIndex: resolvedSlideIndex,
+                totalSlides,
+                pendingQuestions
+            });
+
+            const streamedAudio = narrationResult?.audioHandled
+                ? narrationResult
+                : await streamAudio(io, sessionId, narrationResult.text, resolvedSlideIndex, { isReplay: true });
+
+            if (streamedAudio) {
+                await persistSlideNarration({
+                    db,
+                    sessionId,
+                    slideIndex: resolvedSlideIndex,
+                    slide,
+                    narrationText: narrationResult.text,
+                    audioBuffer: streamedAudio.audioBuffer,
+                    pcmBuffer: streamedAudio.pcmBuffer,
+                    sampleRate: streamedAudio.sampleRate,
+                    channels: streamedAudio.channels,
+                    bitsPerSample: streamedAudio.bitsPerSample,
+                    audioSource: 'replay-fallback',
+                    wordBoundaries: streamedAudio.wordBoundaries || []
+                });
+            }
         }
 
         return res.json({ success: true, cached: !!cached, slideIndex: resolvedSlideIndex });

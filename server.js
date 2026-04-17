@@ -195,6 +195,7 @@ io.on('connection', (socket) => {
 
         socket.join(sessionId);
         console.log(`Client ${socket.id} joined session ${sessionId}`);
+        socket.emit('session-joined', { sessionId });
 
         // Send current votes if any
         if (sessionVotes.has(sessionId)) {

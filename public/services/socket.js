@@ -32,7 +32,12 @@ export class SocketClient {
             this.isConnected = true;
             this.socket.emit('join-session', { sessionId, controlToken });
             this.app.setStatus('Connected', 'live', 'Joining presentation room');
-            resolveOnce(true);
+        });
+
+        this.socket.on('session-joined', (data) => {
+            if (data?.sessionId === sessionId) {
+                resolveOnce(true);
+            }
         });
 
         this.socket.on('disconnect', () => {
@@ -182,7 +187,7 @@ export class SocketClient {
             console.error('Presentation error:', data.error);
         });
 
-        setTimeout(() => resolveOnce(this.isConnected), 1500);
+        setTimeout(() => resolveOnce(false), 2500);
         });
     }
 
