@@ -722,9 +722,11 @@ class VoicePPTApp {
             this.participantName = data?.participantName || meta.participantName || this.participantName;
             if (Array.isArray(data?.slides) && data.slides.length > 0) {
                 this.slideDeck = data.slides;
-                this.renderScrubber();
             }
+            // updateSlide must be called BEFORE renderScrubber so maxViewedSlideIndex is set
             if (data?.currentSlide) this.updateSlide({ slideIndex: data.session?.current_slide_index || 0, totalSlides: data.session?.slide_count || this.totalSlides, slide: data.currentSlide });
+            // Now render scrubber with proper accessibility state
+            this.renderScrubber();
         } catch (err) { console.error('Initial slide fetch failed:', err); }
     }
 

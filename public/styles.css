@@ -947,7 +947,6 @@ h1, h2, h3, h4 {
     background-size: cover;
     background-position: center;
     cursor: pointer;
-    transition: all 0.2s ease;
     opacity: 0.4;
     flex-shrink: 0;
     position: relative;
@@ -959,11 +958,13 @@ h1, h2, h3, h4 {
     padding: 10px;
     color: #fff;
     text-align: left;
+    transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    will-change: transform, opacity;
 }
 
 .scrubber-thumb:hover {
     opacity: 0.95;
-    transform: translateY(-4px);
+    transform: translateY(-4px) scale(1.02);
     border-color: rgba(255,255,255,0.4);
 }
 
@@ -982,6 +983,7 @@ h1, h2, h3, h4 {
     position: absolute;
     inset: 0;
     background: linear-gradient(180deg, rgba(16, 14, 12, 0.08), rgba(16, 14, 12, 0.58));
+    pointer-events: none;
 }
 
 .scrubber-thumb.no-image {
@@ -1003,10 +1005,11 @@ h1, h2, h3, h4 {
     filter: grayscale(1) contrast(0.8);
     cursor: not-allowed;
     border-color: rgba(52, 46, 41, 0.15);
+    transform: none !important;
 }
 
 .scrubber-thumb.disabled:hover {
-    transform: none;
+    transform: none !important;
 }
 
 .scrubber-thumb-index {
@@ -1036,8 +1039,8 @@ h1, h2, h3, h4 {
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.2s;
     background: rgba(0,0,0,0.3);
+    transition: opacity 0.2s ease;
 }
 
 .scrubber-thumb:hover .scrubber-thumb-overlay,
