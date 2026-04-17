@@ -856,7 +856,7 @@ class VoicePPTApp {
 
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
-        
+
         // --- SLIDE MISMATCH PROTECTION ---
         // If we receive audio for a slide that isn't the current one, and it's not a replay/QA/wrapup,
         // we should ignore it to prevent "ghost" narration from old loops.
@@ -1679,8 +1679,9 @@ class VoicePPTApp {
 
         // If audio is running, pause it
         if (this.streamPlayer.audioContext.state === 'running') {
+            // Full reset to stop all sources and clear all queued chunks
+            this.streamPlayer.reset();
             this.streamPlayer.audioContext.suspend();
-            this.streamPlayer.isPlaying = false;
             this.isAudioPaused = true;
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
@@ -1693,16 +1694,29 @@ class VoicePPTApp {
         }
         // If audio is suspended, resume it
         else if (this.streamPlayer.audioContext.state === 'suspended') {
-            this.streamPlayer.audioContext.resume().then(() => {
-                this.streamPlayer.isPlaying = true;
-                this.isAudioPaused = false;
-                if (this.pauseStartMs && this.pendingPlaybackStartAt) {
-                    this.pendingPlaybackStartAt += (performance.now() - this.pauseStartMs);
+            // Before resuming, do a clean reset to ensure no old sources play
+            this.streamPlayer.reset();
+            // Small delay to let AudioContext settle
+            setTimeout(() => {
+                this.streamPlayer.audioContext.resume().then(() => {
+                    this.isAudioPaused = false;
                     this.pauseStartMs = null;
-                }
-                this.syncTranscriptReelPlayback();
-                this.startTranscriptProgress();
-
+                    if (btn) btn.classList.remove('is-paused');
+                    if (iconPause) iconPause.style.display = 'block';
+                    if (iconPlay) iconPlay.style.display = 'none';
+                    this.pauseAutoplex(false);
+                });
+            }, 50);
+        }
+    }
+        // If audio is suspended, resume it
+        else if (this.streamPlayer.audioContext.state === 'suspended') {
+            // Before resuming, clear any chunks that arrived during pause
+            // to ensure clean state
+            this.streamPlayer.reset();
+            this.streamPlayer.audioContext.resume().then(() => {
+                this.isAudioPaused = false;
+                this.pauseStartMs = null;
                 if (btn) btn.classList.remove('is-paused');
                 if (iconPause) iconPause.style.display = 'block';
                 if (iconPlay) iconPlay.style.display = 'none';

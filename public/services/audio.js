@@ -162,18 +162,39 @@ export class StreamAudioPlayer {
         this.isBuffering = false;
         this.chunkQueue = [];
 
-        // Stop all active sources and clear their callbacks to prevent race conditions
-        // Do this BEFORE setting activeSources = [] so callbacks can't fire and access the array
+        // Stop all active sources immediately by disconnecting them
+        // Do this BEFORE clearing activeSources array
         this.activeSources.forEach((source) => {
             // Clear onended callback first to prevent race
             source.onended = null;
-            try { source.stop(0); } catch (e) { /* ignore if already stopped */ }
+            try {
+                source.stop(0);
+            } catch (e) {
+                // ignore if already stopped
+            }
+            try {
+                source.disconnect();
+            } catch (e) {
+                // ignore if already disconnected
+            }
         });
         this.activeSources = [];
         this.nextStartTime = 0;
 
         // Set isPlaying to false LAST, after all sources are stopped
         this.isPlaying = false;
+        this._streamStartNotified = false;
+    }
+
+    // Clear pending chunks without stopping active sources - for pause functionality
+    clearPendingChunks() {
+        if (this.bufferTimer) {
+            clearTimeout(this.bufferTimer);
+            this.bufferTimer = null;
+        }
+        this.isBuffering = false;
+        this.chunkQueue = [];
+        this.nextStartTime = 0;
         this._streamStartNotified = false;
     }
 
