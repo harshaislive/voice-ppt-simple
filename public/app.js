@@ -947,18 +947,26 @@ class VoicePPTApp {
 
     waitForPlaybackFinish(data = {}) {
         const completedSlideIndex = typeof data?.slideIndex === 'number'
-            ? data.slideIndex
+            ? data?.slideIndex
             : (typeof this.activeAudioSlideIndex === 'number' ? this.activeAudioSlideIndex : this.currentSlideIndex);
-        
+
         let pollCount = 0;
         const MAX_POLLS = 1500; // ~3 minutes (1500 * 120ms) - narrations can be long
 
+        console.log(`[waitForPlaybackFinish] Starting for slide ${completedSlideIndex}, totalPolls=0, hasPending=${this.streamPlayer.hasPendingPlayback()}`);
+
         const poll = () => {
             pollCount++;
+            const hasPending = this.streamPlayer.hasPendingPlayback();
+
+            if (pollCount % 20 === 0 || pollCount <= 5) {
+                console.log(`[waitForPlaybackFinish] poll=${pollCount}, hasPending=${hasPending}, slideAudioStarted=${this.slideAudioStarted}`);
+            }
+
             if (pollCount > MAX_POLLS) {
                 console.warn(`[Audio] Playback poll exceeded max iterations, forcing completion`);
                 this.awaitingPlaybackComplete = false;
-                
+
                 this.stopTranscriptProgress();
                 this.clearTranscriptChunkTimers();
                 this.pendingPlaybackStartAt = null;
@@ -966,6 +974,42 @@ class VoicePPTApp {
                 this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
                 return;
             }
+
+            // If slide changed while we were waiting, bail out to avoid sending completion for wrong slide
+            if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {
+                console.log(`[Audio] Slide changed during poll: was ${data.slideIndex}, now ${this.currentSlideIndex}. Bailing.`);
+                this.awaitingPlaybackComplete = false;
+                return;
+            }
+
+            if (hasPending) { setTimeout(poll, 120); return; }
+            if (!this.slideAudioStarted && pollCount < 30) { setTimeout(poll, 120); return; }
+
+
+            console.log(`[waitForPlaybackFinish] Completed after ${pollCount} polls. hasPending=${hasPending}, slideAudioStarted=${this.slideAudioStarted}`);
+            this.stopTranscriptProgress();
+            this.clearTranscriptChunkTimers();
+            if (this.transcriptChunks.length > 0) {
+                this.transcriptChunkIndex = this.transcriptChunks.length - 1;
+                this.transcriptChunkMode = 'complete';
+            } else {
+                this.transcriptChunkIndex = -1;
+            }
+            this.pendingPlaybackStartAt = null;
+            this.activeAudioSlideIndex = null;
+
+            // Set progress to 100% before rendering
+            const fill = document.getElementById('narration-progress-fill');
+            if (fill) fill.style.width = '100%';
+
+            this.renderFullTranscription();
+            if (this.awaitingPlaybackComplete) {
+                this.awaitingPlaybackComplete = false;
+                this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
+            }
+        };
+        setTimeout(poll, 120);
+    }
 
             // If slide changed while we were waiting, bail out to avoid sending completion for wrong slide
             if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {

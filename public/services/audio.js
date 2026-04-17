@@ -83,6 +83,9 @@ export class StreamAudioPlayer {
 
     resume() {
         this._isPaused = false;
+        // Reset buffering state so queued chunks get processed
+        // The next chunk will trigger a fresh buffer cycle
+        this.isBuffering = false;
     }
 
     _stopAllSources() {
@@ -178,11 +181,14 @@ export class StreamAudioPlayer {
     }
 
     hasPendingPlayback() {
-        if (this.isBuffering) return true;
-        if (this.chunkQueue.length > 0) return true;
-        if (this.activeSources.length > 0) return true;
-        if (this.isPlaying) return true;
-        if (this.audioContext && this.nextStartTime > this.audioContext.currentTime) return true;
+        const hasScheduledAudio = this.audioContext && this.nextStartTime > this.audioContext.currentTime;
+        const hasActiveSources = this.activeSources.length > 0;
+        const hasQueuedChunks = this.chunkQueue.length > 0;
+        const isCurrentlyBuffering = this.isBuffering;
+
+        if (hasScheduledAudio || hasActiveSources || hasQueuedChunks || isCurrentlyBuffering) {
+            return true;
+        }
         return false;
     }
 
