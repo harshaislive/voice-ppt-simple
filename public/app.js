@@ -284,7 +284,9 @@ class VoicePPTApp {
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
             if (['active', 'presenting'].includes(String(data.session.status || ''))) {
-                await this.triggerAutoPlex();
+                const restoredSlideIndex = Math.max(0, Number(data.session.current_slide_index || 0));
+                await this.replaySlide(restoredSlideIndex);
+                await this.pauseAutoplex(false);
                 this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
             } else {
                 this.setStatus('Resumed', 'live', 'Session restored');
