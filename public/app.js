@@ -1075,6 +1075,10 @@ class VoicePPTApp {
         }
     }
 
+    stopWaveform() {
+        // No-op - waveform visualization not implemented
+    }
+
     _updateTranscriptProgress() {
         this.updateTranscriptProgress();
         if (!this.isAudioPaused && (this.streamPlayer.isPlaying || this.pendingPlaybackStartAt)) {
