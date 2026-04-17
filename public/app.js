@@ -868,7 +868,9 @@ class VoicePPTApp {
 
         // Reset audio player when slide changes to avoid stale state issues
         if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.activeAudioSlideIndex) {
+            // Reset the audio player completely and clear paused state
             this.streamPlayer.reset();
+            this.streamPlayer.resume();  // Clear any paused state
             this.isAudioPaused = false;
             this.pendingPlaybackStartAt = null;
             this.pauseStartMs = null;
@@ -929,6 +931,9 @@ class VoicePPTApp {
     handleAudioEnd(data = {}) {
         this.showTranscript(false);
         this.subtitleReady = false;
+        // Reset audio player state
+        this.streamPlayer.reset();
+        this.streamPlayer.resume();  // Clear paused state
         // Reset play/pause button to play state (since audio ended)
         const btn = document.getElementById('slide-pause-btn');
         const iconPause = btn?.querySelector('.icon-pause');
@@ -1679,9 +1684,9 @@ class VoicePPTApp {
 
         // If audio is running, pause it
         if (this.streamPlayer.audioContext.state === 'running') {
-            // Full reset to stop all sources and clear all queued chunks
-            this.streamPlayer.reset();
-            this.streamPlayer.audioContext.suspend();
+            // Use the audio player's pause() method - it sets _isPaused = true
+            // which blocks all new chunks from being processed
+            this.streamPlayer.pause();
             this.isAudioPaused = true;
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
@@ -1694,19 +1699,17 @@ class VoicePPTApp {
         }
         // If audio is suspended, resume it
         else if (this.streamPlayer.audioContext.state === 'suspended') {
-            // Before resuming, do a clean reset to ensure no old sources play
-            this.streamPlayer.reset();
-            // Small delay to let AudioContext settle
-            setTimeout(() => {
-                this.streamPlayer.audioContext.resume().then(() => {
-                    this.isAudioPaused = false;
-                    this.pauseStartMs = null;
-                    if (btn) btn.classList.remove('is-paused');
-                    if (iconPause) iconPause.style.display = 'block';
-                    if (iconPlay) iconPlay.style.display = 'none';
-                    this.pauseAutoplex(false);
-                });
-            }, 50);
+            this.streamPlayer.audioContext.resume().then(() => {
+                // Use the audio player's resume() method - it sets _isPaused = false
+                // which allows chunks to be processed again
+                this.streamPlayer.resume();
+                this.isAudioPaused = false;
+                this.pauseStartMs = null;
+                if (btn) btn.classList.remove('is-paused');
+                if (iconPause) iconPause.style.display = 'block';
+                if (iconPlay) iconPlay.style.display = 'none';
+                this.pauseAutoplex(false);
+            });
         }
     }
         // If audio is suspended, resume it
