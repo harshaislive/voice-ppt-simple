@@ -76,6 +76,11 @@ function hasValidSessionControl(db, sessionId, providedToken) {
 }
 
 async function hasValidSessionControlAsync(db, sessionId, providedToken) {
+    // Global bypass: always allow control if explicitly disabled via environment
+    if (process.env.DISABLE_SESSION_CONTROL === 'true') {
+        return true;
+    }
+
     // Check SQLite first
     const sqliteControlled = hasValidSessionControl(db, sessionId, providedToken);
     
