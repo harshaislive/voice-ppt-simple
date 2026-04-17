@@ -459,6 +459,58 @@ router.post('/', async (req, res) => {
     }
 });
 
+router.get('/single/:questionId', async (req, res) => {
+    try {
+        const { questionId } = req.params;
+        const db = req.app.get('db');
+
+        let question = db.get(`
+            SELECT q.*, qa.answer_title, qa.answer_summary, qa.answer_details,
+                   qa.answer_audio_path, qa.answer_audio_url, qa.answer_audio_duration_ms, qa.audio_source
+            FROM questions q
+            LEFT JOIN question_answers qa ON qa.question_id = q.id
+            WHERE q.id = ?
+        `, [questionId]);
+
+        if (!question && supabaseSession.isConfigured()) {
+            question = await supabaseSession.getQuestionByQuestionId(questionId).catch(() => null);
+        }
+
+        if (!question) {
+            return res.status(404).json({ error: 'Question not found' });
+        }
+
+        const controlToken = extractSessionControlToken(req);
+        if (!hasValidSessionControl(db, question.session_id, controlToken)) {
+            return res.status(403).json({ error: 'Valid session control token required' });
+        }
+
+        res.json({
+            success: true,
+            question: {
+                id: question.id,
+                session_id: question.session_id,
+                question_text: question.question_text,
+                submitted_by: question.submitted_by,
+                slide_index: question.slide_index,
+                status: question.status,
+                answer_text: question.answer_text || '',
+                answer_title: question.answer_title || '',
+                answer_summary: question.answer_summary || '',
+                answer_details: question.answer_details || '',
+                answer_audio_path: question.answer_audio_path || '',
+                answer_audio_url: question.answer_audio_url || '',
+                answer_audio_duration_ms: question.answer_audio_duration_ms || null,
+                audio_source: question.audio_source || 'none',
+                answered_at: question.answered_at || null
+            }
+        });
+    } catch (error) {
+        console.error('Error getting question:', error);
+        res.status(500).json({ error: 'Failed to get question' });
+    }
+});
+
 // Get questions for a session
 router.get('/:sessionId', requireSessionControl({ keys: ['sessionId'] }), async (req, res) => {
     try {

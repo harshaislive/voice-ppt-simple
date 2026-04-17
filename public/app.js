@@ -1658,6 +1658,7 @@ class VoicePPTApp {
 
         const summaryText = String(payload.answerSummary || '').trim();
         const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
+        const shouldShowTitle = Boolean(titleText);
         
         // Avoid showing summary if it's just a truncated version of the details
         const summaryIsTruncatedDetails = detailsText.length > summaryText.length && 
