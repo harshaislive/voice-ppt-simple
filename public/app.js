@@ -1712,21 +1712,6 @@ class VoicePPTApp {
             });
         }
     }
-        // If audio is suspended, resume it
-        else if (this.streamPlayer.audioContext.state === 'suspended') {
-            // Before resuming, clear any chunks that arrived during pause
-            // to ensure clean state
-            this.streamPlayer.reset();
-            this.streamPlayer.audioContext.resume().then(() => {
-                this.isAudioPaused = false;
-                this.pauseStartMs = null;
-                if (btn) btn.classList.remove('is-paused');
-                if (iconPause) iconPause.style.display = 'block';
-                if (iconPlay) iconPlay.style.display = 'none';
-                this.pauseAutoplex(false);
-            });
-        }
-    }
 
     getCurrentSlideContext() {
         return {
