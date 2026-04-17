@@ -19,6 +19,7 @@
     --text: #342e29;
     --accent-red: #86312b;
     --accent-green: #344736;
+    --accent-warm: #ffc083;
     --border-color: #342e29;
     --font-serif: 'ABC Arizona Flare', serif;
     --font-sans: 'ABC Arizona Flare Sans', sans-serif;
@@ -2244,6 +2245,18 @@ h1, h2, h3, h4 {
     max-width: 18ch;
     text-wrap: balance;
     animation: phraseSwap 620ms cubic-bezier(0.2, 1, 0.3, 1) both;
+}
+
+.transcript-reel-word {
+    display: inline;
+    border-radius: 0.22em;
+    transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.transcript-reel-word.is-active {
+    background: rgba(255, 192, 131, 0.78);
+    color: var(--text);
+    box-shadow: 0 0 0 0.12em rgba(255, 192, 131, 0.42);
 }
 
 .transcript-reel-lines {

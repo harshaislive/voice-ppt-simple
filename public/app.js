@@ -47,6 +47,7 @@ class VoicePPTApp {
         this.transcriptChunks = [];
         this.transcriptChunkIndex = -1;
         this.transcriptChunkTimers = [];
+        this.activeTranscriptWordIndex = -1;
         this.pendingPlaybackStartAt = null;
         this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
@@ -75,6 +76,14 @@ class VoicePPTApp {
             this._firstProgressLogged = false;
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
+        };
+        this.streamPlayer.onTimelineUpdate = ({ startedAtMs, endsAtMs }) => {
+            if (Number.isFinite(startedAtMs)) {
+                this.pendingPlaybackStartAt = startedAtMs;
+            }
+            if (Number.isFinite(startedAtMs) && Number.isFinite(endsAtMs) && endsAtMs > startedAtMs) {
+                this.totalAudioDurationMs = Math.max(this.totalAudioDurationMs, Math.round(endsAtMs - startedAtMs));
+            }
         };
         this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
@@ -895,12 +904,6 @@ class VoicePPTApp {
             this.pendingNarrationText = '';
         }
         
-        // Record first chunk time for accurate progress bar
-        if (!this.pendingPlaybackStartAt) {
-            this.pendingPlaybackStartAt = performance.now();
-            this.startTranscriptProgress();
-        }
-
         this.streamPlayer.playChunk(data.chunk, data.sampleRate, data.channels);
         
     }
@@ -978,8 +981,12 @@ class VoicePPTApp {
             if (this.transcriptChunks.length > 0) {
                 this.transcriptChunkIndex = this.transcriptChunks.length - 1;
                 this.transcriptChunkMode = 'complete';
+                this.activeTranscriptWordIndex = this.transcriptChunks[this.transcriptChunkIndex]?.words?.length
+                    ? this.transcriptChunks[this.transcriptChunkIndex].words.length - 1
+                    : -1;
             } else {
                 this.transcriptChunkIndex = -1;
+                this.activeTranscriptWordIndex = -1;
             }
             this.pendingPlaybackStartAt = null;
             this.activeAudioSlideIndex = null;
@@ -1029,12 +1036,18 @@ class VoicePPTApp {
             return;
         }
 
+        if (this.transcriptChunkMode === 'live') {
+            this.syncTranscriptFrameWithPlayback();
+        }
+
         const index = Math.max(0, Math.min(this.transcriptChunkIndex, this.transcriptChunks.length - 1));
         const chunk = this.transcriptChunks[index] || this.transcriptChunks[0];
         this.ui.renderTranscriptReel('full-transcription', {
             state: this.transcriptChunkMode === 'complete' ? 'complete' : 'live',
             headline: this.transcriptChunkMode === 'complete' ? 'Complete' : 'Speaking',
-            phrase: chunk?.text || ''
+            phrase: chunk?.text || '',
+            words: Array.isArray(chunk?.words) ? chunk.words.map((item) => item.word) : [],
+            activeWordIndex: this.transcriptChunkMode === 'live' ? this.activeTranscriptWordIndex : -1
         });
     }
 
@@ -1110,6 +1123,7 @@ class VoicePPTApp {
 
         const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100;
         fill.style.width = `${progress}%`;
+        this.renderFullTranscription();
     }
 
     finalizeSubtitleText(text) {
@@ -1130,6 +1144,7 @@ class VoicePPTApp {
         this.wordBoundaries = [];
         this.transcriptChunks = [];
         this.transcriptChunkIndex = -1;
+        this.activeTranscriptWordIndex = -1;
         this.pendingPlaybackStartAt = null;
         this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
@@ -1151,9 +1166,13 @@ class VoicePPTApp {
             this.transcriptChunks = [];
         }
         this.transcriptChunkIndex = -1;
+        this.activeTranscriptWordIndex = -1;
         this.transcriptChunkMode = this.pendingPlaybackStartAt ? 'live' : (this.transcriptChunks.length ? 'complete' : 'waiting');
         if (!this.pendingPlaybackStartAt && this.transcriptChunks.length > 0) {
             this.transcriptChunkIndex = this.transcriptChunks.length - 1;
+            this.activeTranscriptWordIndex = this.transcriptChunks[this.transcriptChunkIndex]?.words?.length
+                ? this.transcriptChunks[this.transcriptChunkIndex].words.length - 1
+                : -1;
         }
         
         // Update total duration as more text/chunks arrive
@@ -1180,21 +1199,43 @@ class VoicePPTApp {
         const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
         const chunks = [];
         let currentStartMs = 0;
-        
-        words.forEach(word => {
-            // roughly 180 words per minute -> ~330ms per word
-            let durationMs = 330;
-            if (/[.,!?:;]["')\]]?$/.test(word)) { // pause briefly on punctuation
-                durationMs += 300;
-            }
+        let phraseWords = [];
+        let phraseStartMs = 0;
+
+        const flushPhrase = () => {
+            if (!phraseWords.length) return;
+            const lastWord = phraseWords[phraseWords.length - 1];
             chunks.push({
-                text: word,
-                startMs: currentStartMs,
-                endMs: currentStartMs + durationMs
+                text: phraseWords.map((item) => item.word).join(' '),
+                words: phraseWords.map((item) => ({ ...item })),
+                startMs: phraseStartMs,
+                endMs: lastWord.endMs
             });
-            currentStartMs += durationMs;
+            phraseWords = [];
+        };
+
+        words.forEach((word) => {
+            let durationMs = 330;
+            if (/[.,!?:;]["')\]]?$/.test(word)) {
+                durationMs += 260;
+            }
+            const wordStartMs = currentStartMs;
+            const wordEndMs = currentStartMs + durationMs;
+            if (!phraseWords.length) {
+                phraseStartMs = wordStartMs;
+            }
+            phraseWords.push({ word, startMs: wordStartMs, endMs: wordEndMs });
+            currentStartMs = wordEndMs;
+
+            const phraseText = phraseWords.map((item) => item.word).join(' ');
+            const endsPhrase = /[.!?]["')\]]?$/.test(word);
+            const softBreak = /[,;:]["')\]]?$/.test(word);
+            if (endsPhrase || phraseWords.length >= 8 || phraseText.length >= 52 || (softBreak && phraseWords.length >= 5)) {
+                flushPhrase();
+            }
         });
-        
+
+        flushPhrase();
         return chunks;
     }
 
@@ -1209,11 +1250,39 @@ class VoicePPTApp {
             const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 220;
             chunks.push({
                 text: slice.map(item => String(item.word || '').trim()).filter(Boolean).join(' '),
+                words: slice.map((item) => ({
+                    word: String(item.word || '').trim(),
+                    startMs: Number(item.offsetMs || 0),
+                    endMs: Number(item.offsetMs || 0) + Number(item.durationMs || 0)
+                })).filter((item) => item.word),
                 startMs,
                 endMs
             });
         }
         return chunks;
+    }
+
+    syncTranscriptFrameWithPlayback() {
+        if (!this.pendingPlaybackStartAt || !this.transcriptChunks.length) return;
+
+        const playbackMs = Math.max(0, performance.now() - this.pendingPlaybackStartAt);
+        let chunkIndex = this.transcriptChunks.findIndex((chunk) => playbackMs >= chunk.startMs && playbackMs < chunk.endMs);
+        if (chunkIndex === -1) {
+            chunkIndex = this.transcriptChunks.reduce((acc, chunk, index) => (playbackMs >= chunk.startMs ? index : acc), -1);
+        }
+        if (chunkIndex < 0) chunkIndex = 0;
+
+        this.transcriptChunkIndex = chunkIndex;
+        const words = this.transcriptChunks[chunkIndex]?.words || [];
+        let wordIndex = -1;
+        if (words.length > 0) {
+            wordIndex = words.findIndex((word) => playbackMs >= word.startMs && playbackMs < word.endMs);
+            if (wordIndex === -1) {
+                wordIndex = words.reduce((acc, word, index) => (playbackMs >= word.startMs ? index : acc), -1);
+            }
+            if (wordIndex < 0) wordIndex = 0;
+        }
+        this.activeTranscriptWordIndex = wordIndex;
     }
 
     async analyzeImageBrightness(imageUrl) {

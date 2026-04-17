@@ -12,9 +12,12 @@ export class StreamAudioPlayer {
         this.bufferTimer = null;
         this.isBuffering = false;
         this.onStreamStart = null;
+        this.onTimelineUpdate = null;
         this._streamStartNotified = false;
         this._iosAudioUnlocked = false;
         this._isPaused = false;
+        this.playbackStartedAtMs = null;
+        this.playbackEndsAtMs = null;
     }
 
     _ensureContext() {
@@ -103,6 +106,8 @@ export class StreamAudioPlayer {
         this.activeSources = [];
         this.isPlaying = false;
         this.nextStartTime = 0;
+        this.playbackStartedAtMs = null;
+        this.playbackEndsAtMs = null;
     }
 
     _clearBuffers() {
@@ -138,13 +143,18 @@ export class StreamAudioPlayer {
 
         const schedulingBuffer = 0.03;
         this.nextStartTime = this.audioContext.currentTime + schedulingBuffer;
+        this.playbackStartedAtMs = performance.now() + (schedulingBuffer * 1000);
         if (!this._streamStartNotified) {
             this._streamStartNotified = true;
             this.onStreamStart?.({
                 audioContextStartTime: this.nextStartTime,
-                startedAtMs: performance.now() + (schedulingBuffer * 1000)
+                startedAtMs: this.playbackStartedAtMs
             });
         }
+        this.onTimelineUpdate?.({
+            startedAtMs: this.playbackStartedAtMs,
+            endsAtMs: this.playbackEndsAtMs
+        });
 
         while (this.chunkQueue.length > 0) {
             if (this._isPaused) return;
@@ -169,6 +179,18 @@ export class StreamAudioPlayer {
         const startTime = Math.max(now, this.nextStartTime);
         source.start(startTime);
         this.nextStartTime = startTime + (buffer.duration / this.playbackRate);
+        const nowPerf = performance.now();
+        const currentAudioTime = this.audioContext.currentTime;
+        const startAtMs = nowPerf + ((startTime - currentAudioTime) * 1000);
+        const endAtMs = nowPerf + ((this.nextStartTime - currentAudioTime) * 1000);
+        if (!this.playbackStartedAtMs || startAtMs < this.playbackStartedAtMs) {
+            this.playbackStartedAtMs = startAtMs;
+        }
+        this.playbackEndsAtMs = endAtMs;
+        this.onTimelineUpdate?.({
+            startedAtMs: this.playbackStartedAtMs,
+            endsAtMs: this.playbackEndsAtMs
+        });
         this.isPlaying = true;
         this.activeSources.push(source);
 
@@ -232,6 +254,13 @@ export class StreamAudioPlayer {
         // Track this source for proper hasPendingPlayback
         this.activeSources.push(source);
         this.isPlaying = true;
+        const nowPerf = performance.now();
+        this.playbackStartedAtMs = nowPerf;
+        this.playbackEndsAtMs = nowPerf + (buffer.duration * 1000);
+        this.onTimelineUpdate?.({
+            startedAtMs: this.playbackStartedAtMs,
+            endsAtMs: this.playbackEndsAtMs
+        });
         source.onended = () => {
             this.activeSources = this.activeSources.filter((item) => item !== source);
             if (this.activeSources.length === 0) {

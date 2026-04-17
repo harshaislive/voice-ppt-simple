@@ -138,6 +138,8 @@ export class UIManager {
 
         const state = data.state || 'waiting';
         const phrase = String(data.phrase || '').trim();
+        const words = Array.isArray(data.words) ? data.words : [];
+        const activeWordIndex = Number.isInteger(data.activeWordIndex) ? data.activeWordIndex : -1;
         if (state === 'waiting' || !phrase) {
             this.renderTranscriptWaiting(containerId, data.note || '');
             return;
@@ -168,7 +170,30 @@ export class UIManager {
 
         // Update content
         meta.textContent = data.headline || 'Speaking';
-        phraseEl.textContent = phrase;
+        if (words.length > 0) {
+            const renderKey = `${state}:${words.join('|')}:${activeWordIndex}`;
+            if (phraseEl.dataset.renderKey !== renderKey) {
+                phraseEl.innerHTML = '';
+                words.forEach((word, index) => {
+                    const span = document.createElement('span');
+                    span.className = 'transcript-reel-word';
+                    if (state === 'live' && index === activeWordIndex) {
+                        span.classList.add('is-active');
+                    }
+                    span.textContent = word;
+                    phraseEl.appendChild(span);
+                    if (index < words.length - 1) {
+                        phraseEl.appendChild(document.createTextNode(' '));
+                    }
+                });
+                phraseEl.dataset.renderKey = renderKey;
+            }
+        } else {
+            if (phraseEl.dataset.renderKey !== `plain:${state}:${phrase}`) {
+                phraseEl.textContent = phrase;
+                phraseEl.dataset.renderKey = `plain:${state}:${phrase}`;
+            }
+        }
     }
 
     setStatus(text, state, detail = '') {
