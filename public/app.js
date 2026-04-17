@@ -59,6 +59,7 @@ class VoicePPTApp {
 
         this.isAudioPaused = false;
         this.pauseStartMs = null;
+        this.forceFreshSession = false;
 
 
         this.questionAudioPlayer = document.getElementById('audio-player');
@@ -78,7 +79,7 @@ class VoicePPTApp {
             this.startTranscriptProgress();
         };
         this.streamPlayer.onTimelineUpdate = ({ startedAtMs, endsAtMs }) => {
-            if (Number.isFinite(startedAtMs)) {
+            if (Number.isFinite(startedAtMs) && !this.pendingPlaybackStartAt) {
                 this.pendingPlaybackStartAt = startedAtMs;
             }
             if (Number.isFinite(startedAtMs) && Number.isFinite(endsAtMs) && endsAtMs > startedAtMs) {
@@ -434,6 +435,7 @@ class VoicePPTApp {
             const msg = document.getElementById('session-recovery-msg');
             if (msg) msg.classList.add('hidden');
             this.resetSessionRuntimeState();
+            this.forceFreshSession = true; // Flag to bypass master assets
             // Refresh catalog to ensure fresh state
             this.loadPresentationCatalog();
         });
@@ -662,7 +664,7 @@ class VoicePPTApp {
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
-            const bypassMaster = urlParams.get('force_fresh') === 'true' || urlParams.has('fresh');
+            const bypassMaster = this.forceFreshSession || urlParams.get('force_fresh') === 'true' || urlParams.has('fresh');
             
             const res = await this.apiFetch('/api/session/start', { 
                 method: 'POST', 
@@ -1224,9 +1226,9 @@ class VoicePPTApp {
         };
 
         words.forEach((word) => {
-            let durationMs = 330;
+            let durationMs = 420;
             if (/[.,!?:;]["')\]]?$/.test(word)) {
-                durationMs += 260;
+                durationMs += 280;
             }
             const wordStartMs = currentStartMs;
             const wordEndMs = currentStartMs + durationMs;
