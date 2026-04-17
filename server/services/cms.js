@@ -406,9 +406,32 @@ class CMSService {
 
     normalizeKnowledgeDocs(rows) {
         return rows.reduce((acc, row) => {
-            acc[row.doc_type] = row.content_json || row.content || '';
+            acc[row.doc_type] = this.normalizeKnowledgeDocValue(row);
             return acc;
         }, {});
+    }
+
+    normalizeKnowledgeDocValue(row) {
+        const jsonValue = row?.content_json;
+        const textValue = row?.content || '';
+
+        if (Array.isArray(jsonValue)) {
+            return jsonValue.length > 0 ? jsonValue : textValue;
+        }
+
+        if (jsonValue && typeof jsonValue === 'object') {
+            return Object.keys(jsonValue).length > 0 ? jsonValue : textValue;
+        }
+
+        if (typeof jsonValue === 'string') {
+            return jsonValue.trim() ? jsonValue : textValue;
+        }
+
+        if (jsonValue !== undefined && jsonValue !== null && jsonValue !== '') {
+            return jsonValue;
+        }
+
+        return textValue;
     }
 
     async readProjectDocs(projectDir) {

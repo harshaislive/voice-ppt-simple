@@ -4,11 +4,17 @@ class DatabaseHelper {
     constructor(db) {
         this.db = db;
     }
+
+    _persist() {
+        const { saveDatabase } = require('../db/init');
+        saveDatabase();
+    }
     
     // Run a SQL statement with parameters (for INSERT, UPDATE, DELETE)
     run(sql, params = []) {
         try {
             this.db.run(sql, params);
+            this._persist();
             return { 
                 changes: this.db.getRowsModified(),
                 lastInsertRowid: null // sql.js doesn't easily provide this
@@ -72,6 +78,7 @@ class DatabaseHelper {
     exec(sql) {
         try {
             this.db.exec(sql);
+            this._persist();
         } catch (error) {
             console.error('Database exec error:', error);
             throw error;
@@ -87,6 +94,7 @@ class DatabaseHelper {
                 stmt.bind(params);
                 stmt.step();
                 stmt.reset();
+                this._persist();
                 return { 
                     changes: this.db.getRowsModified(),
                     lastInsertRowid: null
@@ -137,9 +145,11 @@ class DatabaseHelper {
             try {
                 const result = fn(...args);
                 this.db.run('COMMIT');
+                this._persist();
                 return result;
             } catch (error) {
                 this.db.run('ROLLBACK');
+                this._persist();
                 throw error;
             }
         };
@@ -154,14 +164,12 @@ class DatabaseHelper {
     // Close database
     close() {
         // sql.js doesn't have a close method, but we can save and exit
-        const { saveDatabase } = require('./init');
-        saveDatabase();
+        this._persist();
     }
     
     // Save database to file
     save() {
-        const { saveDatabase } = require('./init');
-        saveDatabase();
+        this._persist();
     }
 }
 

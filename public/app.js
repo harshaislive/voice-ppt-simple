@@ -380,6 +380,13 @@ class VoicePPTApp {
         on('restart-btn', 'click', () => location.reload());
         on('chat-widget-toggle', 'click', () => this.toggleChatWidget());
         on('chat-widget-close', 'click', () => this.toggleChatWidget(false));
+        on('completion-submit-question', 'click', () => this.submitFinalQuestion());
+        on('completion-question-input', 'keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.submitFinalQuestion();
+            }
+        });
         on('slide-pause-btn', 'click', () => this.toggleAudioPause());
         on('interrupt-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-mic', 'click', () => this.openQuestionComposer());
@@ -420,8 +427,6 @@ class VoicePPTApp {
                 overlay.classList.remove('open');
             }
         });
-
-        window.addEventListener('resize', () => {});
     }
 
     bindQuestionAudioControls() {
@@ -1002,41 +1007,6 @@ class VoicePPTApp {
             const fill = document.getElementById('narration-progress-fill');
             if (fill) fill.style.width = '100%';
 
-            this.renderFullTranscription();
-            if (this.awaitingPlaybackComplete) {
-                this.awaitingPlaybackComplete = false;
-                this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
-            }
-        };
-        setTimeout(poll, 120);
-    }
-
-            // If slide changed while we were waiting, bail out to avoid sending completion for wrong slide
-            if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {
-                console.log(`[Audio] Slide changed during poll: was ${data.slideIndex}, now ${this.currentSlideIndex}. Bailing.`);
-                this.awaitingPlaybackComplete = false;
-                return;
-            }
-
-            if (this.streamPlayer.hasPendingPlayback()) { setTimeout(poll, 120); return; }
-            if (!this.slideAudioStarted && pollCount < 30) { setTimeout(poll, 120); return; }
-            
-            
-            this.stopTranscriptProgress();
-            this.clearTranscriptChunkTimers();
-            if (this.transcriptChunks.length > 0) {
-                this.transcriptChunkIndex = this.transcriptChunks.length - 1;
-                this.transcriptChunkMode = 'complete';
-            } else {
-                this.transcriptChunkIndex = -1;
-            }
-            this.pendingPlaybackStartAt = null;
-            this.activeAudioSlideIndex = null;
-            
-            // Set progress to 100% before rendering
-            const fill = document.getElementById('narration-progress-fill');
-            if (fill) fill.style.width = '100%';
-            
             this.renderFullTranscription();
             if (this.awaitingPlaybackComplete) {
                 this.awaitingPlaybackComplete = false;
@@ -1825,10 +1795,13 @@ class VoicePPTApp {
 
     toggleChatWidget(force) {
         const win = document.getElementById('chat-widget-window');
+        const toggle = document.getElementById('chat-widget-toggle');
         if (!win) return;
         const isHidden = win.classList.contains('hidden');
         const show = force !== undefined ? force : isHidden;
         win.classList.toggle('hidden', !show);
+        if (toggle) toggle.setAttribute('aria-expanded', show ? 'true' : 'false');
+        if (show) document.getElementById('completion-question-input')?.focus();
     }
 
     showCompletion(data) {
@@ -1868,19 +1841,6 @@ class VoicePPTApp {
         this.loadCtaBlocks();
         this.renderFinalQAList();
 
-        // Setup final question input
-        const finalInput = document.getElementById('completion-question-input');
-        const finalSubmit = document.getElementById('completion-submit-question');
-        if (finalInput && finalSubmit) {
-            finalInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    this.submitFinalQuestion();
-                }
-            });
-            finalSubmit.onclick = () => this.submitFinalQuestion();
-        }
-
         this.setStatus('Engagement', 'paused', 'Dialogue remains open');
     }
 
@@ -1894,7 +1854,7 @@ class VoicePPTApp {
         if (questions.length === 0) {
             container.innerHTML = `
                 <div class="qa-empty-state">
-                    <p>The presentation has ended, but I am still here. Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
+                    <p>The presentation has ended, but the dialogue is still open. Ask about the 10% lifestyle, the collective model, pricing, or the next step.</p>
                 </div>`;
             return;
         }
@@ -1902,8 +1862,16 @@ class VoicePPTApp {
         container.innerHTML = '';
         questions.forEach(q => {
             const card = document.createElement('div');
-            card.className = `qa-card ${q.status === 'answered' ? 'is-answered' : 'is-pending'}`;
+            card.className = `qa-card completion-chat-card ${q.status === 'answered' ? 'is-answered' : 'is-pending'}`;
             card.id = `final-q-${q.id}`;
+
+            const meta = document.createElement('div');
+            meta.className = 'qa-card-meta completion-chat-meta';
+            meta.innerHTML = `
+                <span class="completion-chat-meta-label">Question</span>
+                <span class="completion-chat-meta-state">${q.status === 'answered' ? 'Answered' : 'Thinking'}</span>
+            `;
+            card.appendChild(meta);
             
             const qText = document.createElement('div');
             qText.className = 'qa-card-question';
@@ -1917,8 +1885,8 @@ class VoicePPTApp {
                 card.appendChild(aWrap);
             } else {
                 const pending = document.createElement('div');
-                pending.className = 'qa-card-meta';
-                pending.textContent = 'Agent is preparing an answer...';
+                pending.className = 'qa-card-meta completion-chat-pending';
+                pending.textContent = 'Agent is preparing a grounded answer...';
                 card.appendChild(pending);
             }
             

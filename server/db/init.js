@@ -1,3 +1,4 @@
+require('dotenv').config();
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
@@ -80,6 +81,7 @@ function saveDatabase() {
     
     const data = db.export();
     const buffer = Buffer.from(data);
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     fs.writeFileSync(DB_PATH, buffer);
 }
 

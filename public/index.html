@@ -276,32 +276,41 @@
 
                         <!-- Floating Chatbot Widget -->
                         <div id="completion-chat-widget" class="completion-chat-widget">
-                            <button id="chat-widget-toggle" class="chat-widget-toggle" aria-label="Open Chat">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <button id="chat-widget-toggle" class="chat-widget-toggle" aria-label="Open Chat" aria-controls="chat-widget-window" aria-expanded="false">
+                                <span class="chat-widget-toggle-icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                </span>
+                                <span class="chat-widget-toggle-copy">
+                                    <span class="chat-widget-toggle-eyebrow">After The Deck</span>
+                                    <span class="chat-widget-toggle-title">Field Notes</span>
+                                </span>
                             </button>
                             
                             <div id="chat-widget-window" class="chat-widget-window hidden">
                                 <div class="chat-widget-header">
                                     <div class="chat-header-info">
-                                        <h3 class="chat-title">Chat</h3>
+                                        <span class="chat-eyebrow">Private Dialogue</span>
+                                        <h3 class="chat-title">Field Notes</h3>
+                                        <p class="chat-header-summary">Ask about pricing, stays, collectives, or anything that needs a quieter explanation.</p>
                                         <div class="chat-presence">
                                             <span class="presence-dot"></span>
-                                            <span>Agent Online</span>
+                                            <span class="presence-label">Agent Online</span>
                                         </div>
                                     </div>
-                                    <button id="chat-widget-close" class="chat-widget-close">✕</button>
+                                    <button id="chat-widget-close" class="chat-widget-close" aria-label="Close chat">✕</button>
                                 </div>
 
                                 <div id="completion-qa-list" class="completion-qa-list">
                                     <div class="qa-empty-state">
-                                        <p>Ask me about the 10% Lifestyle, the collectives, or the restoration work.</p>
+                                        <p>The deck is over, but the conversation is still open. Ask about the 10% lifestyle, the collective model, or what comes next.</p>
                                     </div>
                                 </div>
 
                                 <div class="completion-chat-footer">
+                                    <div class="completion-chat-footer-copy">Text-only answers. Short, grounded, and specific.</div>
                                     <div class="qa-input-container">
-                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Type your question..." rows="1"></textarea>
-                                        <button id="completion-submit-question" class="qa-send-btn">
+                                        <textarea id="completion-question-input" class="qa-textarea" placeholder="Ask a follow-up..." rows="1"></textarea>
+                                        <button id="completion-submit-question" class="qa-send-btn" aria-label="Send question">
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                                         </button>
                                     </div>

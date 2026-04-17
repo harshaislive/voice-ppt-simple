@@ -20,7 +20,10 @@ class MasterSessionService {
 
         try {
             // 1. Find the presentation to get its master_session_id
-            const presentations = await supabaseSession.request(`presentations?slug=eq.${deckId}&select=master_session_id`);
+            const presentations = await supabaseSession.request('presentations', {
+                slug: `eq.${deckId}`,
+                select: 'master_session_id'
+            });
 
             if (!presentations || presentations.length === 0 || !presentations[0].master_session_id) {
                 // Cache null result too so we don't hammer Supabase on missing masters
@@ -61,7 +64,9 @@ class MasterSessionService {
         if (!supabaseSession.isConfigured()) throw new Error('Supabase not configured');
 
         try {
-            const result = await supabaseSession.request(`presentations?slug=eq.${deckId}`, {
+            const result = await supabaseSession.request('presentations', {
+                slug: `eq.${deckId}`
+            }, {
                 method: 'PATCH',
                 body: { master_session_id: sessionId }
             });
