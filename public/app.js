@@ -1250,7 +1250,7 @@ class VoicePPTApp {
         return chunks;
     }
 
-    chunkWordBoundaries(boundaries = [], maxWords = 20) {
+    chunkWordBoundaries(boundaries = [], maxWords = 30) {
         const words = boundaries.filter(Boolean);
         const chunks = [];
         for (let i = 0; i < words.length; i += maxWords) {
@@ -1258,7 +1258,7 @@ class VoicePPTApp {
             if (!slice.length) continue;
             const startMs = Number(slice[0].offsetMs || 0);
             const last = slice[slice.length - 1];
-            const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 220;
+            const endMs = Number(last.offsetMs || startMs) + Number(last.durationMs || 0) + 250;
             chunks.push({
                 text: slice.map(item => String(item.word || '').trim()).filter(Boolean).join(' '),
                 words: slice.map((item) => ({
