@@ -37,6 +37,14 @@ router.get('/config', (req, res) => {
     });
 });
 
+// Get pre-generation progress for loading screen.
+// This must be declared before `/:id` so it is not captured by the generic session route.
+router.get('/pregen-progress/:sessionId', (req, res) => {
+    const progressMap = getPreGenProgress();
+    const progress = progressMap.get(req.params.sessionId);
+    res.json(progress || { completed: 0, total: 0, status: 'pending' });
+});
+
 // Start a new presentation session
 router.post('/start', async (req, res) => {
     try {
@@ -154,6 +162,7 @@ router.post('/start', async (req, res) => {
             sessionId,
             controlToken,
             deckId: presentation?.presentationSlug || deckId,
+            projectSlug: presentation?.projectSlug || null,
             presentationTitle: presentation?.title || deckId,
             participantName: normalizedParticipantName,
             slideCount: slides.length,
@@ -173,12 +182,24 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
         const { id } = req.params;
         const db = req.app.get('db');
         
-        let session = null;
-        let slides = [];
+        let session = db.get(`
+            SELECT s.*, 
+                   (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id AND q.status = 'pending') as pending_questions,
+                   (SELECT COUNT(*) FROM slides sl WHERE sl.session_id = s.id) as slide_count
+            FROM sessions s
+            WHERE s.id = ?
+        `, [id]);
+        let slides = session
+            ? db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id])
+            : [];
         let fromSupabase = false;
-        
-        // Try Supabase first (persistent store)
-        if (supabaseSession.isConfigured()) {
+
+        if (session) {
+            console.log('[Session] Session loaded from SQLite:', id);
+        }
+
+        // Fall back to Supabase only when the local session is absent.
+        if (!session && supabaseSession.isConfigured()) {
             try {
                 const supabaseData = await supabaseSession.getSessionWithSlides(id);
                 if (supabaseData && supabaseData.session) {
@@ -188,23 +209,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
                     console.log('[Session] Session loaded from Supabase:', id);
                 }
             } catch (err) {
-                console.warn('[Session] Failed to load from Supabase, trying SQLite:', err.message);
-            }
-        }
-        
-        // Fall back to SQLite if session not found
-        if (!session) {
-            session = db.get(`
-                SELECT s.*, 
-                       (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id AND q.status = 'pending') as pending_questions,
-                       (SELECT COUNT(*) FROM slides sl WHERE sl.session_id = s.id) as slide_count
-                FROM sessions s
-                WHERE s.id = ?
-            `, [id]);
-            
-            if (session) {
-                slides = db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id]);
-                console.log('[Session] Session loaded from SQLite:', id);
+                console.warn('[Session] Failed to load from Supabase:', err.message);
             }
         }
         
@@ -227,9 +232,15 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
         // Get current slide
         const currentSlide = slides.find(s => s.slide_index === session.current_slide_index) || null;
         
-        // Get pending questions from Supabase first, then SQLite fallback.
-        let pendingQuestions = [];
-        if (supabaseSession.isConfigured()) {
+        // Prefer fresh local pending questions when the local session exists.
+        let pendingQuestions = db.all(`
+            SELECT * FROM questions
+            WHERE session_id = ? AND status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 10
+        `, [id]);
+
+        if ((!pendingQuestions || pendingQuestions.length === 0) && fromSupabase && supabaseSession.isConfigured()) {
             try {
                 pendingQuestions = await supabaseSession.getQuestions(id, 'pending');
             } catch (error) {
@@ -274,17 +285,48 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
         const { id } = req.params;
         const updates = req.body;
         const db = req.app.get('db');
+        const session = db.get('SELECT id FROM sessions WHERE id = ?', [id]);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+            return res.status(400).json({ error: 'Request body must be an object' });
+        }
         
         // Build update query dynamically
         const allowedFields = ['current_slide_index', 'status'];
         const setClauses = [];
         const values = [];
+        const sanitizedUpdates = {};
+        const totalSlides = db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [id])?.count || 0;
+        const allowedStatuses = new Set(['active', 'presenting', 'wrapup', 'completed']);
         
         for (const [field, value] of Object.entries(updates)) {
-            if (allowedFields.includes(field)) {
-                setClauses.push(`${field} = ?`);
-                values.push(value);
+            if (!allowedFields.includes(field)) {
+                continue;
             }
+
+            if (field === 'current_slide_index') {
+                if (!Number.isInteger(value) || value < 0) {
+                    return res.status(400).json({ error: 'current_slide_index must be a non-negative integer' });
+                }
+
+                if (totalSlides > 0 && value >= totalSlides) {
+                    return res.status(400).json({ error: `current_slide_index must be less than ${totalSlides}` });
+                }
+            }
+
+            if (field === 'status') {
+                if (typeof value !== 'string' || !allowedStatuses.has(value)) {
+                    return res.status(400).json({ error: 'status must be one of: active, presenting, wrapup, completed' });
+                }
+            }
+
+            setClauses.push(`${field} = ?`);
+            values.push(value);
+            sanitizedUpdates[field] = value;
         }
         
         if (setClauses.length === 0) {
@@ -302,7 +344,7 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
         
         // Update Supabase (fire and forget - SQLite is source of truth for writes)
         if (supabaseSession.isConfigured()) {
-            supabaseSession.updateSession(id, updates).catch(err => {
+            supabaseSession.updateSession(id, sanitizedUpdates).catch(err => {
                 console.error('[Session] Failed to update Supabase:', err.message);
             });
         }
@@ -311,7 +353,7 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
         db.run(`
             INSERT INTO events (session_id, event_type, event_data, created_at)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        `, [id, 'session_updated', JSON.stringify(updates)]);
+        `, [id, 'session_updated', JSON.stringify(sanitizedUpdates)]);
         
         res.json({ success: true });
     } catch (error) {
@@ -338,13 +380,6 @@ router.get('/', requireAdminApiKey, (req, res) => {
         console.error('Error listing sessions:', error);
         res.status(500).json({ error: 'Failed to list sessions' });
     }
-});
-
-// Get pre-generation progress for loading screen
-router.get('/pregen-progress/:sessionId', (req, res) => {
-    const progressMap = getPreGenProgress();
-    const progress = progressMap.get(req.params.sessionId);
-    res.json(progress || { completed: 0, total: 0, status: 'pending' });
 });
 
 module.exports = router;

@@ -63,22 +63,49 @@ function resolveSessionId(req, options = {}) {
     return null;
 }
 
-function hasValidSessionControl(db, sessionId, providedToken) {
+function getLocalSessionControlState(db, sessionId, providedToken) {
     if (!db || !sessionId) {
-        return false;
+        return {
+            found: false,
+            allowed: false,
+            isPublic: false
+        };
     }
 
     const session = db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]);
-    // If session doesn't exist or has no hash, it is publically controllable
-    if (!session || !session.control_token_hash) {
-        return true;
+    if (!session) {
+        return {
+            found: false,
+            allowed: false,
+            isPublic: false
+        };
+    }
+
+    if (!session.control_token_hash) {
+        return {
+            found: true,
+            allowed: true,
+            isPublic: true
+        };
     }
 
     if (!providedToken) {
-        return false;
+        return {
+            found: true,
+            allowed: false,
+            isPublic: false
+        };
     }
 
-    return timingSafeCompare(session.control_token_hash, hashToken(providedToken));
+    return {
+        found: true,
+        allowed: timingSafeCompare(session.control_token_hash, hashToken(providedToken)),
+        isPublic: false
+    };
+}
+
+function hasValidSessionControl(db, sessionId, providedToken) {
+    return getLocalSessionControlState(db, sessionId, providedToken).allowed;
 }
 
 async function hasValidSessionControlAsync(db, sessionId, providedToken) {
@@ -87,12 +114,9 @@ async function hasValidSessionControlAsync(db, sessionId, providedToken) {
         return true;
     }
 
-    // Check SQLite first
-    const sqliteControlled = hasValidSessionControl(db, sessionId, providedToken);
-    
-    // If SQLite check returns true, we are either authorized or it's public in SQLite
-    if (sqliteControlled) {
-        return true;
+    const localState = getLocalSessionControlState(db, sessionId, providedToken);
+    if (localState.found) {
+        return localState.allowed;
     }
 
     if (!supabaseSession.isConfigured() || !sessionId) {

@@ -24,6 +24,7 @@ const replayCache = new Map();
 const deckAssetCache = new Map();
 const pregenProgress = new Map();
 const pregeneratedSessions = new Map();
+const activePresentationRuns = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 100;
@@ -735,6 +736,28 @@ function markContinue(sessionId) {
     }
 }
 
+function createPresentationRun(sessionId) {
+    const existingRun = activePresentationRuns.get(sessionId);
+    if (existingRun) {
+        return { runId: existingRun.runId, alreadyRunning: true };
+    }
+
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    activePresentationRuns.set(sessionId, { runId, startedAt: Date.now() });
+    return { runId, alreadyRunning: false };
+}
+
+function clearPresentationRun(sessionId, runId) {
+    const activeRun = activePresentationRuns.get(sessionId);
+    if (activeRun && activeRun.runId === runId) {
+        activePresentationRuns.delete(sessionId);
+    }
+}
+
+function isPresentationRunActive(sessionId, runId) {
+    return activePresentationRuns.get(sessionId)?.runId === runId;
+}
+
 async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {}) {
     io.to(sessionId).emit('narration-text', {
         text: cached.text,
@@ -940,6 +963,7 @@ async function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSl
         slideTitle: slide.title,
         slideContent: slide.content,
         slideNotes: slide.notes,
+        projectLabel: sessionMetadata.presentationTitle || sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug || '',
         pendingQuestions,
         audienceContext: audienceMemory,
         participantName,
@@ -958,18 +982,30 @@ router.post('/', requireSessionPlaybackControl(), async (req, res) => {
 
     const db = req.app.get('db');
     const io = req.app.get('io');
+    const { runId, alreadyRunning } = createPresentationRun(sessionId);
+
+    if (alreadyRunning) {
+        return res.status(202).json({
+            success: true,
+            alreadyRunning: true,
+            message: 'Auto-presentation already running'
+        });
+    }
 
     clearInterrupt(sessionId);
     res.json({ success: true, message: 'Auto-presentation started' });
 
     global.autoplexIo = io;
     try {
-        await runPresentation(db, io, sessionId);
+        await runPresentation(db, io, sessionId, runId);
     } catch (err) {
         console.error('Auto-present error:', err);
         io.to(sessionId).emit('presentation-error', { error: err.message });
     } finally {
         clearInterrupt(sessionId);
+        continueWaiters.delete(sessionId);
+        playbackWaiters.delete(sessionId);
+        clearPresentationRun(sessionId, runId);
         presentationStartTimes.delete(sessionId);
     }
 });
@@ -1163,7 +1199,11 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
     }
 });
 
-async function runPresentation(db, io, sessionId) {
+async function runPresentation(db, io, sessionId, runId) {
+    if (!isPresentationRunActive(sessionId, runId)) {
+        return;
+    }
+
     const session = db.get('SELECT * FROM sessions WHERE id = ? AND status IN (\'active\', \'presenting\')', [sessionId]);
     if (!session) {
         io.to(sessionId).emit('presentation-error', { error: 'Session not found' });
@@ -1204,11 +1244,19 @@ async function runPresentation(db, io, sessionId) {
 
     await sleep(PRESENTATION_START_DELAY_MS);
 
+    if (!isPresentationRunActive(sessionId, runId)) {
+        return;
+    }
+
     const pregeneratedSlides = pregeneratedSessions.get(sessionId) || [];
     let currentSlideIndex = resumeSlideIndex;
     console.log(`[AutoPlex] Starting presentation for session ${sessionId}. Total slides: ${slides.length}, pregenerated: ${pregeneratedSlides.length}`);
 
     while (currentSlideIndex < slides.length) {
+        if (!isPresentationRunActive(sessionId, runId)) {
+            return;
+        }
+
         await waitWhilePaused(db, io, sessionId);
         const slide = slides[currentSlideIndex];
         
@@ -1312,6 +1360,10 @@ async function runPresentation(db, io, sessionId) {
         }
 
         await sleep(POST_SLIDE_HOLD_MS);
+
+        if (!isPresentationRunActive(sessionId, runId)) {
+            return;
+        }
 
         currentSlideIndex += 1;
     }
@@ -1928,7 +1980,8 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
 
         analyticsService.logEvent(sessionId, 'ai_answer', slides.length + q, answer, { questionId: question.id, questionText: question.question_text, isInterrupt: true });
 
-        if (/I don't have enough information|I don't have that information|I don't have enough|I don't know enough|don't have that detail/i.test(answer)) {
+        const isUnanswered = /I don't have enough information|I don't have that information|I don't have enough|I don't know enough|don't have that detail/i.test(answer);
+        if (isUnanswered) {
             analyticsService.logEvent(sessionId, 'unanswered_question', currentSlideIndex, answer, { questionId: question.id, questionText: question.question_text });
             db.run('UPDATE questions SET status = \'unanswered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?', [answer, question.id]);
         }
@@ -1940,10 +1993,12 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
             });
         }
 
-        db.run(
-            'UPDATE questions SET status = \'answered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?',
-            [answer, question.id]
-        );
+        if (!isUnanswered) {
+            db.run(
+                'UPDATE questions SET status = \'answered\', answered_at = CURRENT_TIMESTAMP, answer_text = ? WHERE id = ?',
+                [answer, question.id]
+            );
+        }
 
         db.run(
             'INSERT INTO events (session_id, event_type, event_data, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',

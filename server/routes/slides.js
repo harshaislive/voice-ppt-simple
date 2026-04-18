@@ -44,11 +44,12 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 session.slide_content
             );
             
-            // Update question priorities and statuses based on classification
+            // Update question priorities based on classification.
+            // Do not mark questions answered here because this route only decides whether
+            // to advance; answering happens through the QA flow.
             const updates = classificationResults.map((result, index) => ({
                 questionId: pendingQuestions[index].id,
-                priority: result.priority,
-                status: result.shouldAnswerNow ? 'answered' : 'pending'
+                priority: result.priority
             }));
             
             // Apply updates in transaction
@@ -58,9 +59,9 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 for (const update of updates) {
                     db.run(`
                         UPDATE questions
-                        SET priority = ?, status = ?, answered_at = CASE WHEN ? = 'answered' THEN CURRENT_TIMESTAMP ELSE answered_at END
+                        SET priority = ?
                         WHERE id = ?
-                    `, [update.priority, update.status, update.status, update.questionId]);
+                    `, [update.priority, update.questionId]);
                 }
                 
                 db.run('COMMIT');
@@ -96,14 +97,16 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
         
         let newSlideIndex = session.current_slide_index;
         
-        if (decision.action === 'advance') {
+        if (decision.action === 'advance' || decision.action === 'jump_to_slide') {
             // Get total slides
             const totalResult = db.get(`
                 SELECT COUNT(*) as count FROM slides WHERE session_id = ?
             `, [sessionId]);
             const totalSlides = totalResult ? totalResult.count : 0;
             
-            if (direction === 'next' && session.current_slide_index < totalSlides - 1) {
+            if (decision.action === 'jump_to_slide' && Number.isInteger(decision.targetSlide) && decision.targetSlide >= 0 && decision.targetSlide < totalSlides) {
+                newSlideIndex = decision.targetSlide;
+            } else if (direction === 'next' && session.current_slide_index < totalSlides - 1) {
                 newSlideIndex = session.current_slide_index + 1;
             } else if ((direction === 'prev' || direction === 'previous') && session.current_slide_index > 0) {
                 newSlideIndex = session.current_slide_index - 1;
@@ -142,13 +145,6 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 slide: newSlide,
                 reason: decision.reason
             });
-            
-            // Clear answered questions if any
-            if (classificationResults.some(r => r.shouldAnswerNow)) {
-                io.to(sessionId).emit('queue-update', {
-                    answered: classificationResults.filter(r => r.shouldAnswerNow).length
-                });
-            }
             
             res.json({
                 success: true,

@@ -181,6 +181,7 @@ class RealtimePresenterService {
 
   _buildPrompt(context, safeMode = false) {
     const isQA = context.slideTitle === 'Audience Question' || context.isQA;
+    const projectLabel = String(context.projectLabel || context.deckLabel || 'this presentation').trim();
     const pronunciationGuide = buildPronunciationGuide([
       context.slideTitle,
       context.slideContent,
@@ -202,8 +203,8 @@ class RealtimePresenterService {
       }
 
       const instructions = isQA
-        ? 'You are answering an audience question for Beforest. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the attendee name once if provided. If the answer is not in the knowledge docs, say: "I don\'t have enough information to fully answer that. Someone from our team will follow up with you personally." Adult speaking to adult. Calm, sharp, conversational. Prefer "uhm" over "um" if a hesitation naturally appears.'
-        : 'You are a narrator for Beforest — quiet, certain, disciplined. You speak about rhythm, practice, and restoration. Never frame the offer as per-night or per-day costs. The offer is 30 nights per year for 10 years — 300 nights of intentional living. Never use words like vacation, holiday, escape, getaway, deal, or value. Adult speaking to adult. Intelligent, relaxed, observational. Include a few natural spoken disfluencies when they fit, and prefer "uhm" over "um". One consistent voice throughout. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
+        ? `You are answering an audience question about ${projectLabel}. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the attendee name once if provided. If the answer is not in the knowledge docs, say you do not have enough information in this presentation and that someone from the team can follow up. Adult speaking to adult. Calm, sharp, conversational. Prefer "uhm" over "um" if a hesitation naturally appears.`
+        : `You are a narrator for ${projectLabel}. Speak in a grounded, confident, conversational voice shaped by the provided project knowledge. Keep one consistent voice throughout. Adult speaking to adult. Include a few natural spoken disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts. Do not make pricing claims, comparisons, or offer framing that are not explicitly supported by the slide, notes, or knowledge docs.`;
 
       return {
         instructions: pronunciationGuide.length
@@ -215,8 +216,8 @@ class RealtimePresenterService {
 
     const userText = this._buildSafePrompt(context);
     const instructions = isQA
-      ? 'You are answering an audience question for Beforest. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you don\'t have the information. Prefer "uhm" over "um" if a hesitation naturally appears.'
-      : 'You are a narrator for Beforest — quiet, certain, disciplined. Speak about rhythm, not vacations. Frame the offer as 30 nights per year for 10 years. Never use per-night or per-day pricing. Never use vacation, holiday, escape, getaway, deal. Adult speaking to adult. Use a few natural disfluencies when they fit, and prefer "uhm" over "um". The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
+      ? `You are answering an audience question about ${projectLabel}. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you do not have the information in this presentation. Prefer "uhm" over "um" if a hesitation naturally appears.`
+      : `You are a narrator for ${projectLabel}. Be grounded, concise, and natural. Adult speaking to adult. Use a few natural disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts.`;
 
     return {
       instructions: pronunciationGuide.length

@@ -9,7 +9,7 @@ const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
 const {
     extractSessionControlToken,
-    hasValidSessionControl,
+    hasValidSessionControlAsync,
     requireSessionControl
 } = require('../middleware/security');
 
@@ -481,7 +481,7 @@ router.get('/single/:questionId', async (req, res) => {
         }
 
         const controlToken = extractSessionControlToken(req);
-        if (!hasValidSessionControl(db, question.session_id, controlToken)) {
+        if (!(await hasValidSessionControlAsync(db, question.session_id, controlToken))) {
             return res.status(403).json({ error: 'Valid session control token required' });
         }
 
@@ -564,7 +564,7 @@ router.patch('/:questionId', async (req, res) => {
         }
 
         const controlToken = extractSessionControlToken(req);
-        if (!hasValidSessionControl(db, question.session_id, controlToken)) {
+        if (!(await hasValidSessionControlAsync(db, question.session_id, controlToken))) {
             return res.status(403).json({ error: 'Valid session control token required' });
         }
         

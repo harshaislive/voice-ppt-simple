@@ -12,6 +12,7 @@ class VoicePPTApp {
         this.currentSlide = null;
         this.totalSlides = 0;
         this.participantName = '';
+        this.currentProjectSlug = '';
         this.isQAPhase = false;
         this.questions = new Map();
         this.pendingQuestionText = null;
@@ -105,28 +106,31 @@ class VoicePPTApp {
         }
     }
 
-    async loadLoadingQuotes() {
+    async loadLoadingQuotes(projectSlug = '') {
+        const resolvedProjectSlug = String(projectSlug || this.currentProjectSlug || '').trim();
         try {
-            const res = await fetch('/api/cms/projects/beforest/loading-quotes');
+            if (!resolvedProjectSlug) {
+                this.loadingQuotes = this.getDefaultLoadingQuotes();
+                return;
+            }
+            const res = await fetch(`/api/cms/projects/${encodeURIComponent(resolvedProjectSlug)}/loading-quotes`);
             if (res.ok) {
                 const quotes = await res.json();
-                this.loadingQuotes = Array.isArray(quotes) && quotes.length > 0 ? quotes : [
-                    { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
-                    { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
-                ];
+                this.loadingQuotes = Array.isArray(quotes) && quotes.length > 0 ? quotes : this.getDefaultLoadingQuotes();
             } else {
-                this.loadingQuotes = [
-                    { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
-                    { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
-                ];
+                this.loadingQuotes = this.getDefaultLoadingQuotes();
             }
         } catch (err) {
             console.warn('Failed to load loading quotes:', err);
-            this.loadingQuotes = [
-                { text: "10% isn't about subtraction - it's about protection.", author: "Beforest" },
-                { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" }
-            ];
+            this.loadingQuotes = this.getDefaultLoadingQuotes();
         }
+    }
+
+    getDefaultLoadingQuotes() {
+        return [
+            { text: 'Good presentations feel effortless because the system is doing the hard work underneath.', author: 'Voice-PPT' },
+            { text: 'Clarity lands faster when the experience is calm, responsive, and grounded.', author: 'Voice-PPT' }
+        ];
     }
 
     async _skipToCompletion() {
@@ -137,7 +141,7 @@ class VoicePPTApp {
 
             if (this.presentationCatalog.length > 0) {
                 const pres = this.presentationCatalog.find(p => p.source === 'supabase') || this.presentationCatalog[0];
-                const presId = pres.id || pres.slug || 'beforest';
+                const presId = pres.id || pres.slug || '';
                 try {
                     const detailRes = await fetch(`/api/cms/presentations/${encodeURIComponent(presId)}`);
                     if (detailRes.ok) {
@@ -229,6 +233,7 @@ class VoicePPTApp {
             controlToken: data.controlToken,
             participantName: data.participantName,
             deckId: data.deckId,
+            projectSlug: data.projectSlug,
             presentationTitle: data.presentationTitle,
             slideCount: data.slideCount,
             passcodeRequired: data.passcodeRequired,
@@ -317,6 +322,7 @@ class VoicePPTApp {
             this.sessionId = session.sessionId;
             this.controlToken = session.controlToken || '';
             this.participantName = session.participantName || data.participantName || '';
+            this.currentProjectSlug = session.projectSlug || this.extractProjectSlugFromSession(data) || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
             this.sessionStatus = String(data.session.status || 'active');
             this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, Number(data.session.current_slide_index || 0));
@@ -327,17 +333,23 @@ class VoicePPTApp {
             const connectPromise = this.socketClient.connect(this.sessionId, this.controlToken);
             const slidesPromise = this.loadSessionSlides();
             const questionsPromise = this.loadSessionQuestions();
-            document.getElementById('question-input').disabled = false;
-            document.getElementById('submit-question').disabled = false;
+            this.setQuestionInputsEnabled(true);
+            const socketReady = await connectPromise;
             if (['active', 'presenting'].includes(String(data.session.status || ''))) {
                 const restoredSlideIndex = Math.max(0, Number(data.session.current_slide_index || 0));
-                await connectPromise;
-                await this.replaySlide(restoredSlideIndex);
-                await this.pauseAutoplex(false);
-                this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
+                if (socketReady) {
+                    await this.replaySlide(restoredSlideIndex);
+                    await this.pauseAutoplex(false);
+                    this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
+                } else {
+                    this.applyStartupReadiness(false, 'Resumed');
+                }
             } else {
-                await connectPromise;
-                this.setStatus('Resumed', 'live', 'Session restored');
+                if (socketReady) {
+                    this.setStatus('Resumed', 'live', 'Session restored');
+                } else {
+                    this.applyStartupReadiness(false, 'Resumed');
+                }
             }
             await Promise.all([slidesPromise, questionsPromise]);
             this.syncQuestionCount();
@@ -626,18 +638,18 @@ class VoicePPTApp {
             const p = data.presentations.find(pres => pres.id === requestedDeckId || pres.presentationSlug === requestedDeckId)
                 || data.presentations.find(pres => pres.source === 'supabase')
                 || data.presentations[0];
+            this.currentProjectSlug = p?.projectSlug || this.currentProjectSlug || '';
+            this.loadLoadingQuotes(this.currentProjectSlug);
             const titleEl = document.getElementById('home-start-title');
             const subEl = document.getElementById('home-start-sub');
-            if (titleEl) titleEl.innerHTML = p.startTitle ? p.startTitle.replace(/\n/g, '<br>') : 'THE 10% LIFE';
+            if (titleEl) this.setMultilineText(titleEl, p.startTitle, 'THE 10% LIFE');
             if (subEl) subEl.textContent = p.startSubtitle || '';
 
             const heroEl = document.getElementById('start-hero');
-            if (heroEl && p.startImage) {
-                heroEl.style.backgroundImage = `url(${p.startImage})`;
-                console.log('Hero image set:', p.startImage);
-            } else {
-                if (heroEl) {
-                    heroEl.style.backgroundImage = '';
+            if (heroEl) {
+                this.setBackgroundImage(heroEl, p.startImage);
+                if (p.startImage) {
+                    console.log('Hero image set:', p.startImage);
                 }
             }
 
@@ -767,12 +779,14 @@ class VoicePPTApp {
 
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
+            this.currentProjectSlug = data.projectSlug || selectedPresentation?.projectSlug || this.currentProjectSlug || '';
             this.resetSessionRuntimeState();
             this.persistSession({
                 sessionId: this.sessionId,
                 controlToken: this.controlToken,
                 participantName: this.participantName,
                 deckId: data.deckId || deckId,
+                projectSlug: this.currentProjectSlug,
                 presentationTitle: data.presentationTitle || deckId.replace(/_/g, ' '),
                 slideCount: this.totalSlides,
                 passcodeRequired: data.passcodeRequired
@@ -784,16 +798,16 @@ class VoicePPTApp {
 
             // Start polling pre-generation progress IMMEDIATELY — don't wait for other ops.
             const preGenPromise = this.waitForPreGeneration();
+            const connectPromise = Promise.resolve(this.socketClient.connect(this.sessionId, this.controlToken));
 
             // Run setup tasks in parallel with pre-gen polling.
-            await Promise.all([
+            const [, , socketReady] = await Promise.all([
                 this.primeInitialSlide(),
                 this.loadSessionSlides(),
-                Promise.resolve(this.socketClient.connect(this.sessionId, this.controlToken)),
+                connectPromise,
             ]);
 
-            document.getElementById('question-input').disabled = false;
-            document.getElementById('submit-question').disabled = false;
+            this.setQuestionInputsEnabled(true);
 
             // Wait for pre-generation to finish (may already be done).
             await preGenPromise;
@@ -801,9 +815,11 @@ class VoicePPTApp {
             this.ui.hideLoadingScreen();
             await this.loadSessionQuestions();
             
-            this.setStatus('Ready', 'live', 'Type questions anytime');
+            this.applyStartupReadiness(Boolean(socketReady));
             this.syncQuestionCount();
-            await this.triggerAutoPlex();
+            if (socketReady) {
+                await this.triggerAutoPlex();
+            }
         } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience'; }
     }
 
@@ -815,6 +831,7 @@ class VoicePPTApp {
             let meta = {};
             try { meta = JSON.parse(data?.session?.metadata || '{}'); } catch {}
             this.participantName = data?.participantName || meta.participantName || this.participantName;
+            this.currentProjectSlug = meta.projectSlug || this.currentProjectSlug || '';
             if (Array.isArray(data?.slides) && data.slides.length > 0) {
                 this.slideDeck = data.slides;
             }
@@ -2017,7 +2034,15 @@ class VoicePPTApp {
         }
     }
 
-    finishWrapUp() { this.wrapUpEndsAt = 0; if (this.wrapUpTimer) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; } document.getElementById('wrapup-timer').textContent = '0:00'; }
+    finishWrapUp() {
+        this.wrapUpEndsAt = 0;
+        if (this.wrapUpTimer) {
+            clearInterval(this.wrapUpTimer);
+            this.wrapUpTimer = null;
+        }
+        const timerEl = document.getElementById('wrapup-timer');
+        if (timerEl) timerEl.textContent = '0:00';
+    }
 
     toggleChatWidget(force) {
         const toggle = document.getElementById('chat-widget-toggle');
@@ -2053,13 +2078,15 @@ class VoicePPTApp {
         if (hero) {
             const allImages = (this.slideDeck || [])
                 .map(s => s.image)
-                .filter(img => img && img.startsWith('http'));
+                .filter(img => this.isSafeBackgroundUrl(img));
             
             if (allImages.length > 0) {
                 const randomImg = allImages[Math.floor(Math.random() * allImages.length)];
-                hero.style.backgroundImage = `url(${randomImg})`;
+                this.setBackgroundImage(hero, randomImg);
             } else if (this.currentSlide?.image) {
-                hero.style.backgroundImage = `url(${this.currentSlide.image})`;
+                this.setBackgroundImage(hero, this.currentSlide.image);
+            } else {
+                this.setBackgroundImage(hero, '');
             }
         }
 
@@ -2069,15 +2096,17 @@ class VoicePPTApp {
     }
 
     async loadCtaBlocks() {
-        const projectSlug = 'beforest';
+        const projectSlug = this.getCurrentProjectSlug();
+        if (!projectSlug) {
+            const section = document.getElementById('completion-cta');
+            if (section) section.classList.add('hidden');
+            return;
+        }
         try {
             const res = await fetch(`/api/cms/projects/${projectSlug}/cta-blocks`);
             const data = await res.json();
             const blocksData = data.ctaBlocks || [];
-            const blocks = blocksData.length > 0 ? blocksData : [
-                { label: 'Book a discovery call', url: 'https://beforest.co/contact', icon: 'calendar' },
-                { label: 'Join a collective', url: 'https://beforest.co/collectives', icon: 'tree' }
-            ];
+            const blocks = blocksData.length > 0 ? blocksData : [];
             const container = document.getElementById('cta-blocks');
             if (!container) return;
             container.innerHTML = '';
@@ -2090,25 +2119,42 @@ class VoicePPTApp {
             };
 
             blocks.forEach(block => {
+                const href = this.getSafeNavigationUrl(block.url);
+                if (!href) return;
                 const el = document.createElement('a');
-                el.href = block.url;
-                el.target = block.url.startsWith('http') ? '_blank' : '_self';
+                el.href = href;
+                el.target = href.startsWith('http') ? '_blank' : '_self';
                 el.rel = 'noopener noreferrer';
                 el.className = 'cta-block';
-                el.innerHTML = `
-                    <div class="cta-block-left" style="display:flex; align-items:center; gap:12px;">
-                        <div class="cta-block-icon" style="opacity:0.6;">${icons[block.icon] || icons.globe}</div>
-                        <div class="cta-block-label">${block.label}</div>
-                    </div>
-                    <div class="cta-block-arrow">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                    </div>`;
+                const left = document.createElement('div');
+                left.className = 'cta-block-left';
+                left.style.display = 'flex';
+                left.style.alignItems = 'center';
+                left.style.gap = '12px';
+
+                const icon = document.createElement('div');
+                icon.className = 'cta-block-icon';
+                icon.style.opacity = '0.6';
+                icon.innerHTML = icons[block.icon] || icons.globe;
+
+                const label = document.createElement('div');
+                label.className = 'cta-block-label';
+                label.textContent = String(block.label || '').trim();
+
+                const arrow = document.createElement('div');
+                arrow.className = 'cta-block-arrow';
+                arrow.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
+
+                left.append(icon, label);
+                el.append(left, arrow);
                 container.appendChild(el);
             });
             const section = document.getElementById('completion-cta');
-            if (section) section.classList.remove('hidden');
+            if (section) section.classList.toggle('hidden', container.childElementCount === 0);
         } catch (err) {
             console.warn('Could not load CTA blocks:', err);
+            const section = document.getElementById('completion-cta');
+            if (section) section.classList.add('hidden');
         }
     }
 
@@ -2311,6 +2357,78 @@ class VoicePPTApp {
         });
 
         return fragment;
+    }
+
+    setQuestionInputsEnabled(enabled) {
+        const questionInput = document.getElementById('question-input');
+        const submitButton = document.getElementById('submit-question');
+        if (questionInput) questionInput.disabled = !enabled;
+        if (submitButton) submitButton.disabled = !enabled;
+    }
+
+    extractProjectSlugFromSession(data = {}) {
+        try {
+            const metadata = JSON.parse(data?.session?.metadata || '{}');
+            return String(metadata.projectSlug || '').trim();
+        } catch {
+            return '';
+        }
+    }
+
+    getCurrentProjectSlug() {
+        return String(this.currentProjectSlug || '').trim();
+    }
+
+    applyStartupReadiness(socketReady, title = 'Ready') {
+        if (socketReady) {
+            this.setStatus(title, 'live', 'Type questions anytime');
+            return;
+        }
+        this.setStatus('Connection limited', 'paused', 'Presentation loaded, but live updates are unavailable');
+    }
+
+    setMultilineText(element, text, fallback = '') {
+        if (!element) return;
+        const value = String(text || fallback || '');
+        element.replaceChildren();
+        const lines = value.split(/\r?\n/);
+        lines.forEach((line, index) => {
+            if (index > 0) element.appendChild(document.createElement('br'));
+            element.appendChild(document.createTextNode(line));
+        });
+    }
+
+    getSafeNavigationUrl(url) {
+        const value = String(url || '').trim();
+        if (!value) return '';
+        if (value.startsWith('/')) return value;
+        try {
+            const parsed = new URL(value, window.location.origin);
+            if (['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
+                return parsed.toString();
+            }
+        } catch {}
+        return '';
+    }
+
+    isSafeBackgroundUrl(url) {
+        const value = String(url || '').trim();
+        if (!value) return false;
+        try {
+            const parsed = new URL(value, window.location.origin);
+            return ['http:', 'https:'].includes(parsed.protocol);
+        } catch {
+            return false;
+        }
+    }
+
+    setBackgroundImage(element, url) {
+        if (!element) return;
+        if (!this.isSafeBackgroundUrl(url)) {
+            element.style.backgroundImage = '';
+            return;
+        }
+        element.style.backgroundImage = `url("${String(url).replace(/"/g, '\\"')}")`;
     }
 
     escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }

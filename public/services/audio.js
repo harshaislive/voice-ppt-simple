@@ -20,6 +20,31 @@ export class StreamAudioPlayer {
         this.playbackEndsAtMs = null;
     }
 
+    _createAudioBuffer(pcmBase64, sampleRate, channels) {
+        const pcm = this._base64ToArrayBuffer(pcmBase64);
+        const float32 = this._pcm16ToFloat32(pcm);
+        const channelCount = Math.max(1, channels || 1);
+        const audioBuffer = this.audioContext.createBuffer(
+            channelCount,
+            Math.floor(float32.length / channelCount),
+            sampleRate || this.sampleRate
+        );
+
+        for (let channel = 0; channel < channelCount; channel++) {
+            const channelData = audioBuffer.getChannelData(channel);
+            if (channelCount === 1) {
+                channelData.set(float32);
+                continue;
+            }
+
+            for (let i = channel, writeIndex = 0; i < float32.length && writeIndex < channelData.length; i += channelCount, writeIndex++) {
+                channelData[writeIndex] = float32[i];
+            }
+        }
+
+        return audioBuffer;
+    }
+
     _ensureContext() {
         if (!this.audioContext) {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: this.sampleRate });
@@ -190,11 +215,8 @@ export class StreamAudioPlayer {
     _processChunk(pcmBase64, sampleRate, channels) {
         if (this._isPaused) return;
 
-        const pcm = this._base64ToArrayBuffer(pcmBase64);
-        const float32 = this._pcm16ToFloat32(pcm);
         const source = this.audioContext.createBufferSource();
-        const buffer = this.audioContext.createBuffer(channels || 1, float32.length, sampleRate || this.sampleRate);
-        buffer.getChannelData(0).set(float32);
+        const buffer = this._createAudioBuffer(pcmBase64, sampleRate, channels);
         source.buffer = buffer;
         source.playbackRate.value = this.playbackRate;
         source.connect(this.gainNode);
@@ -279,31 +301,42 @@ export class StreamAudioPlayer {
 
     async playPregeneratedAudio(pcmBase64, sampleRate, channels, wordBoundaries = []) {
         await this._ensureContext();
+        this._stopAllSources();
+        this._clearBuffers();
+        this._isPaused = false;
 
-        const pcm = this._base64ToArrayBuffer(pcmBase64);
-        const float32 = this._pcm16ToFloat32(pcm);
         const source = this.audioContext.createBufferSource();
-        const buffer = this.audioContext.createBuffer(channels || 1, float32.length, sampleRate || this.sampleRate);
-        buffer.getChannelData(0).set(float32);
+        const buffer = this._createAudioBuffer(pcmBase64, sampleRate, channels);
         source.buffer = buffer;
-        source.connect(this.audioContext.destination);
-        source.start(0);
-        source.stop(0);
-        this._resumeContext();
-        // Track this source for proper hasPendingPlayback
-        this.activeSources.push(source);
-        this.isPlaying = true;
+        source.playbackRate.value = this.playbackRate;
+        source.connect(this.gainNode);
+
+        const schedulingBuffer = 0.01;
+        const startTime = this.audioContext.currentTime + schedulingBuffer;
+        source.start(startTime);
+
         const nowPerf = performance.now();
-        this.playbackStartedAtMs = nowPerf;
-        this.playbackEndsAtMs = nowPerf + (buffer.duration * 1000);
+        const currentAudioTime = this.audioContext.currentTime;
+        this.nextStartTime = startTime + (buffer.duration / this.playbackRate);
+        this.playbackStartedAtMs = nowPerf + ((startTime - currentAudioTime) * 1000);
+        this.playbackEndsAtMs = nowPerf + ((this.nextStartTime - currentAudioTime) * 1000);
+        this._streamStartNotified = true;
+        this.onStreamStart?.({
+            audioContextStartTime: startTime,
+            startedAtMs: this.playbackStartedAtMs
+        });
         this.onTimelineUpdate?.({
             startedAtMs: this.playbackStartedAtMs,
             endsAtMs: this.playbackEndsAtMs
         });
+
+        this.activeSources.push(source);
+        this.isPlaying = true;
         source.onended = () => {
             this.activeSources = this.activeSources.filter((item) => item !== source);
             if (this.activeSources.length === 0) {
                 this.isPlaying = false;
+                this.nextStartTime = 0;
             }
         };
     }
