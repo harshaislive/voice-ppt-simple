@@ -29,12 +29,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Sensitive CMS, preview, analytics, and session-control routes reject unauthorized access
   2. Production boot fails fast when required auth, CORS, AI, or persistence config is unsafe
   3. Operators can trace session lifecycle and playback/Q&A failures through explicit logs or metrics
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [ ] 01-01: Audit and secure exposed admin/session endpoints
 - [ ] 01-02: Tighten runtime configuration validation and unsafe fallbacks
-- [ ] 01-03: Add structured operational diagnostics for presentation sessions
+- [ ] 01-03: Add shared structured logger foundation and redaction safeguards
+- [ ] 01-04: Instrument session lifecycle routes and analytics with structured diagnostics
 
 ### Phase 2: Playback State Reliability
 **Goal**: Remove playback desync, abrupt audio behavior, and slide-transition race conditions from the core presentation loop
@@ -119,7 +120,7 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Runtime Guardrails | 0/3 | Not started | - |
+| 1. Runtime Guardrails | 0/4 | Not started | - |
 | 2. Playback State Reliability | 0/4 | Not started | - |
 | 3. Grounded Q&A Experience | 0/3 | Not started | - |
 | 4. Content Loading and Scaling Foundations | 0/3 | Not started | - |
