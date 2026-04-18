@@ -278,19 +278,22 @@ class VoicePPTApp {
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
             await this.primeInitialSlide();
-            await this.loadSessionSlides();
-            await this.loadSessionQuestions();
-            await this.socketClient.connect(this.sessionId, this.controlToken);
+            const connectPromise = this.socketClient.connect(this.sessionId, this.controlToken);
+            const slidesPromise = this.loadSessionSlides();
+            const questionsPromise = this.loadSessionQuestions();
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
             if (['active', 'presenting'].includes(String(data.session.status || ''))) {
                 const restoredSlideIndex = Math.max(0, Number(data.session.current_slide_index || 0));
+                await connectPromise;
                 await this.replaySlide(restoredSlideIndex);
                 await this.pauseAutoplex(false);
                 this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
             } else {
+                await connectPromise;
                 this.setStatus('Resumed', 'live', 'Session restored');
             }
+            await Promise.all([slidesPromise, questionsPromise]);
             this.syncQuestionCount();
             console.log('[Session] Restore successful!');
             return true;
@@ -1461,6 +1464,15 @@ class VoicePPTApp {
             this.maxViewedSlideIndex = index;
         }
 
+        const targetSlide = this.slideDeck[index] || null;
+        if (targetSlide && index !== this.currentSlideIndex) {
+            this.updateSlide({
+                slideIndex: index,
+                totalSlides: this.totalSlides || this.slideDeck.length,
+                slide: targetSlide
+            });
+        }
+
         try {
             await this.replaySlide(index);
         } catch (err) {
@@ -1647,21 +1659,7 @@ class VoicePPTApp {
         const titleText = String(payload.answerTitle || 'Answer').trim();
         title.textContent = titleText;
 
-        const controls = document.createElement('button');
-        controls.type = 'button';
-        controls.className = 'qa-answer-audio-btn';
-        controls.dataset.questionId = payload.questionId || '';
-        controls.dataset.audioUrl = payload.answerAudioUrl || '';
-        controls.dataset.playing = 'false';
-        controls.innerHTML = `
-            <svg class="qa-answer-audio-icon qa-answer-audio-play" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <svg class="qa-answer-audio-icon qa-answer-audio-pause" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-        `;
-        controls.disabled = !payload.answerAudioUrl;
-        controls.addEventListener('click', () => this.toggleQuestionAnswerAudio(controls));
-
         header.appendChild(title);
-        header.appendChild(controls);
 
         const summaryText = String(payload.answerSummary || '').trim();
         const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
@@ -1684,7 +1682,7 @@ class VoicePPTApp {
         details.className = 'qa-answer-thread-details';
         details.textContent = detailsText;
 
-        if (shouldShowTitle || payload.answerAudioUrl) {
+        if (shouldShowTitle) {
             wrap.appendChild(header);
         }
         if (shouldShowSummary) {

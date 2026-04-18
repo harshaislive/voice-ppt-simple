@@ -161,9 +161,14 @@ export class StreamAudioPlayer {
         if (this._isPaused) return;
 
         const schedulingBuffer = 0.03;
-        this.nextStartTime = this.audioContext.currentTime + schedulingBuffer;
-        this.playbackStartedAtMs = performance.now() + (schedulingBuffer * 1000);
+        const minimumStartTime = this.audioContext.currentTime + schedulingBuffer;
+        const shouldPreserveSchedule = this._streamStartNotified && this.nextStartTime > this.audioContext.currentTime;
+        this.nextStartTime = shouldPreserveSchedule
+            ? Math.max(this.nextStartTime, minimumStartTime)
+            : minimumStartTime;
+
         if (!this._streamStartNotified) {
+            this.playbackStartedAtMs = performance.now() + ((this.nextStartTime - this.audioContext.currentTime) * 1000);
             this._streamStartNotified = true;
             this.onStreamStart?.({
                 audioContextStartTime: this.nextStartTime,

@@ -1473,36 +1473,6 @@ h1, h2, h3, h4 {
     letter-spacing: 0.02em;
 }
 
-.qa-answer-audio-btn {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 0;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-green);
-    color: #fff;
-    border-color: transparent;
-}
-
-.qa-answer-audio-btn:hover:not(:disabled) {
-    background: #2b3a2c;
-    color: #fff;
-    transform: translateY(-1px);
-}
-
-.qa-answer-audio-btn:disabled {
-    background: rgba(52, 46, 41, 0.12);
-    color: rgba(52, 46, 41, 0.4);
-}
-
-.qa-answer-audio-icon {
-    display: block;
-}
-
 .qa-answer-thread-summary {
     font-family: var(--font-sans);
     font-size: 0.98rem;
@@ -1624,6 +1594,8 @@ h1, h2, h3, h4 {
 }
 
 .qa-send-btn svg {
+    width: 24px;
+    height: 24px;
     margin-left: 2px;
 }
 
