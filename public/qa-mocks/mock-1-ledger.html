@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock 1 - Editorial Ledger</title>
+    <style>
+        :root {
+            --bg: #f4efe7;
+            --panel: #fcf8f1;
+            --text: #342e29;
+            --muted: rgba(52, 46, 41, 0.62);
+            --line: rgba(52, 46, 41, 0.11);
+            --green: #344736;
+            --warm: #ffc083;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(180deg, #f7f2ea 0%, var(--bg) 100%);
+            color: var(--text);
+            font-family: Georgia, serif;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+        .panel {
+            width: min(980px, 100%);
+            min-height: 760px;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            box-shadow: 0 24px 60px rgba(52, 46, 41, 0.08);
+        }
+        .rail {
+            padding: 28px 24px;
+            border-right: 1px solid var(--line);
+            background: rgba(255,255,255,0.38);
+        }
+        .eyebrow, .meta {
+            font: 700 0.72rem/1.2 Arial, sans-serif;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+        .eyebrow { color: var(--green); }
+        h1 {
+            margin: 14px 0 12px;
+            font-size: 2.3rem;
+            line-height: 0.95;
+            text-transform: uppercase;
+        }
+        .sub {
+            margin: 0 0 28px;
+            color: var(--muted);
+            font: 0.95rem/1.6 Arial, sans-serif;
+        }
+        .stat {
+            padding: 14px 0;
+            border-top: 1px solid var(--line);
+        }
+        .stat strong {
+            display: block;
+            margin-top: 8px;
+            font-size: 1.2rem;
+        }
+        .main {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+        .head {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            padding: 26px 28px 18px;
+            border-bottom: 1px solid var(--line);
+        }
+        .head h2 {
+            margin: 8px 0 0;
+            font-size: 2rem;
+        }
+        .thread {
+            padding: 22px 28px;
+            display: grid;
+            gap: 14px;
+            align-content: start;
+        }
+        .card {
+            padding: 18px 18px 16px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.6);
+        }
+        .card.ask {
+            margin-left: 70px;
+            background: rgba(255, 192, 131, 0.16);
+        }
+        .card.answer {
+            border-left: 4px solid var(--green);
+        }
+        .card p {
+            margin: 0;
+            font: 1rem/1.7 Arial, sans-serif;
+        }
+        .card .meta {
+            margin-bottom: 10px;
+            color: var(--muted);
+        }
+        .composer {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            padding: 18px 28px 28px;
+            border-top: 1px solid var(--line);
+        }
+        .input {
+            min-height: 64px;
+            padding: 18px 0;
+            border: none;
+            border-bottom: 1px solid rgba(52, 46, 41, 0.18);
+            background: transparent;
+            color: var(--text);
+            font: 1rem/1.4 Arial, sans-serif;
+        }
+        .send {
+            width: 64px;
+            height: 64px;
+            border: none;
+            border-radius: 50%;
+            background: var(--green);
+            color: white;
+            display: grid;
+            place-items: center;
+        }
+        .send svg { width: 26px; height: 26px; }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <aside class="rail">
+            <div class="eyebrow">Beforest</div>
+            <h1>Field Notes</h1>
+            <p class="sub">A more editorial interpretation of Q&amp;A. Clean hierarchy, clearer answer cards, and less “messaging app” energy.</p>
+            <div class="stat">
+                <div class="meta">Open Threads</div>
+                <strong>06</strong>
+            </div>
+            <div class="stat">
+                <div class="meta">Current Focus</div>
+                <strong>Ownership Model</strong>
+            </div>
+            <div class="stat">
+                <div class="meta">Tone</div>
+                <strong>Clear, grounded, concise</strong>
+            </div>
+        </aside>
+        <section class="main">
+            <header class="head">
+                <div>
+                    <div class="eyebrow">Dialogue</div>
+                    <h2>Questions in Motion</h2>
+                </div>
+                <div class="meta">Mock 1</div>
+            </header>
+            <div class="thread">
+                <div class="card answer">
+                    <div class="meta">Answer / 01</div>
+                    <p>The membership price is framed as a long-term stake, not a hospitality fee. The point is alignment with the land and the collective, not short-term consumption.</p>
+                </div>
+                <div class="card ask">
+                    <div class="meta">You</div>
+                    <p>How does ownership actually work if this is shared?</p>
+                </div>
+                <div class="card answer">
+                    <div class="meta">Answer / 02</div>
+                    <p>The structure separates emotional belonging from sloppy ambiguity. There is a formal ownership layer, an operating layer, and a living layer, so the experience can stay warm while the mechanics stay precise.</p>
+                </div>
+            </div>
+            <div class="composer">
+                <div class="input">Ask about price, trust, governance, or what joining actually means.</div>
+                <button class="send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                </button>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

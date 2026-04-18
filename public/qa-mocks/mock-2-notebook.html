@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock 2 - Field Notebook</title>
+    <style>
+        :root {
+            --paper: #f8f1e6;
+            --ink: #342e29;
+            --muted: rgba(52, 46, 41, 0.62);
+            --green: #344736;
+            --warm: #ffc083;
+            --line: rgba(52,46,41,0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 30px;
+            background:
+                linear-gradient(180deg, rgba(255,192,131,0.18), transparent 22%),
+                #efe6d8;
+            color: var(--ink);
+            font-family: Georgia, serif;
+        }
+        .sheet {
+            max-width: 860px;
+            margin: 0 auto;
+            background:
+                linear-gradient(transparent 39px, rgba(52,46,41,0.06) 40px),
+                var(--paper);
+            background-size: 100% 40px;
+            padding: 34px 28px 28px 86px;
+            position: relative;
+            box-shadow: 0 18px 48px rgba(52,46,41,0.12);
+        }
+        .sheet::before {
+            content: "";
+            position: absolute;
+            left: 54px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(134, 49, 43, 0.26);
+        }
+        .eyebrow {
+            font: 700 0.72rem/1.2 Arial, sans-serif;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--green);
+        }
+        h1 {
+            margin: 10px 0 18px;
+            font-size: clamp(2.4rem, 5vw, 4.2rem);
+            line-height: 0.95;
+        }
+        .intro {
+            margin: 0 0 28px;
+            max-width: 600px;
+            color: var(--muted);
+            font: 1rem/1.7 Arial, sans-serif;
+        }
+        .entry {
+            margin-bottom: 24px;
+            position: relative;
+        }
+        .entry.ask::before,
+        .entry.answer::before {
+            position: absolute;
+            left: -58px;
+            top: 4px;
+            font: 700 0.7rem/1 Arial, sans-serif;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+        .entry.ask::before { content: "You"; color: #86312b; }
+        .entry.answer::before { content: "Guide"; color: var(--green); }
+        .bubble {
+            display: inline-block;
+            padding: 12px 16px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.42);
+            max-width: 620px;
+        }
+        .entry.ask .bubble {
+            background: rgba(255,192,131,0.22);
+        }
+        .bubble p {
+            margin: 0;
+            font: 1.02rem/1.75 Arial, sans-serif;
+        }
+        .composer {
+            margin-top: 36px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+            align-items: center;
+        }
+        .field {
+            min-height: 62px;
+            padding: 0 18px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.36);
+            display: flex;
+            align-items: center;
+            color: var(--muted);
+            font: 1rem/1.4 Arial, sans-serif;
+        }
+        .send {
+            width: 62px;
+            height: 62px;
+            border-radius: 20px;
+            border: none;
+            background: var(--ink);
+            color: white;
+            display: grid;
+            place-items: center;
+        }
+        .send svg { width: 28px; height: 28px; }
+    </style>
+</head>
+<body>
+    <div class="sheet">
+        <div class="eyebrow">Mock 2 / Field Notebook</div>
+        <h1>Conversation As Margin Notes</h1>
+        <p class="intro">This direction makes the Q&amp;A feel less like a software tool and more like a thoughtful companion annotating the experience as you move through it.</p>
+
+        <div class="entry answer">
+            <div class="bubble">
+                <p>The strongest way to read Beforest is not as a resort and not as a pure investment asset. It sits in the tension between belonging, stewardship, and disciplined structure.</p>
+            </div>
+        </div>
+
+        <div class="entry ask">
+            <div class="bubble">
+                <p>So is this more about returns or about lifestyle?</p>
+            </div>
+        </div>
+
+        <div class="entry answer">
+            <div class="bubble">
+                <p>That is the core question, and the honest answer is both. The model becomes interesting precisely because it refuses the usual split between financial seriousness and lived meaning.</p>
+            </div>
+        </div>
+
+        <div class="composer">
+            <div class="field">Ask what matters next: governance, economics, trust, or what it feels like on the ground.</div>
+            <button class="send" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock 3 - Quiet Concierge</title>
+    <style>
+        :root {
+            --bg: #2f2a26;
+            --panel: #f8f4ed;
+            --text: #342e29;
+            --muted: rgba(52,46,41,0.6);
+            --green: #344736;
+            --warm: #ffc083;
+            --line: rgba(52,46,41,0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top right, rgba(255,192,131,0.18), transparent 20%),
+                linear-gradient(135deg, #302b27 0%, #211d1a 100%);
+            padding: 28px;
+            color: var(--text);
+            font-family: Arial, sans-serif;
+        }
+        .shell {
+            width: min(1200px, 100%);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            background: var(--panel);
+            min-height: 780px;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.28);
+        }
+        .main {
+            padding: 34px;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            gap: 20px;
+        }
+        .eyebrow {
+            font: 700 0.74rem/1 Arial, sans-serif;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--green);
+        }
+        h1 {
+            margin: 0;
+            font: 400 clamp(2.4rem, 5vw, 4.4rem)/0.92 Georgia, serif;
+            text-transform: uppercase;
+        }
+        .lead {
+            max-width: 640px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+        .answer {
+            padding: 24px;
+            border: 1px solid var(--line);
+            background: white;
+            position: relative;
+        }
+        .answer::before {
+            content: "Current Answer";
+            position: absolute;
+            top: -10px;
+            left: 18px;
+            padding: 0 8px;
+            background: var(--panel);
+            font: 700 0.68rem/1 Arial, sans-serif;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .answer p {
+            margin: 0;
+            font: 1.02rem/1.85 Arial, sans-serif;
+        }
+        .composer {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+        }
+        .composer .field {
+            min-height: 66px;
+            padding: 18px 20px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.76);
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+        }
+        .send {
+            width: 66px;
+            height: 66px;
+            border: none;
+            background: var(--green);
+            color: white;
+            display: grid;
+            place-items: center;
+        }
+        .send svg { width: 28px; height: 28px; }
+        .side {
+            background: linear-gradient(180deg, #ede5d6 0%, #e7ddcd 100%);
+            border-left: 1px solid rgba(52,46,41,0.08);
+            padding: 34px 28px;
+        }
+        .list {
+            display: grid;
+            gap: 14px;
+            margin-top: 22px;
+        }
+        .item {
+            padding: 16px;
+            border: 1px solid rgba(52,46,41,0.1);
+            background: rgba(255,255,255,0.42);
+        }
+        .item strong {
+            display: block;
+            margin-bottom: 6px;
+            font-family: Georgia, serif;
+            font-size: 1.05rem;
+        }
+        .item span {
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 0.92rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <section class="main">
+            <div class="eyebrow">Mock 3 / Quiet Concierge</div>
+            <h1>Less Chat.<br>More Counsel.</h1>
+            <p class="lead">This version frames the Q&amp;A as a premium guidance surface. It should feel helpful and intelligent, but also controlled enough to support conversion.</p>
+            <div class="answer">
+                <p>If your question is whether this is structurally serious, the answer is yes. The ambition is emotional, but the container has to remain operationally exact or the whole proposition collapses.</p>
+            </div>
+            <div class="composer">
+                <div class="field">Ask the next serious question.</div>
+                <button class="send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                </button>
+            </div>
+        </section>
+        <aside class="side">
+            <div class="eyebrow">Suggested Threads</div>
+            <div class="list">
+                <div class="item">
+                    <strong>Ownership</strong>
+                    <span>How shared governance works without becoming vague.</span>
+                </div>
+                <div class="item">
+                    <strong>Returns</strong>
+                    <span>What is financial, what is experiential, and what not to confuse.</span>
+                </div>
+                <div class="item">
+                    <strong>Trust</strong>
+                    <span>Why the model can feel intimate without becoming fragile.</span>
+                </div>
+            </div>
+        </aside>
+    </div>
+</body>
+</html>

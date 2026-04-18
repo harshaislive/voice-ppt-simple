@@ -347,7 +347,7 @@ export class UIManager {
         const choices = document.getElementById('slide-turn-choices');
         if (statusDot) statusDot.className = 'status-dot your-turn';
         if (statusText) statusText.textContent = 'Your Turn';
-        if (statusDetail) statusDetail.textContent = 'Type a question to queue it';
+        if (statusDetail) statusDetail.textContent = 'Ask a question or choose a thread';
         if (overlay) overlay.classList.remove('hidden');
         if (choices) {
             choices.innerHTML = '';
@@ -367,9 +367,9 @@ export class UIManager {
         if (turnDetail && data?.selectedChoiceLabel) {
             turnDetail.textContent = `Staying with ${data.selectedChoiceLabel.toLowerCase()} next. Or type a question before you continue.`;
         } else if (turnDetail && data && data.pendingQuestionCount > 0) {
-            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} queued — they will be answered after the slide`;
+            turnDetail.textContent = `${data.pendingQuestionCount} question${data.pendingQuestionCount > 1 ? 's' : ''} in motion — answers will appear in Field Notes`;
         } else if (turnDetail) {
-            turnDetail.textContent = 'Type a question. The answer will appear between slides.';
+            turnDetail.textContent = 'Type a question. The answer will appear in Field Notes as it is generated.';
         }
         if (continueBtn) {
             continueBtn.classList.remove('hidden');

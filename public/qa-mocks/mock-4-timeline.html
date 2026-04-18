@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock 4 - Conversation Timeline</title>
+    <style>
+        :root {
+            --bg: #f2ece3;
+            --text: #342e29;
+            --muted: rgba(52,46,41,0.6);
+            --line: rgba(52,46,41,0.12);
+            --green: #344736;
+            --warm: #ffc083;
+            --red: #86312b;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 28px;
+            background:
+                radial-gradient(circle at top, rgba(255,192,131,0.2), transparent 28%),
+                var(--bg);
+            color: var(--text);
+            font-family: Arial, sans-serif;
+        }
+        .board {
+            max-width: 920px;
+            margin: 0 auto;
+            background: rgba(252,248,241,0.86);
+            border: 1px solid var(--line);
+            padding: 28px 28px 32px;
+            box-shadow: 0 20px 50px rgba(52,46,41,0.08);
+        }
+        .eyebrow {
+            font: 700 0.72rem/1 Arial, sans-serif;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--green);
+        }
+        h1 {
+            margin: 10px 0 10px;
+            font: 400 clamp(2.6rem, 5vw, 4.6rem)/0.94 Georgia, serif;
+            text-transform: uppercase;
+        }
+        .lead {
+            max-width: 640px;
+            margin: 0 0 28px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+        .timeline {
+            position: relative;
+            padding-left: 34px;
+            display: grid;
+            gap: 18px;
+        }
+        .timeline::before {
+            content: "";
+            position: absolute;
+            left: 9px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(52,71,54,0.14);
+        }
+        .node {
+            position: relative;
+            padding: 16px 18px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.54);
+        }
+        .node::before {
+            content: "";
+            position: absolute;
+            left: -30px;
+            top: 18px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--green);
+        }
+        .node.ask::before {
+            border-color: var(--red);
+        }
+        .meta {
+            margin-bottom: 8px;
+            font: 700 0.7rem/1 Arial, sans-serif;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .node p {
+            margin: 0;
+            line-height: 1.75;
+        }
+        .composer {
+            margin-top: 28px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+        }
+        .field {
+            min-height: 64px;
+            padding: 18px 20px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.74);
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+        }
+        .send {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            background: var(--green);
+            color: white;
+        }
+        .send svg {
+            width: 28px;
+            height: 28px;
+        }
+    </style>
+</head>
+<body>
+    <div class="board">
+        <div class="eyebrow">Mock 4 / Conversation Timeline</div>
+        <h1>A Better Sense<br>Of Progress</h1>
+        <p class="lead">Instead of isolated chat bubbles, this version makes the Q&amp;A feel like a sequence of clarified decisions. Better if you want the interface to feel cumulative.</p>
+
+        <div class="timeline">
+            <div class="node answer">
+                <div class="meta">Step 01 / Context</div>
+                <p>The pricing question only makes sense once the participation model is clear, because the value is not only access but alignment.</p>
+            </div>
+            <div class="node ask">
+                <div class="meta">Step 02 / Your Question</div>
+                <p>What exactly am I paying for then?</p>
+            </div>
+            <div class="node answer">
+                <div class="meta">Step 03 / Clarified</div>
+                <p>You are paying into a structure that combines place, stewardship, and community economics. That is a very different proposition from buying a stay or buying a passive asset.</p>
+            </div>
+        </div>
+
+        <div class="composer">
+            <div class="field">Add the next question to the thread.</div>
+            <button class="send" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            </button>
+        </div>
+    </div>
+</body>
+</html>

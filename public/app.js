@@ -1662,7 +1662,7 @@ class VoicePPTApp {
             if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
             input.value = '';
             this.pendingQuestionText = null;
-            this.setStatus('Question queued', 'paused', 'Answered after the current slide');
+            this.setStatus('Question sent', 'paused', 'Watch Field Notes for the live answer');
             this.userQuestions.push({ id: null, text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true, { focusInput: false });
         } catch (err) {
@@ -2189,7 +2189,7 @@ class VoicePPTApp {
 
     restorePresentationStatus() {
         if (this.voiceModeEnabled) { this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer'); return; }
-        if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Type a question to queue it'); return; }
+        if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Ask anything — answers appear in Field Notes'); return; }
         if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Type a question or continue'); return; }
         if (this.isQAPhase) { this.setStatus('Q&A', 'paused', 'Answering questions'); return; }
         this.setStatus('Presenting', 'live', 'Narration live');
@@ -2210,7 +2210,7 @@ class VoicePPTApp {
             if (wrapupMessage) wrapupMessage.textContent = data.promptText || 'One minute for questions.';
             if (wrapupPanel) wrapupPanel.classList.remove('hidden');
             if (completionOverlay) completionOverlay.classList.remove('hidden');
-            this.setStatus('Final questions', 'paused', 'Type a question to queue it');
+            this.setStatus('Final questions', 'paused', 'Ask anything — answers appear in Field Notes');
             if (this.wrapUpTimer) clearInterval(this.wrapUpTimer);
             this.wrapUpTimer = setInterval(() => {
                 const timerEl = document.getElementById('wrapup-timer');
