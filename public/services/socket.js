@@ -52,6 +52,7 @@ export class SocketClient {
 
         this.socket.on('presentation-start', (data) => {
             this.app.isQAPhase = false;
+            this.app.sessionStatus = 'presenting';
             if (data?.totalSlides) {
                 this.app.totalSlides = data.totalSlides;
             }
@@ -137,6 +138,7 @@ export class SocketClient {
         });
 
         this.socket.on('presentation-end', (data) => {
+            this.app.sessionStatus = 'completed';
             this.app.setStatus('Complete', '', 'Presentation finished');
             this.app.showCompletion(data);
             this.app.stopWaveform();

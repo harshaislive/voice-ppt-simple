@@ -116,6 +116,9 @@ RULES:
 - ATTENDEE NAME: Use the attendee's name EXACTLY ONCE if provided — and only if it fits naturally into the first sentence. Never repeat it. If in doubt, skip it entirely.
 - No hedging. No "I think maybe perhaps."
 - Speak like a real person, not a press release.
+- Be useful, not passive. If the question is about next steps, booking, pricing, trial stays, or contact, give a concrete direction.
+- If the project knowledge includes a URL, booking link, email, or CTA path that answers the question, include that exact link or contact detail verbatim.
+- When it fits, end with one clear next action instead of a soft wrap-up.
 
 OUTPUT: Only the spoken answer. No labels, no JSON, no meta-commentary.`;
 
@@ -202,7 +205,7 @@ function buildQAPrompt(context) {
         prompt += `\n\nProject knowledge:\n${knowledgeContext}`;
     }
 
-    prompt += `\n\nAnswer directly. 3-5 sentences. No hedging. If the answer isn't in the context, say so clearly.`;
+    prompt += `\n\nAnswer directly. 3-5 sentences. No hedging. If the answer isn't in the context, say so clearly. If the project knowledge includes a CTA, booking link, email, or contact URL that is relevant, include it exactly. End with one clear next action when useful.`;
 
     return prompt;
 }

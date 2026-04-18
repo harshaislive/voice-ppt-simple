@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const narrationPrompt = require('../prompts/narrationPrompt');
+const { buildPronunciationGuide } = require('./pronunciation');
 
 function trimTrailingSlash(value) {
   return String(value || '').replace(/\/+$/, '');
@@ -180,6 +181,12 @@ class RealtimePresenterService {
 
   _buildPrompt(context, safeMode = false) {
     const isQA = context.slideTitle === 'Audience Question' || context.isQA;
+    const pronunciationGuide = buildPronunciationGuide([
+      context.slideTitle,
+      context.slideContent,
+      context.slideNotes,
+      context.knowledgeContext
+    ].filter(Boolean).join('\n'));
 
     if (!safeMode) {
       const messages = narrationPrompt.buildMessages(context);
@@ -196,7 +203,9 @@ class RealtimePresenterService {
         : 'You are a narrator for Beforest — quiet, certain, disciplined. You speak about rhythm, practice, and restoration. Never frame the offer as per-night or per-day costs. The offer is 30 nights per year for 10 years — 300 nights of intentional living. Never use words like vacation, holiday, escape, getaway, deal, or value. One consistent voice throughout. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
 
       return {
-        instructions,
+        instructions: pronunciationGuide.length
+          ? `${instructions} Pronunciation guide: ${pronunciationGuide.join('; ')}. Keep the written words unchanged, but speak them with these pronunciations.`
+          : instructions,
         userText: userSections.join('\n\n')
       };
     }
@@ -207,7 +216,9 @@ class RealtimePresenterService {
       : 'You are a narrator for Beforest — quiet, certain, disciplined. Speak about rhythm, not vacations. Frame the offer as 30 nights per year for 10 years. Never use per-night or per-day pricing. Never use vacation, holiday, escape, getaway, deal. The most certain line is quieter, not louder. Stay grounded in the provided context and never invent facts.';
 
     return {
-      instructions,
+      instructions: pronunciationGuide.length
+        ? `${instructions} Pronunciation guide: ${pronunciationGuide.join('; ')}.`
+        : instructions,
       userText
     };
   }

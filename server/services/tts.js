@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const { AzureOpenAI } = require('openai');
 const axios = require('axios');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
+const { applyPronunciationOverrides } = require('./pronunciation');
 
 const TTS_PROVIDERS = {
   AZURE_REALTIME: 'azure-realtime',
@@ -227,30 +228,31 @@ class TTSService {
 
   async synthesizeDetailed(text, voice = 'default') {
     if (!text) throw new Error('Text is required');
+    const spokenText = applyPronunciationOverrides(text);
 
     try {
       switch (this.provider) {
         case TTS_PROVIDERS.AZURE_REALTIME:
-          return await this._synthesizeViaRealtime(text, voice);
+          return await this._synthesizeViaRealtime(spokenText, voice);
         case TTS_PROVIDERS.AZURE_SPEECH:
-          return await this._synthesizeViaSpeech(text, voice);
+          return await this._synthesizeViaSpeech(spokenText, voice);
         case TTS_PROVIDERS.AZURE_SDK:
-          return await this._synthesizeViaSpeechSdk(text, voice);
+          return await this._synthesizeViaSpeechSdk(spokenText, voice);
         case TTS_PROVIDERS.KITTENTTS:
-          return await this._synthesizeViaKittenTTS(text, voice);
+          return await this._synthesizeViaKittenTTS(spokenText, voice);
         default:
           if (this.failClosed) {
             throw new Error('No TTS provider configured');
           }
           console.warn('No TTS provider configured, generating placeholder audio');
-          return this._placeholderResult(text);
+          return this._placeholderResult(spokenText);
       }
     } catch (error) {
       console.error('TTS synthesis error:', error.message);
       if (this.failClosed) {
         throw error;
       }
-      return this._placeholderResult(text);
+      return this._placeholderResult(spokenText);
     }
   }
 

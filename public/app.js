@@ -31,6 +31,10 @@ class VoicePPTApp {
         this.unreadAnswerCount = 0;
         this.maxViewedSlideIndex = 0;
         this.notifiedAnswerIds = new Set();
+        this.sessionStatus = 'idle';
+        this.replaySequenceActive = false;
+        this.replaySequenceNextIndex = null;
+        this._isContinuingReplay = false;
         
         this.wrapUpTimer = null;
         this.wrapUpEndsAt = 0;
@@ -166,6 +170,10 @@ class VoicePPTApp {
         this.unreadAnswerCount = 0;
         this.maxViewedSlideIndex = 0;
         this.notifiedAnswerIds.clear();
+        this.sessionStatus = 'idle';
+        this.replaySequenceActive = false;
+        this.replaySequenceNextIndex = null;
+        this._isContinuingReplay = false;
         this.updateHistoryBadge();
         const qaList = document.getElementById('qa-list');
         if (qaList) {
@@ -273,6 +281,7 @@ class VoicePPTApp {
             this.controlToken = session.controlToken || '';
             this.participantName = session.participantName || data.participantName || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
+            this.sessionStatus = String(data.session.status || 'active');
             this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, Number(data.session.current_slide_index || 0));
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
@@ -1038,6 +1047,12 @@ class VoicePPTApp {
             if (btn) btn.classList.remove('is-paused');
             if (iconPause) iconPause.style.display = 'none';
             if (iconPlay) iconPlay.style.display = 'block';
+
+            if (data?.isReplay && this.replaySequenceActive && Number.isInteger(this.replaySequenceNextIndex)) {
+                setTimeout(() => {
+                    this.continueReplaySequence();
+                }, 180);
+            }
         };
         setTimeout(poll, 120);
     }
@@ -1385,23 +1400,7 @@ class VoicePPTApp {
             return;
         }
 
-        // Skip full rebuild if deck size hasn't changed — just update active thumb and disabled state
-        const existingCount = filmstrip.dataset.slideCount;
         const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
-        if (existingCount === String(this.slideDeck.length)) {
-            filmstrip.querySelectorAll('.scrubber-thumb').forEach((btn, i) => {
-                btn.classList.toggle('active', i === this.currentSlideIndex);
-                // Update disabled state: future slides (index > accessibleIndex) should be locked
-                const isFuture = i > accessibleIndex;
-                btn.classList.toggle('disabled', isFuture);
-                btn.disabled = isFuture;
-            });
-            if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
-            if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
-            return;
-        }
-
-        // Full rebuild — deck size changed
         filmstrip.innerHTML = '';
         filmstrip.dataset.slideCount = String(this.slideDeck.length);
 
@@ -1464,6 +1463,11 @@ class VoicePPTApp {
             this.maxViewedSlideIndex = index;
         }
 
+        this.replaySequenceActive = this.sessionStatus === 'completed' && index < this.slideDeck.length - 1;
+        this.replaySequenceNextIndex = this.replaySequenceActive
+            ? index + 1
+            : null;
+
         const targetSlide = this.slideDeck[index] || null;
         if (targetSlide && index !== this.currentSlideIndex) {
             this.updateSlide({
@@ -1505,6 +1509,47 @@ class VoicePPTApp {
         }
         this.setStatus(data.cached ? 'Replaying' : 'Jumped', data.cached ? 'live' : 'paused', `Slide ${index + 1}`);
         return data;
+    }
+
+    clearReplaySequence() {
+        this.replaySequenceActive = false;
+        this.replaySequenceNextIndex = null;
+        this._isContinuingReplay = false;
+    }
+
+    async continueReplaySequence() {
+        if (!this.replaySequenceActive || this._isContinuingReplay || !Number.isInteger(this.replaySequenceNextIndex)) {
+            return;
+        }
+
+        const nextIndex = this.replaySequenceNextIndex;
+        if (nextIndex < 0 || nextIndex >= this.slideDeck.length) {
+            this.clearReplaySequence();
+            return;
+        }
+
+        this._isContinuingReplay = true;
+        this.replaySequenceNextIndex = nextIndex < this.slideDeck.length - 1 ? nextIndex + 1 : null;
+
+        try {
+            const targetSlide = this.slideDeck[nextIndex] || null;
+            if (targetSlide && nextIndex !== this.currentSlideIndex) {
+                this.updateSlide({
+                    slideIndex: nextIndex,
+                    totalSlides: this.totalSlides || this.slideDeck.length,
+                    slide: targetSlide
+                });
+            }
+            await this.replaySlide(nextIndex);
+            if (!Number.isInteger(this.replaySequenceNextIndex)) {
+                this.replaySequenceActive = false;
+            }
+        } catch (err) {
+            console.error('Replay sequence failed:', err);
+            this.clearReplaySequence();
+        } finally {
+            this._isContinuingReplay = false;
+        }
     }
 
     async jumpToSlide(index) {
@@ -1676,11 +1721,11 @@ class VoicePPTApp {
 
         const summary = document.createElement('div');
         summary.className = 'qa-answer-thread-summary';
-        summary.textContent = summaryText;
+        summary.replaceChildren(this.buildLinkedContent(summaryText));
 
         const details = document.createElement('div');
         details.className = 'qa-answer-thread-details';
-        details.textContent = detailsText;
+        details.replaceChildren(this.buildLinkedContent(detailsText));
 
         if (shouldShowTitle) {
             wrap.appendChild(header);
@@ -2179,6 +2224,45 @@ class VoicePPTApp {
         }
         if (name === 'resume_presentation') { await this.stopVoiceMode(); await this.continuePresentationFlow(); return { ok: true }; }
         return { ok: false, error: 'Unknown tool' };
+    }
+
+    buildLinkedContent(text = '') {
+        const fragment = document.createDocumentFragment();
+        const input = String(text || '');
+        const lines = input.split(/\n+/);
+
+        lines.forEach((line, lineIndex) => {
+            const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
+            let cursor = 0;
+            let match;
+
+            while ((match = pattern.exec(line)) !== null) {
+                if (match.index > cursor) {
+                    fragment.appendChild(document.createTextNode(line.slice(cursor, match.index)));
+                }
+
+                const href = match[2] || match[3] || `mailto:${match[4]}`;
+                const label = match[1] || match[3] || match[4] || href;
+                const link = document.createElement('a');
+                link.href = href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'qa-answer-link';
+                link.textContent = label;
+                fragment.appendChild(link);
+                cursor = pattern.lastIndex;
+            }
+
+            if (cursor < line.length) {
+                fragment.appendChild(document.createTextNode(line.slice(cursor)));
+            }
+
+            if (lineIndex < lines.length - 1) {
+                fragment.appendChild(document.createElement('br'));
+            }
+        });
+
+        return fragment;
     }
 
     escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
