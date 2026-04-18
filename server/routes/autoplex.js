@@ -21,6 +21,7 @@ const presentationStartTimes = new Map();
 const prewarmedSlides = new Map();
 const prewarmTasks = new Map();
 const replayCache = new Map();
+const deckAssetCache = new Map();
 const pregenProgress = new Map();
 const pregeneratedSessions = new Map();
 
@@ -470,6 +471,23 @@ function setReplayCache(sessionId, slideIndex, payload) {
     });
 }
 
+function getDeckAssetKey(deckId, slideIndex) {
+    return `${deckId}:${slideIndex}`;
+}
+
+function getDeckAssetCache(deckId, slideIndex) {
+    if (!deckId) return null;
+    return deckAssetCache.get(getDeckAssetKey(deckId, slideIndex)) || null;
+}
+
+function setDeckAssetCache(deckId, slideIndex, payload) {
+    if (!deckId) return;
+    deckAssetCache.set(getDeckAssetKey(deckId, slideIndex), {
+        ...payload,
+        createdAt: Date.now()
+    });
+}
+
 function updatePreGenProgress(sessionId, completed, total, status = 'generating') {
     pregenProgress.set(sessionId, { completed, total, status });
 }
@@ -495,6 +513,23 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
         const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
         const bypassMaster = sessionMetadata.bypassMaster === true;
 
+        if (deckId) {
+            const cachedDeckAssets = slides.map((slide, i) => {
+                const cached = getDeckAssetCache(deckId, i);
+                if (!cached) return null;
+                setPrewarmedSlide(sessionId, i, cached);
+                setReplayCache(sessionId, i, cached);
+                return { ...slide, narration: cached.text, audio: cached };
+            }).filter(Boolean);
+
+            if (cachedDeckAssets.length === totalSlides) {
+                pregeneratedSessions.set(sessionId, cachedDeckAssets);
+                updatePreGenProgress(sessionId, totalSlides, totalSlides, 'complete');
+                console.log(`[PreGen] Reused in-memory deck asset cache for ${deckId}`);
+                return cachedDeckAssets;
+            }
+        }
+
         if (deckId && !bypassMaster) {
             console.log(`[PreGen] Checking for master assets for deck: ${deckId}`);
             const masterData = await masterSessionService.getMasterAssets(deckId);
@@ -512,6 +547,7 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
                             if (cached) {
                                 setPrewarmedSlide(sessionId, i, cached);
                                 setReplayCache(sessionId, i, cached);
+                                setDeckAssetCache(deckId, i, cached);
                                 updatePreGenProgress(sessionId, i + 1, totalSlides, 'persisting');
                                 return { index: i, slide, cached };
                             }
@@ -605,6 +641,7 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
 
             setPrewarmedSlide(sessionId, i, payload);
             setReplayCache(sessionId, i, payload);
+            setDeckAssetCache(deckId, i, payload);
             pregeneratedSlides.push({ ...slide, narration: narrationText, audio: payload });
 
             persistSlideNarration({
@@ -1051,6 +1088,7 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
         if (!slide) {
             return res.status(404).json({ error: 'Slide not found' });
         }
+        const deckId = slide.deck_id || session.deck_id;
 
         // Freeze the live flow while the audience is inspecting history.
         setPaused(sessionId, true);
@@ -1069,12 +1107,14 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
         clearInterrupt(sessionId);
 
         const cached = getReplayCache(sessionId, resolvedSlideIndex)
+            || getDeckAssetCache(deckId, resolvedSlideIndex)
             || getPrewarmedSlide(sessionId, resolvedSlideIndex)
             || await loadPersistedReplayPlayback(db, sessionId, resolvedSlideIndex);
         if (cached) {
             if (!getReplayCache(sessionId, resolvedSlideIndex)) {
                 setReplayCache(sessionId, resolvedSlideIndex, cached);
             }
+            setDeckAssetCache(deckId, resolvedSlideIndex, cached);
             await emitCachedPlayback(io, sessionId, resolvedSlideIndex, cached, { isReplay: true });
         } else {
             const totalSlides = db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [sessionId])?.count || 0;
@@ -1201,13 +1241,15 @@ async function runPresentation(db, io, sessionId) {
             cached = await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex, masterAsset);
             if (cached) {
                 console.log(`[AutoPlex] Slide ${currentSlideIndex + 1}: Master asset loaded successfully`);
+                setDeckAssetCache(session.deck_id, currentSlideIndex, cached);
             } else {
                 console.warn(`[AutoPlex] Slide ${currentSlideIndex + 1}: Master asset failed to load, falling back`);
             }
         }
 
         if (!cached) {
-            cached = pregeneratedSlides[currentSlideIndex]?.audio
+            cached = getDeckAssetCache(session.deck_id, currentSlideIndex)
+                || pregeneratedSlides[currentSlideIndex]?.audio
                 || consumePrewarmedSlide(sessionId, currentSlideIndex)
                 || getPrewarmedSlide(sessionId, currentSlideIndex)
                 || await loadPersistedReplayPlayback(db, sessionId, currentSlideIndex);
@@ -1217,6 +1259,7 @@ async function runPresentation(db, io, sessionId) {
             if (!getReplayCache(sessionId, currentSlideIndex)) {
                 setReplayCache(sessionId, currentSlideIndex, cached);
             }
+            setDeckAssetCache(session.deck_id, currentSlideIndex, cached);
             io.to(sessionId).emit('narration-text', {
                 text: cached.text,
                 slideIndex: currentSlideIndex
@@ -1681,7 +1724,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
 
         if (slideIndex >= 0 && !options.isQA && !options.isWrapUp && collectedChunks.length > 0) {
             const pcmBuffer = Buffer.concat(collectedChunks);
-            setReplayCache(sessionId, slideIndex, {
+            const payload = {
                 text,
                 pcmBase64: pcmBuffer.toString('base64'),
                 sampleRate: 24000,
@@ -1689,7 +1732,10 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
                 bitsPerSample: 16,
                 wordBoundaries: lastWordBoundaries || [],
                 totalPcmBytes: pcmBuffer.length
-            });
+            };
+            setReplayCache(sessionId, slideIndex, payload);
+            const session = db.get('SELECT deck_id FROM sessions WHERE id = ?', [sessionId]);
+            setDeckAssetCache(session?.deck_id, slideIndex, payload);
         }
 
         const pcmBuffer = collectedChunks.length > 0 ? Buffer.concat(collectedChunks) : Buffer.alloc(0);

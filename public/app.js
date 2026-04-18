@@ -206,6 +206,15 @@ class VoicePPTApp {
         }
     }
 
+    getRequestedDeckId() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            return (urlParams.get('deck') || urlParams.get('presentation') || urlParams.get('slug') || '').trim();
+        } catch {
+            return '';
+        }
+    }
+
     getRuntimeSessionStorage() {
         try {
             return sessionStorage;
@@ -346,6 +355,7 @@ class VoicePPTApp {
                 this.apiFetch('/api/session/config'),
                 Promise.resolve(this.getPersistedSession())
             ]);
+            const requestedDeckId = this.getRequestedDeckId();
             const data = await configRes.json();
             const passcodeEl = document.getElementById('session-passcode');
             if (passcodeEl) {
@@ -362,7 +372,10 @@ class VoicePPTApp {
                 if (nameInput) nameInput.value = persistedSession.participantName;
             }
             
-            if (persistedSession) {
+            if (requestedDeckId) {
+                console.log('[Session] Deck link detected, forcing fresh viewer session');
+                this.setStartScreenMode('form');
+            } else if (persistedSession) {
                 console.log('[Session] Have persisted session, showing recovery choice');
                 this.setStartScreenMode('recovery');
             } else {
@@ -609,7 +622,10 @@ class VoicePPTApp {
             if (!Array.isArray(data.presentations) || data.presentations.length === 0) return;
             this.presentationCatalog = data.presentations;
 
-            const p = data.presentations.find(pres => pres.source === 'supabase') || data.presentations[0];
+            const requestedDeckId = this.getRequestedDeckId();
+            const p = data.presentations.find(pres => pres.id === requestedDeckId || pres.presentationSlug === requestedDeckId)
+                || data.presentations.find(pres => pres.source === 'supabase')
+                || data.presentations[0];
             const titleEl = document.getElementById('home-start-title');
             const subEl = document.getElementById('home-start-sub');
             if (titleEl) titleEl.innerHTML = p.startTitle ? p.startTitle.replace(/\n/g, '<br>') : 'THE 10% LIFE';
@@ -704,8 +720,11 @@ class VoicePPTApp {
     }
 
     async startSession() {
-        const supabasePres = this.presentationCatalog.find(p => p.source === 'supabase');
-        const deckId = supabasePres?.id || this.presentationCatalog[0]?.id || '10_percent_lifestyle';
+        const requestedDeckId = this.getRequestedDeckId();
+        const selectedPresentation = this.presentationCatalog.find(p => p.id === requestedDeckId || p.presentationSlug === requestedDeckId)
+            || this.presentationCatalog.find(p => p.source === 'supabase')
+            || this.presentationCatalog[0];
+        const deckId = selectedPresentation?.id || requestedDeckId || '10_percent_lifestyle';
         const participantName = (document.getElementById('participant-name').value || '').trim();
         const passcodeEl = document.getElementById('session-passcode');
         const passcode = passcodeEl ? (passcodeEl.value || '').trim() : '';
