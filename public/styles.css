@@ -899,8 +899,11 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-modal {
-    background: var(--bg);
-    border: 2px solid var(--border-color);
+    background:
+        radial-gradient(circle at top left, rgba(213, 77, 42, 0.08), transparent 34%),
+        linear-gradient(180deg, rgba(251, 248, 242, 0.98), rgba(244, 238, 228, 0.98));
+    border: 1px solid rgba(52, 46, 41, 0.14);
+    border-radius: 28px;
     max-width: 900px;
     width: 100%;
     max-height: 85vh;
@@ -909,6 +912,7 @@ h1, h2, h3, h4 {
     flex-direction: column;
     transform: translateY(20px);
     transition: transform 0.25s ease;
+    box-shadow: 0 28px 90px rgba(24, 19, 15, 0.24);
 }
 
 .scrubber-container:not(.hidden) .scrubber-modal {
@@ -992,7 +996,7 @@ h1, h2, h3, h4 {
 
 .scrubber-filmstrip {
     display: inline-flex;
-    gap: 12px;
+    gap: 16px;
     padding-bottom: 4px;
 }
 
@@ -1016,29 +1020,32 @@ h1, h2, h3, h4 {
 .scrubber-thumb {
     width: 136px;
     height: 88px;
-    border: 2px solid var(--border-color);
+    border: 1px solid rgba(255, 255, 255, 0.34);
     background-size: cover;
     background-position: center;
     cursor: pointer;
-    opacity: 0.4;
+    opacity: 0.82;
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
-    border-radius: 18px;
+    border-radius: 20px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     padding: 10px;
     color: #fff;
     text-align: left;
-    transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 10px 24px rgba(31, 24, 19, 0.18);
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
     will-change: transform, opacity;
 }
 
 .scrubber-thumb:hover {
-    opacity: 0.95;
-    transform: translateY(-4px) scale(1.02);
-    border-color: rgba(255,255,255,0.4);
+    opacity: 1;
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,0.72);
+    box-shadow: 0 18px 34px rgba(31, 24, 19, 0.26);
+    filter: saturate(1.08) contrast(1.04);
 }
 
 .scrubber-thumb.active:hover {
@@ -1048,14 +1055,14 @@ h1, h2, h3, h4 {
 .scrubber-thumb.active {
     opacity: 1;
     border-color: var(--accent-red);
-    box-shadow: 0 0 0 4px rgba(134, 49, 43, 0.2), 0 16px 28px rgba(0,0,0,0.12);
+    box-shadow: 0 0 0 4px rgba(134, 49, 43, 0.18), 0 18px 34px rgba(31, 24, 19, 0.24);
 }
 
 .scrubber-thumb::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(16, 14, 12, 0.08), rgba(16, 14, 12, 0.58));
+    background: linear-gradient(180deg, rgba(16, 14, 12, 0.04), rgba(16, 14, 12, 0.44));
     pointer-events: none;
 }
 
@@ -1074,11 +1081,12 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-thumb.disabled {
-    opacity: 0.5;
-    filter: grayscale(1) contrast(0.8);
+    opacity: 0.42;
+    filter: grayscale(1) contrast(0.78);
     cursor: not-allowed;
     border-color: rgba(52, 46, 41, 0.15);
     transform: none !important;
+    box-shadow: none;
 }
 
 .scrubber-thumb.disabled:hover {
@@ -1112,8 +1120,8 @@ h1, h2, h3, h4 {
     align-items: center;
     justify-content: center;
     opacity: 0;
-    background: rgba(0,0,0,0.3);
-    transition: opacity 0.2s ease;
+    background: linear-gradient(180deg, rgba(15, 13, 11, 0.08), rgba(15, 13, 11, 0.26));
+    transition: opacity 0.18s ease;
 }
 
 .scrubber-thumb:hover .scrubber-thumb-overlay,
@@ -1127,10 +1135,10 @@ h1, h2, h3, h4 {
 }
 
 .scrubber-action-icon {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     color: white;
-    drop-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.38));
 }
 
 .scrubber-icon-pulse {
