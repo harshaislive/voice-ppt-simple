@@ -120,7 +120,7 @@ export class SocketClient {
             this.socket.on('qa-start', (data) => {
                 this.app.isQAPhase = true;
                 if (!this.app.voiceModeEnabled) {
-                    this.app.setStatus('Thinking', 'paused', data.inline ? 'Interrupt received. Building answer.' : 'Switching into audience Q&A');
+                    this.app.setStatus('Thinking', 'paused', data.inline ? 'Interrupt received. Building answer.' : 'Opening question mode');
                 }
             });
 
@@ -150,7 +150,7 @@ export class SocketClient {
             });
 
             this.socket.on('question-added', (data) => {
-                this.app.addQuestionToList(data.questionId, data.questionText, data.submittedBy || 'Audience');
+                this.app.addQuestionToList(data.questionId, data.questionText, data.submittedBy || 'You');
                 this.app.voiceTurnState = 'thinking';
                 if (!this.app.voiceModeEnabled) {
                     this.app.setStatus('Thinking', 'paused', 'Question received and being prioritized');
@@ -172,18 +172,6 @@ export class SocketClient {
                 this.app.stopWaveform();
             });
 
-            this.socket.on('presentation-wrapup', (data) => {
-                this.app.startWrapUp(data);
-            });
-
-            this.socket.on('qa-slides-ready', (data) => {
-                this.app.renderQASlides(data.questions);
-            });
-
-            this.socket.on('presentation-wrapup-ended', () => {
-                this.app.finishWrapUp();
-            });
-
             this.socket.on('presentation-paused', () => {
                 if (!this.app.voiceModeEnabled) {
                     this.app.setStatus('Paused', 'paused', 'Presentation is paused');
@@ -192,24 +180,6 @@ export class SocketClient {
 
             this.socket.on('presentation-resumed', () => {
                 this.app.restorePresentationStatus();
-            });
-
-            this.socket.on('receive-reaction', (data) => {
-                if (data?.emoji) {
-                    this.app.spawnReaction(data.emoji);
-                }
-            });
-
-            this.socket.on('significant-reactions', (data) => {
-                this.app.handleSignificantReactions(data);
-            });
-
-            this.socket.on('votes-sync', (data) => {
-                this.app.handleVotesSync(data);
-            });
-
-            this.socket.on('vote-update', (data) => {
-                this.app.handleVoteUpdate(data);
             });
 
             this.socket.on('presentation-error', (data) => {
@@ -236,18 +206,6 @@ export class SocketClient {
         }
         this.isConnected = false;
         this.isReady = false;
-    }
-
-    sendReaction(emoji) {
-        if (this.socket && this.isConnected && this.isReady) {
-            this.socket.emit('send-reaction', { emoji, sessionId: this.app.sessionId });
-        }
-    }
-
-    submitVote(mcqId, option) {
-        if (this.socket && this.isConnected && this.isReady) {
-            this.socket.emit('submit-vote', { sessionId: this.app.sessionId, mcqId, option });
-        }
     }
 
     notifyPlaybackComplete(sessionId, slideIndex) {

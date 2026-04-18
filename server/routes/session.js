@@ -301,7 +301,7 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
         const values = [];
         const sanitizedUpdates = {};
         const totalSlides = db.get('SELECT COUNT(*) as count FROM slides WHERE session_id = ?', [id])?.count || 0;
-        const allowedStatuses = new Set(['active', 'presenting', 'wrapup', 'completed']);
+        const allowedStatuses = new Set(['active', 'presenting', 'completed']);
         
         for (const [field, value] of Object.entries(updates)) {
             if (!allowedFields.includes(field)) {
@@ -320,7 +320,7 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
 
             if (field === 'status') {
                 if (typeof value !== 'string' || !allowedStatuses.has(value)) {
-                    return res.status(400).json({ error: 'status must be one of: active, presenting, wrapup, completed' });
+                    return res.status(400).json({ error: 'status must be one of: active, presenting, completed' });
                 }
             }
 

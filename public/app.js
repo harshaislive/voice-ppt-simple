@@ -27,8 +27,6 @@ class VoicePPTApp {
         this.voiceModeEnabled = false;
         this.voiceTurnState = 'idle';
         
-        this.votes = new Map();
-        this.userReactions = [];
         this.userQuestions = [];
         this.unreadAnswerCount = 0;
         this.maxViewedSlideIndex = 0;
@@ -37,12 +35,6 @@ class VoicePPTApp {
         this.replaySequenceActive = false;
         this.replaySequenceNextIndex = null;
         this._isContinuingReplay = false;
-        
-        this.wrapUpTimer = null;
-        this.wrapUpEndsAt = 0;
-        this.wrapUpSelections = {};
-        this.wrapUpMcqs = [];
-        this.wrapUpIndex = 0;
         
         this.subtitleBuffer = '';
         this.subtitleReady = false;
@@ -313,7 +305,7 @@ class VoicePPTApp {
             
             const data = await res.json();
             console.log('[Session] Restore response data - status:', data.session?.status);
-            if (!data.session || !['active', 'presenting', 'wrapup', 'completed'].includes(data.session.status)) {
+            if (!data.session || !['active', 'presenting', 'completed'].includes(data.session.status)) {
                 console.log('[Session] Restore failed - bad status:', data.session?.status, '- clearing');
                 this.clearPersistedSession();
                 return false;
@@ -468,7 +460,6 @@ class VoicePPTApp {
         on('slide-pause-btn', 'click', () => this.toggleAudioPause());
         on('interrupt-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-mic', 'click', () => this.openQuestionComposer());
-        on('wrapup-mic', 'click', () => this.openQuestionComposer());
         on('slide-turn-continue', 'click', () => this.continuePresentationFlow());
         on('footer-continue-btn', 'click', () => this.continuePresentationFlow());
         on('slide-question-send', 'click', () => this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' }));
@@ -478,19 +469,6 @@ class VoicePPTApp {
                 this.submitQuestion(undefined, { queueForEnd: true, source: 'slide-turn' });
             }
         });
-        on('wrapup-prev', 'click', () => this.changeWrapUpCard(-1));
-        on('wrapup-next', 'click', () => this.changeWrapUpCard(1));
-        
-        document.querySelectorAll('.reaction-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const emoji = btn.getAttribute('data-emoji');
-                this.socketClient.sendReaction(emoji);
-                this.spawnReaction(emoji);
-                this.userReactions.push({ emoji, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
-                this.logEvent('reaction', emoji);
-            });
-        });
-
         on('help-fab', 'click', () => {
             const overlay = document.getElementById('help-modal-overlay');
             if (overlay) overlay.classList.add('open');
@@ -544,88 +522,6 @@ class VoicePPTApp {
     setStatus(t, s, d) { this.ui.setStatus(t, s, d); }
     showTranscript(s) { this.ui.showTranscript(s); }
     updateMicState() { this.ui.updateMicState(this.isListening, this.voiceModeEnabled, this.azureVoice.connected); }
-
-    spawnReaction(emoji) {
-        const container = document.querySelector('.presentation-stage');
-        if (!container) return;
-        const colorMap = { '👏': '#344736', '❤️': '#86312b', '💡': '#ffc083' };
-        const color = colorMap[emoji] || '#342e29';
-        const count = 3 + Math.floor(Math.random() * 3);
-        
-        // Find the reaction bar on the screen to use as the origin point
-        const reactionButtons = document.querySelectorAll('.reaction-btn');
-        let sourceRect = null;
-        
-        // Try to find the button for this specific emoji
-        for (const btn of reactionButtons) {
-            if (btn.getAttribute('data-emoji') === emoji) {
-                sourceRect = btn.getBoundingClientRect();
-                break;
-            }
-        }
-        
-        // Fallback to the first button or a reasonable position
-        if (!sourceRect && reactionButtons.length > 0) {
-            sourceRect = reactionButtons[0].getBoundingClientRect();
-        }
-
-        const stageRect = container.getBoundingClientRect();
-
-        for (let i = 0; i < count; i++) {
-            const el = document.createElement('div');
-            el.className = 'floating-reaction';
-            el.textContent = emoji;
-            el.style.color = color;
-            
-            let startX, startBottom;
-
-            if (sourceRect) {
-                // Position relative to the source button, but adjusted for the stage container
-                startX = (sourceRect.left + sourceRect.width / 2) - stageRect.left + (Math.random() * 40 - 20);
-                startBottom = stageRect.bottom - sourceRect.top - 10;
-            } else {
-                // Old fallback logic
-                startX = window.innerWidth > 720 ? (window.innerWidth - 100 + (Math.random() * 60 - 30)) : (window.innerWidth / 2 + (Math.random() * 100 - 50));
-                startBottom = 100;
-            }
-
-            const drift = (Math.random() * 120 - 60) + 'px';
-            const rotation = (Math.random() * 40 - 20) + 'deg';
-            const scale = 0.8 + Math.random() * 1.2;
-            const duration = 1.5 + Math.random() * 1;
-            const delay = Math.random() * 0.2;
-            
-            el.style.left = `${startX}px`;
-            el.style.bottom = `${startBottom}px`;
-            el.style.setProperty('--drift', drift);
-            el.style.setProperty('--rotation', rotation);
-            el.style.setProperty('--scale', scale);
-            el.style.animation = `float-and-fade ${duration}s ease-out ${delay}s forwards`;
-            container.appendChild(el);
-            setTimeout(() => el.remove(), (duration + delay) * 1000);
-        }
-    }
-
-    handleSignificantReactions(data) {
-        const { counts } = data;
-        const topEmoji = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-        if (topEmoji && topEmoji[1] > 0) {
-            this.setStatus('Vibe check', 'paused', `High engagement! ${topEmoji[1]} people just reacted with ${topEmoji[0]}`);
-            setTimeout(() => this.restorePresentationStatus(), 4000);
-        }
-    }
-
-    handleVotesSync(data) {
-        if (data.votes) {
-            Object.entries(data.votes).forEach(([id, v]) => this.votes.set(id, v));
-            this.renderWrapUpMcqs();
-        }
-    }
-
-    handleVoteUpdate(data) {
-        this.votes.set(data.mcqId, data.allVotes);
-        this.renderWrapUpMcqs();
-    }
 
     async loadPresentationCatalog() {
         try {
@@ -687,7 +583,7 @@ class VoicePPTApp {
                 const pending = Array.isArray(sessionData.pendingQuestions) ? sessionData.pendingQuestions : [];
                 pending.forEach((question) => {
                     if (!this.questions.has(question.id)) {
-                        this.addQuestionToList(question.id, question.question_text, question.submitted_by || 'Audience', {
+                        this.addQuestionToList(question.id, question.question_text, question.submitted_by || 'You', {
                             status: question.status,
                             answerTitle: question.answer_title,
                             answerSummary: question.answer_summary,
@@ -966,7 +862,7 @@ class VoicePPTApp {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
 
         // --- SLIDE MISMATCH PROTECTION ---
-        // If we receive audio for a slide that isn't the current one, and it's not a replay/QA/wrapup,
+        // If we receive audio for a slide that isn't the current one, and it's not a replay/QA flow,
         // we should ignore it to prevent "ghost" narration from old loops.
         const isBackgroundPhase = data?.isQA || data?.isWrapUp || data?.isReplay;
         if (!isBackgroundPhase && typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex) {
@@ -1431,7 +1327,7 @@ class VoicePPTApp {
                 body: JSON.stringify({
                     sessionId: this.sessionId,
                     questionText: text,
-                    submittedBy: options.submittedBy || 'Audience'
+                    submittedBy: options.submittedBy || 'You'
                 })
             });
             const data = await res.json();
@@ -1650,7 +1546,7 @@ class VoicePPTApp {
     }
 
     markQuestionAnswered(id, ans, txt, meta = {}) {
-        if (!this.questions.has(id)) this.addQuestionToList(id, txt, 'Audience', meta);
+        if (!this.questions.has(id)) this.addQuestionToList(id, txt, 'You', meta);
         const target = document.getElementById(`q-${id}`); if (!target) return;
         const q = this.questions.get(id); if (q) { q.status = 'answered'; q.meta = { ...(q.meta || {}), ...meta }; }
         target.classList.remove('is-pending'); target.classList.add('is-answered');
@@ -1703,7 +1599,7 @@ class VoicePPTApp {
         };
 
         if (!this.questions.has(questionId)) {
-            this.addQuestionToList(questionId, data.questionText || 'Question', data.submittedBy || 'Audience', meta);
+            this.addQuestionToList(questionId, data.questionText || 'Question', data.submittedBy || 'You', meta);
         }
         this.markQuestionAnswered(questionId, data.answerText || '', data.questionText || '', meta);
         if (this.sessionId && !this.userQuestions.some((item) => item.id === questionId)) {
@@ -1997,51 +1893,9 @@ class VoicePPTApp {
 
     restorePresentationStatus() {
         if (this.voiceModeEnabled) { this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer'); return; }
-        if (this.wrapUpEndsAt > Date.now()) { this.setStatus('Final questions', 'paused', 'Type a question to queue it'); return; }
         if (this.awaitingSlideContinue) { this.setStatus('Your turn', 'paused', 'Type a question or continue'); return; }
         if (this.isQAPhase) { this.setStatus('Q&A', 'paused', 'Answering questions'); return; }
         this.setStatus('Presenting', 'live', 'Narration live');
-    }
-
-    startWrapUp(data = {}) {
-        console.log('[WrapUp] startWrapUp called with data:', data);
-        try {
-            this.wrapUpSelections = {}; this.wrapUpMcqs = Array.isArray(data.mcqs) ? data.mcqs : []; this.wrapUpIndex = 0;
-            this.wrapUpEndsAt = Number(data.endsAt) || (Date.now() + 60000);
-            this.renderWrapUpMcqs();
-            const wrapupPanel = document.getElementById('wrapup-panel');
-            const completionOverlay = document.getElementById('completion-overlay');
-            const wrapupMessage = document.getElementById('wrapup-message');
-            if (!wrapupPanel) console.error('[WrapUp] wrapup-panel element not found!');
-            if (!completionOverlay) console.error('[WrapUp] completion-overlay element not found!');
-            if (!wrapupMessage) console.error('[WrapUp] wrapup-message element not found!');
-            if (wrapupMessage) wrapupMessage.textContent = data.promptText || 'One minute for questions.';
-            if (wrapupPanel) wrapupPanel.classList.remove('hidden');
-            if (completionOverlay) completionOverlay.classList.remove('hidden');
-            this.setStatus('Final questions', 'paused', 'Type a question to queue it');
-            if (this.wrapUpTimer) clearInterval(this.wrapUpTimer);
-            this.wrapUpTimer = setInterval(() => {
-                const timerEl = document.getElementById('wrapup-timer');
-                const deadlineEl = document.getElementById('wrapup-deadline');
-                const rem = Math.max(0, this.wrapUpEndsAt - Date.now()); const sec = Math.ceil(rem / 1000);
-                if (timerEl) timerEl.textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
-                if (deadlineEl) deadlineEl.textContent = `Agent ends in ${sec}s`;
-                if (rem <= 0) { clearInterval(this.wrapUpTimer); this.wrapUpTimer = null; }
-            }, 1000);
-            console.log('[WrapUp] startWrapUp completed successfully');
-        } catch (err) {
-            console.error('[WrapUp] Error in startWrapUp:', err);
-        }
-    }
-
-    finishWrapUp() {
-        this.wrapUpEndsAt = 0;
-        if (this.wrapUpTimer) {
-            clearInterval(this.wrapUpTimer);
-            this.wrapUpTimer = null;
-        }
-        const timerEl = document.getElementById('wrapup-timer');
-        if (timerEl) timerEl.textContent = '0:00';
     }
 
     toggleChatWidget(force) {
@@ -2065,7 +1919,6 @@ class VoicePPTApp {
             totalSlides: data.totalSlides, 
             questionsAnswered: data.totalQuestionsAnswered, 
             userQuestions: this.userQuestions, 
-            userReactions: this.userReactions, 
             timestamp: new Date().toISOString() 
         };
         localStorage.setItem(`digest_${this.sessionId}`, JSON.stringify(activity));
@@ -2092,7 +1945,7 @@ class VoicePPTApp {
 
         this.loadCtaBlocks();
 
-        this.setStatus('Engagement', 'paused', 'Dialogue remains open');
+        this.setStatus('Complete', 'paused', 'Your session summary is ready');
     }
 
     async loadCtaBlocks() {
@@ -2157,139 +2010,6 @@ class VoicePPTApp {
             if (section) section.classList.add('hidden');
         }
     }
-
-    renderWrapUpMcqs() {
-        const container = document.getElementById('wrapup-mcqs');
-        if (!container) return;
-        container.innerHTML = '';
-
-        // Reset nav — we drive navigation via dots+auto-advance, not prev/next text buttons
-        const progressEl = document.getElementById('wrapup-progress');
-        const prevBtn = document.getElementById('wrapup-prev');
-        const nextBtn = document.getElementById('wrapup-next');
-        if (prevBtn) prevBtn.style.display = 'none';
-        if (nextBtn) nextBtn.style.display = 'none';
-
-        if (!this.wrapUpMcqs || !this.wrapUpMcqs.length) {
-            if (progressEl) progressEl.textContent = '';
-            return;
-        }
-
-        const total = this.wrapUpMcqs.length;
-        const idx = Math.min(this.wrapUpIndex, total - 1);
-        const mcq = this.wrapUpMcqs[idx];
-
-        // --- Dot progress ---
-        if (progressEl) {
-            progressEl.innerHTML = '';
-            progressEl.className = 'wrapup-dots';
-            for (let i = 0; i < total; i++) {
-                const dot = document.createElement('span');
-                dot.className = 'wrapup-dot' + (i === idx ? ' active' : (i < idx ? ' done' : ''));
-                progressEl.appendChild(dot);
-            }
-        }
-
-        // --- Single Typeform card ---
-        const card = document.createElement('div');
-        card.className = 'wrapup-card typeform-card';
-        card.style.animation = 'typeformEnter 400ms cubic-bezier(0.2, 1, 0.3, 1) both';
-
-        const qNum = document.createElement('span');
-        qNum.className = 'typeform-qnum';
-        qNum.textContent = `${idx + 1} / ${total}`;
-
-        const title = document.createElement('div');
-        title.className = 'wrapup-card-title typeform-title';
-        title.textContent = mcq.prompt;
-
-        const options = document.createElement('div');
-        options.className = 'wrapup-options typeform-options';
-
-        const votes = this.votes.get(mcq.id) || {};
-        const voteTotal = Object.values(votes).reduce((s, v) => s + v, 0);
-        const selected = this.wrapUpSelections[mcq.id];
-        const hasAnswered = !!selected;
-
-        (mcq.options || []).forEach((opt) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'wrapup-option typeform-option' + (selected === opt ? ' is-selected' : '');
-
-            const count = votes[opt] || 0;
-            const pct = voteTotal > 0 ? Math.round((count / voteTotal) * 100) : 0;
-
-            btn.innerHTML = `
-                <span class="typeform-opt-letter">${'ABCDEF'[mcq.options.indexOf(opt)]}</span>
-                <span class="option-text">${opt}</span>
-                ${hasAnswered ? `<span class="typeform-pct">${pct}%</span>
-                <div class="typeform-bar-wrap"><div class="typeform-bar" style="width:${pct}%"></div></div>` : ''}
-            `;
-
-            btn.addEventListener('click', () => {
-                if (this.wrapUpSelections[mcq.id] === opt) return;
-                this.wrapUpSelections[mcq.id] = opt;
-                this.socketClient.submitVote(mcq.id, opt);
-                this.renderWrapUpMcqs();
-                // Auto-advance after brief pause to let selection register visually
-                if (idx < total - 1) {
-                    setTimeout(() => { this.wrapUpIndex = idx + 1; this.renderWrapUpMcqs(); }, 700);
-                } else {
-                    // All done — reveal CTA blocks after a breath
-                    setTimeout(() => {
-                        const ctaSection = document.getElementById('completion-cta');
-                        if (ctaSection) { ctaSection.style.opacity = '0'; ctaSection.classList.remove('hidden'); setTimeout(() => { ctaSection.style.transition = 'opacity 0.6s ease'; ctaSection.style.opacity = '1'; }, 50); }
-                        const wrapupPanel = document.getElementById('wrapup-panel');
-                        if (wrapupPanel) { wrapupPanel.style.transition = 'opacity 0.4s ease'; wrapupPanel.style.opacity = '0'; setTimeout(() => wrapupPanel.classList.add('hidden'), 400); }
-                    }, 900);
-                }
-            });
-            options.appendChild(btn);
-        });
-
-        card.append(qNum, title, options);
-        container.appendChild(card);
-    }
-
-    renderQASlides(questions) {
-        const container = document.getElementById('wrapup-qa-slides');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        if (!questions || !questions.length) {
-            container.style.display = 'none';
-            return;
-        }
-        
-        container.style.display = 'block';
-        
-        // Create a horizontal scrollable list of QA cards
-        const scrollArea = document.createElement('div');
-        scrollArea.className = 'qa-slides-scroll';
-        
-        questions.forEach((q, idx) => {
-            if (!q.answer_text) return; // Only show answered ones
-            const card = document.createElement('div');
-            card.className = 'qa-slide-card';
-            card.innerHTML = `
-                <div class="qa-slide-header"><span class="qa-eyebrow">Question ${idx + 1}</span></div>
-                <div class="qa-slide-q">"${this.escapeHtml(q.question_text)}"</div>
-                <div class="qa-slide-a">${this.escapeHtml(q.answer_text)}</div>
-            `;
-            scrollArea.appendChild(card);
-        });
-        
-        if (scrollArea.children.length > 0) {
-            const title = document.createElement('h3');
-            title.className = 'qa-slides-title';
-            title.textContent = 'Your Q&A';
-            container.appendChild(title);
-            container.appendChild(scrollArea);
-        }
-    }
-
-    changeWrapUpCard(dir) { if (!this.wrapUpMcqs.length) return; const next = this.wrapUpIndex + dir; if (next >= 0 && next < this.wrapUpMcqs.length) { this.wrapUpIndex = next; this.renderWrapUpMcqs(); } }
-
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
     onVoiceSessionConnected() { this.voiceModeEnabled = false; this.updateMicState(); this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer'); }

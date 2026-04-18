@@ -51,7 +51,6 @@ const questionsRoutes = require('./server/routes/questions');
 const narrationRoutes = require('./server/routes/narration');
 const slidesRoutes = require('./server/routes/slides');
 const autoplexRoutes = require('./server/routes/autoplex');
-const sessionController = require('./server/services/sessionController');
 const realtimeRoutes = require('./server/routes/realtime');
 const cmsRoutes = require('./server/routes/cms');
 const analyticsRoutes = require('./server/routes/analytics');
@@ -150,37 +149,6 @@ app.post('/api/retrieve', requireAdminApiKey, async (req, res) => {
     }
 });
 
-// Socket.IO connection handling
-const sessionReactions = new Map();
-const sessionVotes = new Map();
-
-// Periodic check for significant reactions (every 10s)
-setInterval(() => {
-    for (const [sessionId, counts] of sessionReactions.entries()) {
-        const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
-        if (total > 0) {
-            io.to(sessionId).emit('significant-reactions', { counts, total });
-            
-            // Store in audience_memory for AI awareness
-            const dbHelper = app.get('db');
-            if (dbHelper) {
-                const summary = Object.entries(counts)
-                    .filter(([_, count]) => count > 0)
-                    .map(([emoji, count]) => `${count}x ${emoji}`)
-                    .join(', ');
-                
-                dbHelper.run(
-                    'INSERT OR REPLACE INTO audience_memory (session_id, key, value, confidence, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-                    [sessionId, 'latest_reaction_summary', `Audience just reacted with: ${summary}`, 0.9]
-                );
-            }
-
-            // Reset after reporting
-            sessionReactions.set(sessionId, { '👏': 0, '❤️': 0, '💡': 0 });
-        }
-    }
-}, 10000);
-
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
@@ -195,15 +163,9 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const claim = sessionController.claimController(sessionId, clientInstanceId, socket.id);
         socket.join(sessionId);
         console.log(`Client ${socket.id} joined session ${sessionId}`);
-        socket.emit('session-joined', { sessionId, isController: claim.isController });
-
-        // Send current votes if any
-        if (sessionVotes.has(sessionId)) {
-            socket.emit('votes-sync', { votes: sessionVotes.get(sessionId) });
-        }
+        socket.emit('session-joined', { sessionId, isController: true });
     });
 
     socket.on('presentation-audio-complete', (payload) => {
@@ -212,48 +174,11 @@ io.on('connection', (socket) => {
         if (!sessionId) {
             return;
         }
-        if (!sessionController.isControllerSocket(sessionId, socket.id)) {
-            return;
-        }
         autoplexRoutes.markPlaybackComplete?.(sessionId, slideIndex);
-    });
-
-    socket.on('send-reaction', (payload) => {
-        const sessionId = payload?.sessionId;
-        const emoji = payload?.emoji;
-        if (sessionId && emoji) {
-            // Track for AI awareness
-            if (!sessionReactions.has(sessionId)) {
-                sessionReactions.set(sessionId, { '👏': 0, '❤️': 0, '💡': 0 });
-            }
-            const counts = sessionReactions.get(sessionId);
-            if (counts[emoji] !== undefined) {
-                counts[emoji]++;
-            }
-
-            io.to(sessionId).emit('receive-reaction', { emoji });
-        }
-    });
-
-    socket.on('submit-vote', (payload) => {
-        const { sessionId, mcqId, option } = payload;
-        if (sessionId && mcqId && option) {
-            if (!sessionVotes.has(sessionId)) {
-                sessionVotes.set(sessionId, {});
-            }
-            const votes = sessionVotes.get(sessionId);
-            if (!votes[mcqId]) {
-                votes[mcqId] = {};
-            }
-            votes[mcqId][option] = (votes[mcqId][option] || 0) + 1;
-
-            io.to(sessionId).emit('vote-update', { mcqId, option, count: votes[mcqId][option], allVotes: votes[mcqId] });
-        }
     });
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-        sessionController.releaseBySocket(socket.id);
     });
 });
 

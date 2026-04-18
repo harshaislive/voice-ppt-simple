@@ -22,7 +22,7 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
             SELECT s.*, sl.title as current_slide_title, sl.content as slide_content, sl.notes as slide_notes
             FROM sessions s
             LEFT JOIN slides sl ON sl.session_id = s.id AND sl.slide_index = s.current_slide_index
-            WHERE s.id = ? AND s.status IN ('active', 'presenting', 'wrapup')
+            WHERE s.id = ? AND s.status IN ('active', 'presenting')
         `, [sessionId]);
         
         if (!session) {

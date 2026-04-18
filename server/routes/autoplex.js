@@ -1368,9 +1368,6 @@ async function runPresentation(db, io, sessionId, runId) {
         currentSlideIndex += 1;
     }
 
-    // Skip the legacy wrap-up phase (polls/audio) to get straight to action
-    // await runWrapUp(db, io, sessionId, session.deck_id, participantName);
-
     db.run('UPDATE sessions SET status = \'completed\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
     syncSessionState(sessionId, { status: 'completed', current_slide_index: Math.max(0, slides.length - 1) });
     setPaused(sessionId, false);
@@ -1382,205 +1379,6 @@ async function runPresentation(db, io, sessionId, runId) {
         totalSlides: slides.length,
         totalQuestionsAnswered: questionsAsked
     });
-}
-
-async function runWrapUp(db, io, sessionId, deckId, participantName) {
-    const mcqs = buildWrapUpMcqs(deckId);
-    const durationMs = 60000;
-    const deadline = Date.now() + durationMs;
-    const promptText = [
-        participantName ? `${participantName}, that brings us to the end of the deck.` : 'That brings us to the end of the deck.',
-        'I will stay with you for one more minute.',
-        'If you have any questions, type them in the questions panel.',
-        'You can also answer the quick prompts on screen while you think about your questions.'
-    ].join(' ');
-
-    const audienceMemory = db.all(
-        'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
-        [sessionId]
-    ).reduce((acc, item) => {
-        acc[item.key] = item.value;
-        return acc;
-    }, {});
-
-    db.run('UPDATE sessions SET status = \'wrapup\', updated_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionId]);
-    syncSessionState(sessionId, { status: 'wrapup' });
-
-    console.log(`[AutoPlex] Emitting presentation-wrapup for session ${sessionId}`);
-    io.to(sessionId).emit('presentation-wrapup', {
-        endsAt: deadline,
-        durationMs,
-        promptText,
-        mcqs
-    });
-
-    const prewarmed = consumePrewarmedSlide(sessionId, 'wrapup');
-
-    if (prewarmed) {
-        io.to(sessionId).emit('narration-text', {
-            text: prewarmed.text,
-            slideIndex: -1,
-            isWrapUp: true
-        });
-        await playPrewarmedAudio(io, sessionId, -1, prewarmed, { isWrapUp: true });
-    } else if (shouldUseRealtimePresenter()) {
-        try {
-            const result = await realtimePresenter.generateNarrationAudio({
-                slideTitle: 'Wrap Up',
-                slideContent: promptText,
-                slideNotes: 'Invite the attendee to ask questions using the questions panel. Sound calm, warm, and clearly indicate they have one minute.',
-                pendingQuestions: [],
-                audienceContext: audienceMemory,
-                participantName,
-                slideIndex: 0,
-                totalSlides: 1,
-                style: 'conversational'
-            }, {
-                onTranscriptDelta: (delta, full) => {
-                    io.to(sessionId).emit('narration-delta', {
-                        delta,
-                        full,
-                        slideIndex: -1,
-                        isWrapUp: true
-                    });
-                },
-                onAudioChunk: (chunk) => {
-                    io.to(sessionId).emit('audio-chunk', {
-                        chunk: chunk.toString('base64'),
-                        slideIndex: -1,
-                        sampleRate: 24000,
-                        channels: 1,
-                        bitsPerSample: 16,
-                        isWrapUp: true
-                    });
-                }
-            });
-            if (hasRenderableAudio(result)) {
-                io.to(sessionId).emit('audio-end', {
-                    slideIndex: -1,
-                    format: 'wav',
-                    isWrapUp: true
-                });
-                const durationFromAudio = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(durationFromAudio * 1000) + 5500, 10000));
-            } else {
-                console.warn('Realtime presenter returned no audio for wrap-up; falling back to TTS stream');
-                await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
-            }
-        } catch (error) {
-            await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
-        }
-    } else {
-        await streamAudio(io, sessionId, promptText, -1, { isWrapUp: true });
-    }
-
-    while (Date.now() < deadline) {
-        await waitWhilePaused(db, io, sessionId);
-        await sleep(250);
-    }
-
-    const sessionMetadata = getSessionMetadata(db, sessionId);
-    const ctaContent = sessionMetadata?.knowledgeDocs?.cta || null;
-
-    io.to(sessionId).emit('presentation-wrapup-ended', {
-        endedAt: Date.now()
-    });
-
-    await sleep(300);
-
-    if (ctaContent) {
-        const ctaText = typeof ctaContent === 'string'
-            ? ctaContent
-            : typeof ctaContent?.content === 'string'
-                ? ctaContent.content
-                : typeof ctaContent?.text === 'string'
-                    ? ctaContent.text
-                    : '';
-        const trimmedCta = ctaText.trim();
-        if (!trimmedCta) {
-            return;
-        }
-        const closingLines = [
-            `That's our story. Thank you for your time and attention, ${participantName || 'everyone'}.`,
-            trimmedCta
-        ].join(' ');
-        io.to(sessionId).emit('narration-text', { text: closingLines, slideIndex: -1, isWrapUp: true });
-
-        if (shouldUseRealtimePresenter()) {
-            try {
-                const result = await realtimePresenter.generateNarrationAudio({
-                    slideTitle: 'Closing',
-                    slideContent: closingLines,
-                    slideNotes: 'Speak this closing with warmth and gratitude. Then clearly state the CTA.',
-                    pendingQuestions: [],
-                    audienceContext: {},
-                    participantName,
-                    slideIndex: 0,
-                    totalSlides: 1,
-                    style: 'closer'
-                }, {
-                    onTranscriptDelta: (delta, full) => {
-                        io.to(sessionId).emit('narration-delta', { delta, full, slideIndex: -1, isWrapUp: true });
-                    },
-                    onAudioChunk: (chunk) => {
-                        io.to(sessionId).emit('audio-chunk', {
-                            chunk: chunk.toString('base64'),
-                            slideIndex: -1,
-                            sampleRate: 24000,
-                            channels: 1,
-                            bitsPerSample: 16,
-                            isWrapUp: true
-                        });
-                    }
-                });
-                if (hasRenderableAudio(result)) {
-                    io.to(sessionId).emit('audio-end', { slideIndex: -1, format: 'wav', isWrapUp: true });
-                }
-            } catch {}
-        } else {
-            await streamAudio(io, sessionId, closingLines, -1, { isWrapUp: true });
-        }
-    }
-}
-
-function buildWrapUpMcqs(deckId) {
-    const shared = [
-        {
-            id: 'confidence',
-            prompt: 'How clear does the core idea feel now?',
-            options: ['Very clear', 'Mostly clear', 'Still fuzzy']
-        },
-        {
-            id: 'next_step',
-            prompt: 'What do you want to explore next?',
-            options: ['Market opportunity', 'Business model', 'Execution plan', 'Risks']
-        },
-        {
-            id: 'action',
-            prompt: 'What is your likely next move after this?',
-            options: ['Ask follow-up questions', 'Review the deck again', 'Discuss with team', 'Pass for now']
-        }
-    ];
-
-    if (deckId === 'ten_percent_club') {
-        return [
-            {
-                id: 'resonance',
-                prompt: 'What resonated most in the 10% Club story?',
-                options: ['The mission', 'The member experience', 'The growth angle', 'The community angle']
-            },
-            ...shared
-        ];
-    }
-
-    return [
-        {
-            id: 'resonance',
-            prompt: 'What resonated most in this deck?',
-            options: ['The vision', 'The problem framing', 'The solution', 'The traction']
-        },
-        ...shared
-    ];
 }
 
 async function applyQuestionClassification(db, sessionId, pendingQuestions, classificationResults) {
@@ -1868,10 +1666,10 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
         try {
             if (shouldUseRealtimePresenter()) {
                 const realtimeResult = await realtimePresenter.generateNarrationAudio({
-                    slideTitle: 'Audience Question',
+                    slideTitle: 'User Question',
                     slideContent: question.question_text,
                     slideNotes: [
-                        `You are answering a typed audience question immediately after slide ${currentSlideIndex + 1}.`,
+                        `You are answering a typed user question immediately after slide ${currentSlideIndex + 1}.`,
                         currentSlide ? `Current slide title: ${currentSlide.title}.` : '',
                         currentSlide ? `Current slide visible text: ${currentSlide.content}.` : '',
                         currentSlide?.notes ? `Presenter notes: ${currentSlide.notes}.` : '',
@@ -1921,10 +1719,10 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                 }
             } else if (shouldStreamNarrationText()) {
                 answer = await modelService.generateNarrationStream({
-                    slideTitle: 'Audience Question',
+                    slideTitle: 'User Question',
                     slideContent: question.question_text,
                     slideNotes: [
-                        `You are answering a typed audience question immediately after slide ${currentSlideIndex + 1}.`,
+                        `You are answering a typed user question immediately after slide ${currentSlideIndex + 1}.`,
                         currentSlide ? `Current slide title: ${currentSlide.title}.` : '',
                         currentSlide ? `Current slide visible text: ${currentSlide.content}.` : '',
                         currentSlide?.notes ? `Presenter notes: ${currentSlide.notes}.` : '',
@@ -1948,10 +1746,10 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                 });
             } else {
                 answer = await modelService.generateNarration({
-                    slideTitle: 'Audience Question',
+                    slideTitle: 'User Question',
                     slideContent: question.question_text,
                     slideNotes: [
-                        `You are answering a typed audience question immediately after slide ${currentSlideIndex + 1}.`,
+                        `You are answering a typed user question immediately after slide ${currentSlideIndex + 1}.`,
                         currentSlide ? `Current slide title: ${currentSlide.title}.` : '',
                         currentSlide ? `Current slide visible text: ${currentSlide.content}.` : '',
                         currentSlide?.notes ? `Presenter notes: ${currentSlide.notes}.` : '',

@@ -180,7 +180,7 @@ class RealtimePresenterService {
   }
 
   _buildPrompt(context, safeMode = false) {
-    const isQA = context.slideTitle === 'Audience Question' || context.isQA;
+    const isQA = context.slideTitle === 'User Question' || context.isQA;
     const projectLabel = String(context.projectLabel || context.deckLabel || 'this presentation').trim();
     const pronunciationGuide = buildPronunciationGuide([
       context.slideTitle,
@@ -203,7 +203,7 @@ class RealtimePresenterService {
       }
 
       const instructions = isQA
-        ? `You are answering an audience question about ${projectLabel}. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the attendee name once if provided. If the answer is not in the knowledge docs, say you do not have enough information in this presentation and that someone from the team can follow up. Adult speaking to adult. Calm, sharp, conversational. Prefer "uhm" over "um" if a hesitation naturally appears.`
+        ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the participant name once if provided. If the answer is not in the knowledge docs, say you do not have enough information in this presentation and that someone from the team can follow up. Adult speaking to adult. Calm, sharp, conversational. Prefer "uhm" over "um" if a hesitation naturally appears.`
         : `You are a narrator for ${projectLabel}. Speak in a grounded, confident, conversational voice shaped by the provided project knowledge. Keep one consistent voice throughout. Adult speaking to adult. Include a few natural spoken disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts. Do not make pricing claims, comparisons, or offer framing that are not explicitly supported by the slide, notes, or knowledge docs.`;
 
       return {
@@ -216,7 +216,7 @@ class RealtimePresenterService {
 
     const userText = this._buildSafePrompt(context);
     const instructions = isQA
-      ? `You are answering an audience question about ${projectLabel}. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you do not have the information in this presentation. Prefer "uhm" over "um" if a hesitation naturally appears.`
+      ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you do not have the information in this presentation. Prefer "uhm" over "um" if a hesitation naturally appears.`
       : `You are a narrator for ${projectLabel}. Be grounded, concise, and natural. Adult speaking to adult. Use a few natural disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts.`;
 
     return {
@@ -240,7 +240,7 @@ class RealtimePresenterService {
       knowledgeContext
     } = context;
 
-    const isQA = slideTitle === 'Audience Question' || context.isQA;
+    const isQA = slideTitle === 'User Question' || context.isQA;
     const pronunciationGuide = buildPronunciationGuide([
       slideTitle,
       slideContent,
@@ -253,10 +253,10 @@ class RealtimePresenterService {
       `Title: ${slideTitle || ''}`,
       `On screen: ${slideContent || ''}`,
       slideNotes ? `Intent: ${slideNotes}` : '',
-      participantName ? `Attendee: ${participantName}. Name them once max.` : '',
+      participantName ? `Participant: ${participantName}. Name them once max.` : '',
       knowledgeContext ? `Project knowledge:\n${knowledgeContext}` : '',
       pendingQuestions && pendingQuestions.length
-        ? `Audience questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
+        ? `Pending user questions: ${pendingQuestions.slice(0, 3).join(' | ')}`
         : '',
       audienceContext && Object.keys(audienceContext).length
         ? `Previous scene narration: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
@@ -268,7 +268,7 @@ class RealtimePresenterService {
     }
 
     if (isQA) {
-      lines.push('Answer the audience question using only the provided project knowledge. Be direct and concise (3-5 sentences).');
+      lines.push('Answer the user question using only the provided project knowledge. Be direct and concise (3-5 sentences).');
     } else {
       lines.push('Four beats: Hook (2-3 sentences, grab attention) → Insight (4-8 sentences, what the slide MEANS, be specific and thorough) → Implication (2-4 sentences, why it matters) → Bridge (1-2 sentences, momentum forward). Aim for 200-300 words total.');
       lines.push('Specific over vague. No filler phrases. No recapping. One consistent voice. Documentary narrator, not stage actor.');

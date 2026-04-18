@@ -322,7 +322,7 @@ router.post('/', async (req, res) => {
         
         // Verify session exists and is active
         let session = await loadSessionForQuestions(db, sessionId);
-        if (session && !['active', 'presenting', 'wrapup', 'completed'].includes(String(session.status || ''))) {
+        if (session && !['active', 'presenting', 'completed'].includes(String(session.status || ''))) {
             session = null;
         }
         
@@ -387,7 +387,7 @@ router.post('/', async (req, res) => {
                 console.log('[Q&A] Answer context loaded, slides:', answerContext.slides?.length || 0, 'knowledge context length:', answerContext.knowledgeContext?.length || 0);
 
                 const answer = await modelService.generateNarrationStream({
-                    slideTitle: 'Audience Question',
+                    slideTitle: 'User Question',
                     slideContent: questionText,
                     slideNotes: answerContext.currentSlide
                         ? `Current slide: "${answerContext.currentSlide.title || ''}". Visible text: "${answerContext.currentSlide.content || ''}"${answerContext.currentSlide.notes ? `\nPresenter notes: ${answerContext.currentSlide.notes}` : ''}`

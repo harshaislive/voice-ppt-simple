@@ -2,7 +2,7 @@ class NarrationPrompt {
     buildMessages(context) {
         const { slideTitle, slideContent, slideNotes, pendingQuestions, audienceContext, style, slideIndex, totalSlides, participantName, knowledgeContext } = context;
 
-        const isQA = slideTitle === 'Audience Question';
+        const isQA = slideTitle === 'User Question';
 
         const systemPrompt = isQA ? QA_SYSTEM_PROMPT : STORYTELLER_SYSTEM_PROMPT;
 

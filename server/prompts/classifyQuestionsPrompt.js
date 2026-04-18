@@ -1,6 +1,6 @@
 class ClassifyQuestionsPrompt {
     buildMessages(questions, slideContent) {
-        const systemPrompt = `You are an AI assistant that classifies audience questions during a presentation.
+        const systemPrompt = `You are an AI assistant that classifies user questions during a presentation.
 Your task is to analyze questions and determine:
 1. Category (clarification, expansion, contradiction, example, application, general)
 2. Priority (1-10 scale, 10 being highest)

@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const supabaseSession = require('../services/supabaseSession');
-const sessionController = require('../services/sessionController');
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -169,29 +168,7 @@ function requireSessionControl(options = {}) {
 }
 
 function requireSessionPlaybackControl(options = {}) {
-    const baseControl = requireSessionControl(options);
-
-    return async (req, res, next) => {
-        baseControl(req, res, (error) => {
-            if (error) {
-                next(error);
-                return;
-            }
-
-            const clientInstanceId = extractClientInstanceId(req);
-            if (!clientInstanceId) {
-                return res.status(403).json({ error: 'Active playback client required' });
-            }
-
-            const sessionId = req.sessionId || resolveSessionId(req, options);
-            if (!sessionController.isControllerClient(sessionId, clientInstanceId)) {
-                return res.status(409).json({ error: 'This session is currently controlled by another device or tab' });
-            }
-
-            req.clientInstanceId = clientInstanceId;
-            next();
-        });
-    };
+    return requireSessionControl(options);
 }
 
 function requireSlideSessionControl() {
