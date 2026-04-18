@@ -516,12 +516,25 @@ class VoicePPTApp {
             this.activeQuestionAudioButton = null;
             this.resumeMainNarrationAfterQuestionAudio();
         });
+        this.syncSlidePauseButton({ paused: false, enabled: false });
     }
 
     // Proxy UI methods for cleaner access
     setStatus(t, s, d) { this.ui.setStatus(t, s, d); }
     showTranscript(s) { this.ui.showTranscript(s); }
     updateMicState() { this.ui.updateMicState(this.isListening, this.voiceModeEnabled, this.azureVoice.connected); }
+
+    syncSlidePauseButton({ paused = this.isAudioPaused, enabled = false } = {}) {
+        const btn = document.getElementById('slide-pause-btn');
+        const iconPause = btn?.querySelector('.icon-pause');
+        const iconPlay = btn?.querySelector('.icon-play');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        btn.classList.toggle('is-paused', Boolean(paused) && enabled);
+        btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+        if (iconPause) iconPause.style.display = paused ? 'none' : 'block';
+        if (iconPlay) iconPlay.style.display = paused ? 'block' : 'none';
+    }
 
     async loadPresentationCatalog() {
         try {
@@ -878,13 +891,7 @@ class VoicePPTApp {
             this.isAudioPaused = false;
             this.pendingPlaybackStartAt = null;
             this.pauseStartMs = null;
-            // Reset UI to play state
-            const btn = document.getElementById('slide-pause-btn');
-            const iconPause = btn?.querySelector('.icon-pause');
-            const iconPlay = btn?.querySelector('.icon-play');
-            if (btn) btn.classList.remove('is-paused');
-            if (iconPause) iconPause.style.display = 'block';
-            if (iconPlay) iconPlay.style.display = 'none';
+            this.syncSlidePauseButton({ paused: false, enabled: false });
         }
         
         this.awaitingPlaybackComplete = true; this.subtitleReady = true;
@@ -892,6 +899,7 @@ class VoicePPTApp {
         if (typeof data?.slideIndex === 'number') {
             this.activeAudioSlideIndex = data.slideIndex;
         }
+        this.syncSlidePauseButton({ paused: false, enabled: true });
         this.renderSubtitle();
         if (this.pendingNarrationText) {
             this.narrationSourceText = this.pendingNarrationText;
@@ -958,6 +966,10 @@ class VoicePPTApp {
                 this.clearTranscriptChunkTimers();
                 this.pendingPlaybackStartAt = null;
                 this.activeAudioSlideIndex = null;
+                this.streamPlayer.reset();
+                this.isAudioPaused = false;
+                this.pauseStartMs = null;
+                this.syncSlidePauseButton({ paused: false, enabled: false });
                 this.socketClient.notifyPlaybackComplete(this.sessionId, completedSlideIndex);
                 return;
             }
@@ -1002,12 +1014,8 @@ class VoicePPTApp {
             this.streamPlayer.reset();
             this.streamPlayer.resume();
             this.isAudioPaused = false;
-            const btn = document.getElementById('slide-pause-btn');
-            const iconPause = btn?.querySelector('.icon-pause');
-            const iconPlay = btn?.querySelector('.icon-play');
-            if (btn) btn.classList.remove('is-paused');
-            if (iconPause) iconPause.style.display = 'none';
-            if (iconPlay) iconPlay.style.display = 'block';
+            this.pauseStartMs = null;
+            this.syncSlidePauseButton({ paused: false, enabled: false });
 
             if (data?.isReplay && this.replaySequenceActive && Number.isInteger(this.replaySequenceNextIndex)) {
                 setTimeout(() => {
@@ -1154,8 +1162,11 @@ class VoicePPTApp {
         this.transcriptChunkMode = 'waiting';
         this.slideAudioStarted = false;
         this.activeAudioSlideIndex = null;
+        this.isAudioPaused = false;
+        this.pauseStartMs = null;
         this.clearTranscriptChunkTimers();
         this.stopTranscriptProgress();
+        this.syncSlidePauseButton({ paused: false, enabled: false });
         this.ui.renderSubtitle('', false);
         this.renderFullTranscription();
     }
@@ -1734,7 +1745,7 @@ class VoicePPTApp {
         }
 
         this.questionAudioPausedNarration = true;
-        this.toggleAudioPause();
+        void this.toggleAudioPause();
     }
 
     resumeMainNarrationAfterQuestionAudio() {
@@ -1743,7 +1754,7 @@ class VoicePPTApp {
         this.questionAudioPausedNarration = false;
         const context = this.streamPlayer?.audioContext;
         if (context && context.state === 'suspended') {
-            this.toggleAudioPause();
+            void this.toggleAudioPause();
         }
     }
 
@@ -1804,15 +1815,18 @@ class VoicePPTApp {
 
     async toggleAudioPause() {
         if (!this.streamPlayer || !this.streamPlayer.audioContext) return;
+        const hasPlayback = this.streamPlayer.isPlaying
+            || this.streamPlayer.hasPendingPlayback()
+            || Boolean(this.pendingPlaybackStartAt);
+        if (!hasPlayback && !this.isAudioPaused) {
+            this.syncSlidePauseButton({ paused: false, enabled: false });
+            return;
+        }
 
         // Guard against rapid double-clicks
         if (this._isTogglingPause) return;
         this._isTogglingPause = true;
         setTimeout(() => { this._isTogglingPause = false; }, 300);
-
-        const btn = document.getElementById('slide-pause-btn');
-        const iconPause = btn?.querySelector('.icon-pause');
-        const iconPlay = btn?.querySelector('.icon-play');
 
         // If we are currently paused, resume regardless of AudioContext state.
         // The pause path stops sources and marks the stream player paused; it does not
@@ -1826,12 +1840,10 @@ class VoicePPTApp {
                 this.streamPlayer.shiftPlaybackWindow(pausedForMs);
             }
             this.pauseStartMs = null;
-            if (btn) btn.classList.remove('is-paused');
-            if (iconPause) iconPause.style.display = 'block';
-            if (iconPlay) iconPlay.style.display = 'none';
+            this.syncSlidePauseButton({ paused: false, enabled: true });
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
-            this.pauseAutoplex(false);
+            await this.pauseAutoplex(false);
             return;
         }
 
@@ -1844,11 +1856,8 @@ class VoicePPTApp {
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
             this.stopTranscriptProgress();
-
-            if (btn) btn.classList.add('is-paused');
-            if (iconPause) iconPause.style.display = 'none';
-            if (iconPlay) iconPlay.style.display = 'block';
-            this.pauseAutoplex(true);
+            this.syncSlidePauseButton({ paused: true, enabled: true });
+            await this.pauseAutoplex(true);
         }
         // Fallback for browsers that really suspend the AudioContext
         else if (this.streamPlayer.audioContext.state === 'suspended') {
@@ -1861,12 +1870,10 @@ class VoicePPTApp {
                 this.streamPlayer.shiftPlaybackWindow(pausedForMs);
             }
             this.pauseStartMs = null;
-            if (btn) btn.classList.remove('is-paused');
-            if (iconPause) iconPause.style.display = 'block';
-            if (iconPlay) iconPlay.style.display = 'none';
+            this.syncSlidePauseButton({ paused: false, enabled: true });
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
-            this.pauseAutoplex(false);
+            await this.pauseAutoplex(false);
         }
     }
 
