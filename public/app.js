@@ -64,6 +64,7 @@ class VoicePPTApp {
         this.sessionMemory = this.createEmptySessionMemory();
         this.pendingSlideAdvance = null;
         this.microCommitmentPromptsShown = new Set();
+        this.microCommitmentResumeGuardIndex = -1;
 
 
         this.questionAudioPlayer = document.getElementById('audio-player');
@@ -178,6 +179,7 @@ class VoicePPTApp {
         this.sessionMemory = this.createEmptySessionMemory();
         this.pendingSlideAdvance = null;
         this.microCommitmentPromptsShown = new Set();
+        this.microCommitmentResumeGuardIndex = -1;
         this.notifiedAnswerIds.clear();
         this.updateHistoryBadge();
         const qaList = document.getElementById('qa-list');
@@ -416,6 +418,7 @@ class VoicePPTApp {
         if (this.isQAPhase || this.wrapUpEndsAt > Date.now()) return false;
         if (this.totalSlides < 4) return false;
         if (slideIndex < 1 || slideIndex >= this.totalSlides - 1) return false;
+        if (slideIndex <= this.microCommitmentResumeGuardIndex) return false;
         if (this.microCommitmentPromptsShown.has(slideIndex)) return false;
         return (slideIndex + 1) % 2 === 0;
     }
@@ -572,7 +575,11 @@ class VoicePPTApp {
             this.controlToken = session.controlToken || '';
             this.participantName = session.participantName || data.participantName || '';
             this.totalSlides = data.session.slide_count || session.slideCount || 0;
-            this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, Number(data.session.current_slide_index || 0));
+            const restoredSlideIndex = Number(data.session.current_slide_index || 0);
+            this.maxViewedSlideIndex = Math.max(this.maxViewedSlideIndex, restoredSlideIndex);
+            // Resumed sessions should continue smoothly. Skip guided-choice pauses
+            // for the restored slide and the very next slide completion.
+            this.microCommitmentResumeGuardIndex = restoredSlideIndex + 1;
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
