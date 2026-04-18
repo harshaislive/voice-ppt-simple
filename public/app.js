@@ -953,9 +953,10 @@ class VoicePPTApp {
         const poll = () => {
             pollCount++;
             const hasPending = this.streamPlayer.hasPendingPlayback();
+            const isPaused = this.isAudioPaused || this.streamPlayer?._isPaused;
 
             if (pollCount % 20 === 0 || pollCount <= 5) {
-                console.log(`[waitForPlaybackFinish] poll=${pollCount}, hasPending=${hasPending}, slideAudioStarted=${this.slideAudioStarted}`);
+                console.log(`[waitForPlaybackFinish] poll=${pollCount}, hasPending=${hasPending}, isPaused=${isPaused}, slideAudioStarted=${this.slideAudioStarted}`);
             }
 
             if (pollCount > MAX_POLLS) {
@@ -978,6 +979,11 @@ class VoicePPTApp {
             if (typeof data?.slideIndex === 'number' && data.slideIndex !== this.currentSlideIndex && !data?.isQA && !data?.isWrapUp) {
                 console.log(`[Audio] Slide changed during poll: was ${data.slideIndex}, now ${this.currentSlideIndex}. Bailing.`);
                 this.awaitingPlaybackComplete = false;
+                return;
+            }
+
+            if (isPaused) {
+                setTimeout(poll, 120);
                 return;
             }
 
