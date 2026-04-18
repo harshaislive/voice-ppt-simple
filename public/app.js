@@ -206,6 +206,14 @@ class VoicePPTApp {
         }
     }
 
+    getRuntimeSessionStorage() {
+        try {
+            return sessionStorage;
+        } catch {
+            return localStorage;
+        }
+    }
+
     persistSession(data) {
         const payload = {
             sessionId: data.sessionId,
@@ -218,7 +226,7 @@ class VoicePPTApp {
             storedAt: Date.now()
         };
         try {
-            localStorage.setItem(VoicePPTApp.STORAGE_KEYS.SESSION, JSON.stringify(payload));
+            this.getRuntimeSessionStorage().setItem(VoicePPTApp.STORAGE_KEYS.SESSION, JSON.stringify(payload));
             localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, String(!!data.passcodeRequired));
         } catch (err) {
             console.warn('Failed to persist session:', err);
@@ -227,6 +235,7 @@ class VoicePPTApp {
 
     clearPersistedSession() {
         try {
+            this.getRuntimeSessionStorage().removeItem(VoicePPTApp.STORAGE_KEYS.SESSION);
             localStorage.removeItem(VoicePPTApp.STORAGE_KEYS.SESSION);
         } catch (err) {
             console.warn('Failed to clear session:', err);
@@ -244,9 +253,10 @@ class VoicePPTApp {
 
     getPersistedSession() {
         try {
-            const raw = localStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION);
+            const runtimeStorage = this.getRuntimeSessionStorage();
+            const raw = runtimeStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION) || localStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION);
             if (!raw) {
-                console.log('[Session] No persisted session in localStorage');
+                console.log('[Session] No persisted session in runtime storage');
                 return null;
             }
             const session = JSON.parse(raw);
@@ -256,6 +266,10 @@ class VoicePPTApp {
                 console.log('[Session] Session expired, clearing');
                 this.clearPersistedSession();
                 return null;
+            }
+            if (!runtimeStorage.getItem(VoicePPTApp.STORAGE_KEYS.SESSION)) {
+                runtimeStorage.setItem(VoicePPTApp.STORAGE_KEYS.SESSION, raw);
+                localStorage.removeItem(VoicePPTApp.STORAGE_KEYS.SESSION);
             }
             return session;
         } catch (err) {
