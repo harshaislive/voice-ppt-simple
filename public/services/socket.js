@@ -30,7 +30,11 @@ export class SocketClient {
 
         this.socket.on('connect', () => {
             this.isConnected = true;
-            this.socket.emit('join-session', { sessionId, controlToken });
+            this.socket.emit('join-session', {
+                sessionId,
+                controlToken,
+                clientInstanceId: this.app.clientInstanceId
+            });
             this.app.setStatus('Connected', 'live', 'Joining presentation room');
         });
 

@@ -5,6 +5,7 @@ import { UIManager } from './services/ui.js';
 
 class VoicePPTApp {
     constructor() {
+        this.clientInstanceId = this.getOrCreateClientInstanceId();
         this.sessionId = null;
         this.controlToken = '';
         this.currentSlideIndex = 0;
@@ -189,8 +190,21 @@ class VoicePPTApp {
 
     static STORAGE_KEYS = {
         SESSION: 'vpp_session',
+        CLIENT_INSTANCE: 'vpp_client_instance',
         PASSCODE_REQUIRED: 'vpp_passcode_required'
     };
+
+    getOrCreateClientInstanceId() {
+        const fallback = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        try {
+            const existing = sessionStorage.getItem(VoicePPTApp.STORAGE_KEYS.CLIENT_INSTANCE);
+            if (existing) return existing;
+            sessionStorage.setItem(VoicePPTApp.STORAGE_KEYS.CLIENT_INSTANCE, fallback);
+            return fallback;
+        } catch {
+            return fallback;
+        }
+    }
 
     persistSession(data) {
         const payload = {
@@ -349,6 +363,7 @@ class VoicePPTApp {
     buildApiHeaders(extraHeaders = {}) {
         const headers = { 'Content-Type': 'application/json', ...extraHeaders };
         if (this.controlToken) headers['X-Session-Control-Token'] = this.controlToken;
+        if (this.clientInstanceId) headers['X-Client-Instance-Id'] = this.clientInstanceId;
         return headers;
     }
 

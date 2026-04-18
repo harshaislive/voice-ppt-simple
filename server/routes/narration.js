@@ -3,10 +3,10 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const ttsService = require('../services/tts');
 const modelService = require('../services/model');
-const { requireSessionControl } = require('../middleware/security');
+const { requireSessionControl, requireSessionPlaybackControl } = require('../middleware/security');
 
 // Generate narration for current slide with progressive streaming
-router.post('/', requireSessionControl(), async (req, res) => {
+router.post('/', requireSessionPlaybackControl(), async (req, res) => {
     try {
         const { sessionId, style = 'professional', regenerate = false } = req.body;
 

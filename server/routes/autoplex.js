@@ -11,7 +11,7 @@ const analyticsService = require('../services/analytics');
 const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
 const masterSessionService = require('../services/masterSession');
-const { requireSessionControl } = require('../middleware/security');
+const { requireSessionPlaybackControl, requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
 const pauseFlags = new Map();
@@ -913,7 +913,7 @@ async function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSl
     };
 }
 
-router.post('/', requireSessionControl(), async (req, res) => {
+router.post('/', requireSessionPlaybackControl(), async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -937,7 +937,7 @@ router.post('/', requireSessionControl(), async (req, res) => {
     }
 });
 
-router.post('/interrupt', requireSessionControl(), (req, res) => {
+router.post('/interrupt', requireSessionPlaybackControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -947,7 +947,7 @@ router.post('/interrupt', requireSessionControl(), (req, res) => {
     res.json({ success: true, interrupted: true });
 });
 
-router.post('/pause', requireSessionControl(), (req, res) => {
+router.post('/pause', requireSessionPlaybackControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -957,7 +957,7 @@ router.post('/pause', requireSessionControl(), (req, res) => {
     res.json({ success: true, paused: true });
 });
 
-router.post('/resume', requireSessionControl(), (req, res) => {
+router.post('/resume', requireSessionPlaybackControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -968,7 +968,7 @@ router.post('/resume', requireSessionControl(), (req, res) => {
     res.json({ success: true, paused: false });
 });
 
-router.post('/continue', requireSessionControl(), (req, res) => {
+router.post('/continue', requireSessionPlaybackControl(), (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -979,7 +979,7 @@ router.post('/continue', requireSessionControl(), (req, res) => {
     res.json({ success: true, continued: true });
 });
 
-router.post('/prewarm', requireSessionControl(), async (req, res) => {
+router.post('/prewarm', requireSessionPlaybackControl(), async (req, res) => {
     const { sessionId, slideIndex = 0 } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -1028,7 +1028,7 @@ router.post('/prewarm', requireSessionControl(), async (req, res) => {
     }
 });
 
-router.post('/replay-slide', requireSessionControl(), async (req, res) => {
+router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) => {
     const { sessionId, slideIndex } = req.body;
     if (!sessionId && !req.body.sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });

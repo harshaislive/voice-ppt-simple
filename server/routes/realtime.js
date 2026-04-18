@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { requireSessionControl } = require('../middleware/security');
+const { requireSessionPlaybackControl } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -23,7 +23,7 @@ router.get('/config', (req, res) => {
     });
 });
 
-router.post('/connect', requireSessionControl(), async (req, res) => {
+router.post('/connect', requireSessionPlaybackControl(), async (req, res) => {
     const { sessionId, sdp, slideContext } = req.body;
     if (!sessionId || !sdp) {
         return res.status(400).json({ error: 'sessionId and sdp are required' });

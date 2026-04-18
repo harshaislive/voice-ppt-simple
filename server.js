@@ -51,6 +51,7 @@ const questionsRoutes = require('./server/routes/questions');
 const narrationRoutes = require('./server/routes/narration');
 const slidesRoutes = require('./server/routes/slides');
 const autoplexRoutes = require('./server/routes/autoplex');
+const sessionController = require('./server/services/sessionController');
 const realtimeRoutes = require('./server/routes/realtime');
 const cmsRoutes = require('./server/routes/cms');
 const analyticsRoutes = require('./server/routes/analytics');
@@ -186,6 +187,7 @@ io.on('connection', (socket) => {
     socket.on('join-session', async (payload) => {
         const sessionId = typeof payload === 'string' ? payload : payload?.sessionId;
         const controlToken = typeof payload === 'object' ? String(payload?.controlToken || '') : '';
+        const clientInstanceId = typeof payload === 'object' ? String(payload?.clientInstanceId || '') : '';
         const db = app.get('db');
 
         if (!(await hasValidSessionControlAsync(db, sessionId, controlToken))) {
@@ -193,9 +195,10 @@ io.on('connection', (socket) => {
             return;
         }
 
+        const claim = sessionController.claimController(sessionId, clientInstanceId, socket.id);
         socket.join(sessionId);
         console.log(`Client ${socket.id} joined session ${sessionId}`);
-        socket.emit('session-joined', { sessionId });
+        socket.emit('session-joined', { sessionId, isController: claim.isController });
 
         // Send current votes if any
         if (sessionVotes.has(sessionId)) {
@@ -207,6 +210,9 @@ io.on('connection', (socket) => {
         const sessionId = payload?.sessionId;
         const slideIndex = payload?.slideIndex;
         if (!sessionId) {
+            return;
+        }
+        if (!sessionController.isControllerSocket(sessionId, socket.id)) {
             return;
         }
         autoplexRoutes.markPlaybackComplete?.(sessionId, slideIndex);
@@ -247,6 +253,7 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
+        sessionController.releaseBySocket(socket.id);
     });
 });
 

@@ -3,10 +3,10 @@ const router = express.Router();
 const questionClassifier = require('../services/questionClassifier');
 const slideEngine = require('../services/slideEngine');
 const supabaseSession = require('../services/supabaseSession');
-const { requireSessionControl, requireSlideSessionControl } = require('../middleware/security');
+const { requireSessionControl, requireSessionPlaybackControl, requireSlideSessionControl } = require('../middleware/security');
 
 // Advance slide
-router.post('/advance', requireSessionControl(), async (req, res) => {
+router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
     try {
         const { sessionId, direction = 'next', targetSlide = null } = req.body;
         

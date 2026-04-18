@@ -3141,11 +3141,11 @@ h1, h2, h3, h4 {
     height: 68px;
     border-radius: 999px;
     padding: 10px 18px 10px 12px;
-    background: rgba(253, 251, 247, 0.92);
+    background: rgba(253, 251, 247, 0.96);
     color: var(--text);
     border: 1.5px solid rgba(52, 46, 41, 0.16);
-    box-shadow: 0 18px 48px rgba(25, 22, 18, 0.16);
-    backdrop-filter: blur(18px);
+    box-shadow: none;
+    backdrop-filter: none;
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;
@@ -3153,7 +3153,7 @@ h1, h2, h3, h4 {
 }
 
 .chat-widget-toggle:hover {
-    transform: translateY(-2px);
+    transform: none;
     background: rgba(253, 251, 247, 0.98);
     color: var(--text);
 }
