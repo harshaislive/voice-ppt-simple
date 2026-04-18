@@ -909,7 +909,7 @@ async function buildFullQAContext(sessionMetadata, slides) {
     }
 
     if (slides && slides.length > 0) {
-        sections.push(`FULL PRESENTATION CONTENT:\nThis is everything currently in the deck. Use this to answer questions about specific slides, claims, or content the attendee has seen.\n`);
+        sections.push(`FULL PRESENTATION CONTENT:\nThis is everything currently in the deck. Use this to answer questions about specific slides, claims, or content the participant has seen.\n`);
         slides.forEach((slide, i) => {
             sections.push(`Slide ${i + 1}: "${slide.title}"\n${slide.content || ''}${slide.notes ? `\nPresenter notes: ${slide.notes}` : ''}`);
         });

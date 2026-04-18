@@ -89,7 +89,7 @@ class RetrievalService {
                 metadata: JSON.parse(result.metadata || '{}')
             }));
             
-            // Store in audience memory if sessionId provided
+            // Store in session memory if sessionId provided
             if (sessionId && formattedResults.length > 0) {
                 const memoryKey = `retrieval_${Date.now()}`;
                 const memoryValue = JSON.stringify({

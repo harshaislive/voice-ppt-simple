@@ -46,7 +46,7 @@ router.post('/connect', requireSessionPlaybackControl(), async (req, res) => {
             {
                 type: 'function',
                 name: 'advance_slide',
-                description: 'Move the presentation one slide forward or backward when the attendee explicitly asks to navigate.',
+                description: 'Move the presentation one slide forward or backward when the participant explicitly asks to navigate.',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -62,7 +62,7 @@ router.post('/connect', requireSessionPlaybackControl(), async (req, res) => {
             {
                 type: 'function',
                 name: 'go_to_slide',
-                description: 'Jump to a specific slide number when the attendee clearly asks for a particular slide.',
+                description: 'Jump to a specific slide number when the participant clearly asks for a particular slide.',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -78,7 +78,7 @@ router.post('/connect', requireSessionPlaybackControl(), async (req, res) => {
             {
                 type: 'function',
                 name: 'resume_presentation',
-                description: 'Resume the live presentation flow when the attendee asks to continue or stop the interruption.',
+                description: 'Resume the live presentation flow when the participant asks to continue or stop the interruption.',
                 parameters: {
                     type: 'object',
                     properties: {},
@@ -216,12 +216,12 @@ function buildRealtimeInstructions(slideContext = {}) {
     return [
         'You are the live voice presenter for an interactive presentation.',
         'Do not speak first.',
-        'When the mic opens, wait silently for the attendee to ask a question or make a request.',
-        'Do not proactively explain the current slide unless the attendee explicitly asks you to.',
+        'When the mic opens, wait silently for the participant to ask a question or make a request.',
+        'Do not proactively explain the current slide unless the participant explicitly asks you to.',
         'Speak naturally, conversationally, and with emotional intelligence.',
         'Keep answers concise and verbal-first. Do not sound like you are reading prose.',
         'If the user interrupts, answer immediately in the context of the current slide.',
-        'When the attendee explicitly asks to change slides or resume the deck, use the available navigation tool instead of only talking about it.',
+        'When the participant explicitly asks to change slides or resume the deck, use the available navigation tool instead of only talking about it.',
         'If you need to reference the slide, do it briefly and in spoken language.',
         'Ground every answer in the provided deck context and presenter notes.',
         'Do not invent facts, claims, numbers, locations, or product details that are not present in the provided context.',

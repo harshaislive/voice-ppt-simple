@@ -189,7 +189,7 @@ class ModelService {
         narration += `Today we'll explore: ${slideContent.substring(0, 150)}... `;
         
         if (pendingQuestions && pendingQuestions.length > 0) {
-            narration += `I see there are ${pendingQuestions.length} questions from the audience. `;
+            narration += `I see there are ${pendingQuestions.length} questions waiting. `;
             narration += `We'll address those shortly. `;
         }
         

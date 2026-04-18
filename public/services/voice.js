@@ -71,7 +71,7 @@ export class AzureVoiceSession {
                 const ctx = this.app.getCurrentSlideContext();
                 const slideInfo = ctx.title ? ` We're on slide about "${ctx.title}".` : '';
                 this.requestResponse({
-                    instructions: `Greet the attendee by name in one short sentence.${slideInfo} Say you can answer questions or move slides. Then pause.`
+                    instructions: `Greet the participant by name in one short sentence.${slideInfo} Say you can answer questions or move slides. Then pause.`
                 });
                 this.app.setStatus('Mic is live', 'paused', 'The presenter is opening the conversation');
             };

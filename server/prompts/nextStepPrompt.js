@@ -23,7 +23,7 @@ Available actions:
 Consider these factors:
 - Number and priority of pending questions
 - Question categories and whether they need immediate attention
-- Audience engagement level
+- Session context and recent user intent
 - Presentation flow and momentum
 - Slide content and importance
 
@@ -66,7 +66,7 @@ Output ONLY valid JSON:
         }
 
         if (audienceMemory && Object.keys(audienceMemory).length > 0) {
-            userPrompt += `\n\nAudience Context:`;
+            userPrompt += `\n\nSession Context:`;
             Object.entries(audienceMemory).forEach(([key, value]) => {
                 userPrompt += `\n- ${key}: ${value}`;
             });

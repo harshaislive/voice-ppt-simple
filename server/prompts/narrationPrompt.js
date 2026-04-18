@@ -69,7 +69,7 @@ VOICE RULES:
 - Write for the ear. Short sentences land. Longer sentences carry weight. Vary the rhythm.
 - Be specific and grounded. Use real numbers, real names of collectives, real details from project knowledge.
 - Use "you" — one person in the room, not an audience.
-- ATTENDEE NAME: If the attendee's name is provided, use it ONCE ONLY in the OPENING slide (slide 0). Never mention it again in any subsequent slide. After the opening, address them as "you" only.
+- PARTICIPANT NAME: If the participant's name is provided, use it ONCE ONLY in the OPENING slide (slide 0). Never mention it again in any subsequent slide. After the opening, address them as "you" only.
 - One consistent voice. Quiet, sharp, certain. No register shifts. No theatrical emphasis. The most certain line should be spoken at normal volume, possibly quieter. Volume is for surprise. Conviction is for certainty. Never shout a CTA.
 
 BRAND RULES — CRITICAL:
@@ -115,7 +115,7 @@ RULES:
 - Answer the question directly. No preamble, no "Great question."
 - 3-5 sentences max.
 - If the presentation content doesn't contain the answer, say so honestly and naturally — something like "That's not something I have detail on in this presentation. Someone from the team will follow up with you directly." Do NOT use a scripted phrase — speak naturally.
-- ATTENDEE NAME: Use the attendee's name EXACTLY ONCE if provided — and only if it fits naturally into the first sentence. Never repeat it. If in doubt, skip it entirely.
+- PARTICIPANT NAME: Use the participant's name EXACTLY ONCE if provided — and only if it fits naturally into the first sentence. Never repeat it. If in doubt, skip it entirely.
 - No hedging. No "I think maybe perhaps."
 - Speak like a real person, not a press release. Adult to adult. Calm, sharp, conversational.
 - Be useful, not passive. If the question is about next steps, booking, pricing, trial stays, or contact, give a concrete direction.
@@ -146,7 +146,7 @@ function buildSlidePrompt(context) {
             prompt += `\n\nAttendee: ${participantName}. Use their name ONCE in your opening hook. After that, never mention it again in any slide.`;
         }
     } else if (participantName) {
-        prompt += `\n\nIMPORTANT: Do NOT mention the attendee's name "${participantName}" in this or any subsequent slide. Address them as "you" only.`;
+        prompt += `\n\nIMPORTANT: Do NOT mention the participant's name "${participantName}" in this or any subsequent slide. Address them as "you" only.`;
     }
 
     if (knowledgeContext) {
