@@ -7,6 +7,27 @@ export function shouldAutoResumeRestoredSession() {
     return false;
 }
 
+export function buildQuestionAnswerPresentation(payload = {}) {
+    const titleText = String(payload.answerTitle || '').trim();
+    const summaryText = String(payload.answerSummary || '').trim();
+    const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
+    const hasLongerDetails = detailsText.length > summaryText.length;
+    const summaryIsTruncatedDetails = summaryText
+        && hasLongerDetails
+        && summaryText.endsWith('...')
+        && detailsText.startsWith(summaryText.slice(0, -3).trim());
+    const summaryIsRedundant = !summaryText || summaryText === detailsText || summaryIsTruncatedDetails;
+    const shouldShowTitle = Boolean(titleText) && titleText.toLowerCase() !== 'answer';
+
+    return {
+        shouldShowTitle,
+        titleText,
+        primaryText: detailsText || summaryText,
+        secondaryText: summaryIsRedundant ? '' : summaryText,
+        answerAudioUrl: String(payload.answerAudioUrl || '').trim()
+    };
+}
+
 export class VoicePPTApp {
     constructor() {
         this.clientInstanceId = this.getOrCreateClientInstanceId();
@@ -58,6 +79,7 @@ export class VoicePPTApp {
         this.loadingQuotes = [];
         this.awaitingPlaybackComplete = false;
         this.awaitingSlideContinue = false;
+        this.activeTranscriptMode = 'idle';
 
         this.isAudioPaused = false;
         this.pauseStartMs = null;
@@ -202,6 +224,7 @@ export class VoicePPTApp {
         this.streamPlayer?.reset?.();
         this.socketClient?.resetPlaybackAck?.();
         this.syncSlidePauseButton?.({ paused: false, enabled: false });
+        this.activeTranscriptMode = 'idle';
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -866,6 +889,11 @@ export class VoicePPTApp {
     }
 
     handleNarrationDelta(data) {
+        if (this.isQAPhase && !data?.isQA) {
+            return;
+        }
+
+        this.activeTranscriptMode = data?.isQA ? 'qa' : 'narration';
         const delta = data.delta || '';
         if (data.append) {
             this.subtitleBuffer = `${this.subtitleBuffer} ${delta}`.trim();
@@ -882,6 +910,9 @@ export class VoicePPTApp {
     handleNarrationText(data = {}) {
         const text = String(data?.text || '').trim();
         if (!text) return;
+        if (this.isQAPhase && !data?.isQA) return;
+
+        this.activeTranscriptMode = data?.isQA ? 'qa' : 'narration';
 
         if (!this.slideAudioStarted && !data?.isQA && !data?.isWrapUp) {
             this.pendingNarrationText = text;
@@ -900,6 +931,7 @@ export class VoicePPTApp {
 
     handleAudioChunk(data) {
         if (this.voiceModeEnabled && this.azureVoice.connected) return;
+        if (this.isQAPhase && !data?.isQA) return;
 
         // --- SLIDE MISMATCH PROTECTION ---
         // If we receive audio for a slide that isn't the current one, and it's not a replay/QA flow,
@@ -943,6 +975,7 @@ export class VoicePPTApp {
     }
 
     handleWordBoundaries(data) {
+        if (this.isQAPhase && !data?.isQA) return;
         this.wordBoundaries = Array.isArray(data?.words) ? data.words : [];
         console.log('[WordBoundaries] Received', this.wordBoundaries.length, 'words for slide', data?.slideIndex);
         
@@ -963,6 +996,7 @@ export class VoicePPTApp {
     }
 
     handleAudioEnd(data = {}) {
+        if (this.isQAPhase && !data?.isQA) return;
         this.showTranscript(false);
         this.subtitleReady = false;
         this.waitForPlaybackFinish(data);
@@ -1177,6 +1211,7 @@ export class VoicePPTApp {
         if (clean) {
             this.narrationSourceText = clean;
             this.fullNarrationTranscript = clean;
+            this.activeTranscriptMode = this.isQAPhase ? 'qa' : 'narration';
             this.refreshTranscriptReel();
         }
     }
@@ -1194,6 +1229,7 @@ export class VoicePPTApp {
         this.pendingPlaybackStartAt = null;
         this.totalAudioDurationMs = 0;
         this.transcriptChunkMode = 'waiting';
+        this.activeTranscriptMode = 'idle';
         this.slideAudioStarted = false;
         this.activeAudioSlideIndex = null;
         this.isAudioPaused = false;
@@ -1699,50 +1735,45 @@ export class VoicePPTApp {
         if (!container) return;
         container.innerHTML = '';
 
+        const presentation = buildQuestionAnswerPresentation(payload);
         const wrap = document.createElement('div');
         wrap.className = 'qa-answer-thread';
 
-        const header = document.createElement('div');
-        header.className = 'qa-answer-thread-header';
-
-        const title = document.createElement('div');
-        title.className = 'qa-answer-thread-title';
-        const titleText = String(payload.answerTitle || 'Answer').trim();
-        title.textContent = titleText;
-
-        header.appendChild(title);
-
-        const summaryText = String(payload.answerSummary || '').trim();
-        const detailsText = String(payload.answerDetails || payload.answerSummary || '').trim();
-        const shouldShowTitle = Boolean(titleText);
-        
-        // Avoid showing summary if it's just a truncated version of the details
-        const summaryIsTruncatedDetails = detailsText.length > summaryText.length && 
-                                        summaryText.endsWith('...') && 
-                                        detailsText.startsWith(summaryText.slice(0, -3).trim());
-        
-        const shouldShowSummary = summaryText && 
-                                summaryText !== detailsText && 
-                                !summaryIsTruncatedDetails;
-
-        const summary = document.createElement('div');
-        summary.className = 'qa-answer-thread-summary';
-        summary.replaceChildren(this.buildLinkedContent(summaryText));
-
-        const details = document.createElement('div');
-        details.className = 'qa-answer-thread-details';
-        details.replaceChildren(this.buildLinkedContent(detailsText));
-
-        if (shouldShowTitle) {
+        if (presentation.shouldShowTitle) {
+            const header = document.createElement('div');
+            header.className = 'qa-answer-thread-header';
+            const title = document.createElement('div');
+            title.className = 'qa-answer-thread-title';
+            title.textContent = presentation.titleText;
+            header.appendChild(title);
             wrap.appendChild(header);
         }
-        if (shouldShowSummary) {
+
+        if (presentation.secondaryText) {
+            const summary = document.createElement('div');
+            summary.className = 'qa-answer-thread-summary';
+            summary.replaceChildren(this.buildLinkedContent(presentation.secondaryText));
             wrap.appendChild(summary);
         }
-        if (detailsText) {
+
+        if (presentation.primaryText) {
+            const details = document.createElement('div');
+            details.className = 'qa-answer-thread-details';
+            details.replaceChildren(this.buildLinkedContent(presentation.primaryText));
             wrap.appendChild(details);
         }
         container.appendChild(wrap);
+    }
+
+    stopQuestionAnswerAudioPlayback() {
+        if (this.questionAudioPlayer && !this.questionAudioPlayer.paused) {
+            this.questionAudioPlayer.pause();
+        }
+        if (this.activeQuestionAudioButton) {
+            this.updateQuestionAudioButtonState(this.activeQuestionAudioButton, false);
+        }
+        this.activeQuestionAudioButton = null;
+        this.questionAudioPausedNarration = false;
     }
 
     toggleQuestionAnswerAudio(button) {
@@ -1930,6 +1961,47 @@ export class VoicePPTApp {
         const input = document.getElementById('question-input');
         if (input) input.focus();
         this.setStatus('Q&A', 'paused', 'Ask anything — I\'ll answer');
+    }
+
+    enterQuestionAnswerMode(data = {}) {
+        this.isQAPhase = true;
+        this.voiceTurnState = 'thinking';
+        this.stopQuestionAnswerAudioPlayback();
+        this.resetSubtitleState();
+        this.activeTranscriptMode = 'qa';
+        if (!this.voiceModeEnabled) {
+            this.setStatus('Thinking', 'paused', data.inline ? 'Interrupt received. Building answer.' : 'Opening question mode');
+        }
+    }
+
+    handleQuestionAnswerDelta(data = {}) {
+        this.handleNarrationDelta({
+            ...data,
+            isQA: true,
+            append: true
+        });
+    }
+
+    handleQuestionAnswerText(data = {}) {
+        this.markQuestionAnswered(data.questionId, data.answer || '', data.question || '', {
+            answerTitle: data.answerTitle,
+            answerSummary: data.answerSummary,
+            answerDetails: data.answerDetails
+        });
+        this.finalizeSubtitleText(data.answer || '');
+    }
+
+    exitQuestionAnswerMode() {
+        this.isQAPhase = false;
+        this.voiceTurnState = 'idle';
+        this.stopQuestionAnswerAudioPlayback();
+        this.resetSubtitleState();
+        this.showTranscript(false);
+        this.stopWaveform();
+        this.activeTranscriptMode = 'idle';
+        if (!this.voiceModeEnabled) {
+            this.restorePresentationStatus();
+        }
     }
 
     restorePresentationStatus() {

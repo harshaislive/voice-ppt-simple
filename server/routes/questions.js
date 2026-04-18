@@ -47,19 +47,29 @@ function buildQuestionKnowledgeContext({ sessionMetadata = {}, presentation = nu
     const presentationDocs = presentation?.knowledgeDocs || {};
     const docs = { ...presentationDocs, ...sessionDocs };
 
-    if (docs.soul) sections.push(`PROJECT SOUL:\n${stringifyDoc(docs.soul)}`);
-    if (docs.agents) sections.push(`PROJECT RULES:\n${stringifyDoc(docs.agents)}`);
-    if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${stringifyDoc(docs.product)}`);
-    if (docs.flow) sections.push(`PRESENTATION FLOW:\n${stringifyDoc(docs.flow)}`);
-    if (docs.design) sections.push(`DESIGN CONTEXT:\n${stringifyDoc(docs.design)}`);
-    if (docs.cta) sections.push(`CALL TO ACTION:\n${stringifyDoc(docs.cta)}`);
+    sections.push(`GROUNDING RULES:
+- Treat the current slide as the primary source of truth.
+- Use supporting project knowledge only when it directly answers the question.
+- If the answer is not supported by the current slide or supporting project knowledge, say so naturally and do not invent details.`);
 
     if (currentSlide) {
-        sections.push(`CURRENT SLIDE:\nTitle: ${currentSlide.title || ''}\nVisible text: ${currentSlide.content || ''}${currentSlide.notes ? `\nPresenter notes: ${currentSlide.notes}` : ''}`);
+        sections.push(`CURRENT SLIDE (PRIMARY SOURCE):\nTitle: ${currentSlide.title || ''}\nVisible text: ${currentSlide.content || ''}${currentSlide.notes ? `\nPresenter notes: ${currentSlide.notes}` : ''}`);
+    }
+
+    const supportingSections = [];
+    if (docs.product) supportingSections.push(`PRODUCT KNOWLEDGE:\n${stringifyDoc(docs.product)}`);
+    if (docs.cta) supportingSections.push(`CALL TO ACTION:\n${stringifyDoc(docs.cta)}`);
+    if (docs.agents) supportingSections.push(`PROJECT RULES:\n${stringifyDoc(docs.agents)}`);
+    if (docs.flow) supportingSections.push(`PRESENTATION FLOW:\n${stringifyDoc(docs.flow)}`);
+    if (docs.soul) supportingSections.push(`PROJECT SOUL:\n${stringifyDoc(docs.soul)}`);
+    if (docs.design) supportingSections.push(`DESIGN CONTEXT:\n${stringifyDoc(docs.design)}`);
+
+    if (supportingSections.length > 0) {
+        sections.push(`SUPPORTING PROJECT KNOWLEDGE:\n${supportingSections.join('\n\n')}`);
     }
 
     if (slides.length > 0) {
-        sections.push(`FULL PRESENTATION CONTENT:\n${slides.map((slide, index) => `Slide ${index + 1}: "${slide.title || ''}"\n${slide.content || ''}${slide.notes ? `\nPresenter notes: ${slide.notes}` : ''}`).join('\n\n')}`);
+        sections.push(`PRESENTATION MAP:\n${slides.map((slide, index) => `Slide ${index + 1}: "${slide.title || ''}"`).join('\n')}`);
     }
 
     return sections.join('\n\n').slice(0, 16000);
@@ -740,5 +750,9 @@ router.post('/bulk-update', requireSessionControl(), async (req, res) => {
         res.status(500).json({ error: 'Failed to bulk update questions' });
     }
 });
+
+router.buildAnswerMeta = buildAnswerMeta;
+router.buildQuestionKnowledgeContext = buildQuestionKnowledgeContext;
+router.loadQuestionAnswerContext = loadQuestionAnswerContext;
 
 module.exports = router;

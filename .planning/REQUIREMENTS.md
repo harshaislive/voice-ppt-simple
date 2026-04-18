@@ -14,9 +14,9 @@
 
 ### Question Answering
 
-- [ ] **QA-01**: Audience can ask questions and receive answers grounded in the current slide, project context, and Supabase-backed knowledge documents
-- [ ] **QA-02**: Q&A responses render with a more natural conversational feel in text and audio, avoiding obviously robotic presentation
-- [ ] **QA-03**: Q&A playback and presentation narration do not overlap or leave the session in an inconsistent state
+- [x] **QA-01**: Audience can ask questions and receive answers grounded in the current slide, project context, and Supabase-backed knowledge documents
+- [x] **QA-02**: Q&A responses render with a more natural conversational feel in text and audio, avoiding obviously robotic presentation
+- [x] **QA-03**: Q&A playback and presentation narration do not overlap or leave the session in an inconsistent state
 
 ### Content and Multi-Presentation Support
 
@@ -66,9 +66,9 @@
 | PLAY-02 | Phase 2 | Pending |
 | PLAY-03 | Phase 2 | Pending |
 | PLAY-04 | Phase 2 | Pending |
-| QA-01 | Phase 3 | Pending |
-| QA-02 | Phase 3 | Pending |
-| QA-03 | Phase 3 | Pending |
+| QA-01 | Phase 3 | Complete |
+| QA-02 | Phase 3 | Complete |
+| QA-03 | Phase 3 | Complete |
 | CMS-01 | Phase 4 | Pending |
 | CMS-02 | Phase 4 | Pending |
 | CMS-03 | Phase 4 | Pending |

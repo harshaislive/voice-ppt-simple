@@ -13,6 +13,7 @@ const supabaseSession = require('../services/supabaseSession');
 const masterSessionService = require('../services/masterSession');
 const { getLogger, getRequestLogger } = require('../middleware/logger');
 const { requireSessionPlaybackControl, requireSessionControl } = require('../middleware/security');
+const questionsRoute = require('./questions');
 
 const interruptFlags = new Map();
 const pauseFlags = new Map();
@@ -1693,7 +1694,11 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
     await sleep(120);
     const sessionMetadata = getSessionMetadata(db, sessionId);
     const participantName = getParticipantName(db, sessionId);
-    const knowledgeContext = await buildFullQAContext(sessionMetadata, slides);
+    const knowledgeContext = questionsRoute.buildQuestionKnowledgeContext({
+        sessionMetadata,
+        currentSlide: slides[currentSlideIndex] || null,
+        slides
+    });
 
     const audienceMemory = db.all(
         'SELECT key, value FROM audience_memory WHERE session_id = ? ORDER BY updated_at DESC LIMIT 8',
@@ -1822,10 +1827,15 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
             answer = 'That is a fair question. The short answer is yes, but the nuance depends on your context and what outcome you care about most.';
         }
 
+        const answerMeta = questionsRoute.buildAnswerMeta(question.question_text, answer);
+
         io.to(sessionId).emit('answer-text', {
             questionId: question.id,
             question: question.question_text,
             answer,
+            answerTitle: answerMeta.answerTitle,
+            answerSummary: answerMeta.answerSummary,
+            answerDetails: answerMeta.answerDetails,
             questionIndex: q + 1,
             totalQuestions: questions.length
         });

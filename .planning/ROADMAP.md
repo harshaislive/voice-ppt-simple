@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Runtime Guardrails** - Lock down sensitive endpoints and establish operational visibility
 - [x] **Phase 2: Playback State Reliability** - Make narration, controls, and slide progression deterministic
-- [ ] **Phase 3: Grounded Q&A Experience** - Improve conversational quality without breaking session state
+- [x] **Phase 3: Grounded Q&A Experience** - Improve conversational quality without breaking session state (completed 2026-04-18)
 - [ ] **Phase 4: Content Loading and Scaling Foundations** - Make multi-presentation loading safer and more explicit
 - [ ] **Phase 5: Regression Harness** - Add automated coverage around critical flows and failure paths
 - [ ] **Phase 6: Production Readiness Gate** - Verify one real presentation flow end to end and lock release confidence
@@ -122,7 +122,7 @@ Phases execute in numeric order: 3 -> 3.1 -> 4
 |-------|----------------|--------|-----------|
 | 1. Runtime Guardrails | 4/4 | Complete | 2026-04-19 |
 | 2. Playback State Reliability | 4/4 | Complete | 2026-04-19 |
-| 3. Grounded Q&A Experience | 0/3 | Not started | - |
+| 3. Grounded Q&A Experience | 3/3 | Complete   | 2026-04-18 |
 | 4. Content Loading and Scaling Foundations | 0/3 | Not started | - |
 | 5. Regression Harness | 0/3 | Not started | - |
 | 6. Production Readiness Gate | 0/2 | Not started | - |

@@ -20,6 +20,35 @@ class QuestionClassifier {
             general: 2
         };
     }
+
+    isInterruptWorthyQuestion(question) {
+        const lowerQuestion = String(question || '').toLowerCase();
+        if (!lowerQuestion.trim()) {
+            return false;
+        }
+
+        return [
+            /but you said/,
+            /contradiction/,
+            /how does this reconcile/,
+            /\bi'?m confused\b/,
+            /\bi am confused\b/,
+            /what do you mean/,
+            /can you explain/,
+            /clarify/,
+            /\bprice\b/,
+            /\bcost\b/,
+            /\bpricing\b/,
+            /\bbook\b/,
+            /\bbooking\b/,
+            /\btrial\b/,
+            /\bcontact\b/,
+            /\bemail\b/,
+            /next step/,
+            /how do i proceed/,
+            /what happens next/
+        ].some((pattern) => pattern.test(lowerQuestion));
+    }
     
     async classifyQuestions(questions, slideContent) {
         if (!questions || questions.length === 0) {
@@ -34,6 +63,7 @@ class QuestionClassifier {
             const classifications = questions.map((question, index) => {
                 const aiResult = aiClassifications[index] || {};
                 const ruleBased = this.ruleBasedClassification(question, slideContent);
+                const interruptWorthy = this.isInterruptWorthyQuestion(question);
                 
                 // Prioritize AI classification if confident
                 if (aiResult.confidence && aiResult.confidence > 0.7) {
@@ -41,7 +71,7 @@ class QuestionClassifier {
                         question,
                         category: aiResult.category || this.categories.GENERAL,
                         priority: aiResult.priority || this.priorityMapping[aiResult.category] || 5,
-                        shouldAnswerNow: aiResult.shouldAnswerNow || false,
+                        shouldAnswerNow: interruptWorthy,
                         confidence: aiResult.confidence,
                         reasoning: aiResult.reasoning || 'AI classification'
                     };
@@ -67,7 +97,7 @@ class QuestionClassifier {
         
         let category = this.categories.GENERAL;
         let priority = 5;
-        let shouldAnswerNow = false;
+        let shouldAnswerNow = this.isInterruptWorthyQuestion(question);
         let reasoning = 'Rule-based classification';
         
         // Check for clarification questions
@@ -76,7 +106,6 @@ class QuestionClassifier {
             lowerQuestion.includes('clarify')) {
             category = this.categories.CLARIFICATION;
             priority = 6;
-            shouldAnswerNow = true;
             reasoning = 'Clarification question about content';
         }
         
@@ -85,7 +114,7 @@ class QuestionClassifier {
                  lowerQuestion.includes('contradiction') ||
                  lowerQuestion.includes('how does this reconcile')) {
             category = this.categories.CONTRADICTION;
-            priority = 8;
+            priority = 9;
             shouldAnswerNow = true;
             reasoning = 'Potential contradiction needs addressing';
         }
@@ -116,7 +145,6 @@ class QuestionClassifier {
                  lowerQuestion.includes('application')) {
             category = this.categories.APPLICATION;
             priority = 6;
-            shouldAnswerNow = false;
             reasoning = 'Application question relevant but not urgent';
         }
         
@@ -130,7 +158,6 @@ class QuestionClassifier {
         const relevance = commonWords.length / Math.max(questionWords.length, 1);
         if (relevance > 0.4) {
             priority += 2;
-            shouldAnswerNow = true;
             reasoning = 'Highly relevant to current slide';
         }
         
@@ -163,7 +190,7 @@ class QuestionClassifier {
             adjustedPriority = Math.round(adjustedPriority * (0.8 + 0.4 * positionFactor));
             
             // Update shouldAnswerNow based on adjusted priority
-            const shouldAnswerNow = classification.shouldAnswerNow || adjustedPriority >= 7;
+            const shouldAnswerNow = Boolean(classification.shouldAnswerNow);
             
             return {
                 ...classification,

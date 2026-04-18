@@ -138,10 +138,7 @@ export class SocketClient {
             });
 
             this.socket.on('qa-start', (data) => {
-                this.app.isQAPhase = true;
-                if (!this.app.voiceModeEnabled) {
-                    this.app.setStatus('Thinking', 'paused', data.inline ? 'Interrupt received. Building answer.' : 'Opening question mode');
-                }
+                this.app.enterQuestionAnswerMode?.(data);
             });
 
             this.socket.on('answering-question', (data) => {
@@ -152,15 +149,27 @@ export class SocketClient {
             });
 
             this.socket.on('answer-delta', (data) => {
-                this.app.handleNarrationDelta({ delta: data.delta, append: true });
+                if (this.app.handleQuestionAnswerDelta) {
+                    this.app.handleQuestionAnswerDelta(data);
+                    return;
+                }
+                this.app.handleNarrationDelta({ delta: data.delta, append: true, isQA: true });
             });
 
             this.socket.on('answer-text', (data) => {
+                if (this.app.handleQuestionAnswerText) {
+                    this.app.handleQuestionAnswerText(data);
+                    return;
+                }
                 this.app.markQuestionAnswered(data.questionId, data.answer, data.question);
                 this.app.finalizeSubtitleText(data.answer);
             });
 
             this.socket.on('qa-end', (data) => {
+                if (this.app.exitQuestionAnswerMode) {
+                    this.app.exitQuestionAnswerMode(data);
+                    return;
+                }
                 this.app.isQAPhase = false;
                 if (!this.app.voiceModeEnabled) {
                     this.app.restorePresentationStatus();

@@ -97,19 +97,6 @@ class SlideEngine {
             };
         }
         
-        // Check if questions are related to current slide
-        const slideRelatedQuestions = pendingQuestions.filter(q => 
-            q.slide_index === context.currentSlideIndex
-        );
-        
-        if (slideRelatedQuestions.length > 0) {
-            return {
-                action: 'answer_questions',
-                questionIds: slideRelatedQuestions.slice(0, 2).map(q => q.id),
-                reason: 'Questions related to current slide'
-            };
-        }
-        
         // Default: continue with presentation
         return {
             action: 'advance',
