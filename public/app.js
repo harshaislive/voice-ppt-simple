@@ -3,7 +3,11 @@ import { AzureVoiceSession } from './services/voice.js';
 import { SocketClient } from './services/socket.js';
 import { UIManager } from './services/ui.js';
 
-class VoicePPTApp {
+export function shouldAutoResumeRestoredSession() {
+    return false;
+}
+
+export class VoicePPTApp {
     constructor() {
         this.clientInstanceId = this.getOrCreateClientInstanceId();
         this.sessionId = null;
@@ -180,6 +184,24 @@ class VoicePPTApp {
         if (filmstrip) {
             filmstrip.innerHTML = '';
         }
+        this.clearLivePlaybackState();
+    }
+
+    clearLivePlaybackState() {
+        this.pendingNarrationText = '';
+        this.pendingPlaybackStartAt = null;
+        this.totalAudioDurationMs = 0;
+        this.wordBoundaries = [];
+        this.slideAudioStarted = false;
+        this.activeAudioSlideIndex = null;
+        this.awaitingPlaybackComplete = false;
+        this.isAudioPaused = false;
+        this.pauseStartMs = null;
+        this.stopTranscriptProgress?.();
+        this.clearTranscriptChunkTimers?.();
+        this.streamPlayer?.reset?.();
+        this.socketClient?.resetPlaybackAck?.();
+        this.syncSlidePauseButton?.({ paused: false, enabled: false });
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -321,6 +343,7 @@ class VoicePPTApp {
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('present-view').classList.remove('hidden');
             document.getElementById('deck-label').textContent = session.presentationTitle || session.deckId || '';
+            this.clearLivePlaybackState();
             await this.primeInitialSlide();
             const connectPromise = this.socketClient.connect(this.sessionId, this.controlToken);
             const slidesPromise = this.loadSessionSlides();
@@ -328,19 +351,23 @@ class VoicePPTApp {
             this.setQuestionInputsEnabled(true);
             const socketReady = await connectPromise;
             if (['active', 'presenting'].includes(String(data.session.status || ''))) {
-                const restoredSlideIndex = Math.max(0, Number(data.session.current_slide_index || 0));
                 if (socketReady) {
-                    await this.replaySlide(restoredSlideIndex);
-                    await this.pauseAutoplex(false);
-                    this.setStatus('Resumed', 'live', `Continuing from slide ${Number(data.session.current_slide_index || 0) + 1}`);
+                    const restoredSlideIndex = Math.max(0, Number(data.session.current_slide_index || 0));
+                    this.setStatus(
+                        'Session restored',
+                        'paused',
+                        shouldAutoResumeRestoredSession()
+                            ? `Continuing from slide ${restoredSlideIndex + 1}`
+                            : `Resume or replay to continue from slide ${restoredSlideIndex + 1}`
+                    );
                 } else {
-                    this.applyStartupReadiness(false, 'Resumed');
+                    this.applyStartupReadiness(false, 'Session restored');
                 }
             } else {
                 if (socketReady) {
-                    this.setStatus('Resumed', 'live', 'Session restored');
+                    this.setStatus('Session restored', 'paused', 'Review the current slide or replay when ready');
                 } else {
-                    this.applyStartupReadiness(false, 'Resumed');
+                    this.applyStartupReadiness(false, 'Session restored');
                 }
             }
             await Promise.all([slidesPromise, questionsPromise]);
@@ -891,6 +918,7 @@ class VoicePPTApp {
             this.isAudioPaused = false;
             this.pendingPlaybackStartAt = null;
             this.pauseStartMs = null;
+            this.socketClient.resetPlaybackAck(data.slideIndex);
             this.syncSlidePauseButton({ paused: false, enabled: false });
         }
         
@@ -899,7 +927,7 @@ class VoicePPTApp {
         if (typeof data?.slideIndex === 'number') {
             this.activeAudioSlideIndex = data.slideIndex;
         }
-        this.syncSlidePauseButton({ paused: false, enabled: true });
+        this.syncSlidePauseButton({ paused: this.isAudioPaused, enabled: true });
         this.renderSubtitle();
         if (this.pendingNarrationText) {
             this.narrationSourceText = this.pendingNarrationText;
@@ -2167,4 +2195,6 @@ class VoicePPTApp {
     escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 }
 
-document.addEventListener('DOMContentLoaded', () => { window.app = new VoicePPTApp(); });
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => { window.app = new VoicePPTApp(); });
+}

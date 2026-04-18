@@ -13,7 +13,7 @@ This roadmap hardens an existing AI-led presentation platform into a production-
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Runtime Guardrails** - Lock down sensitive endpoints and establish operational visibility
-- [ ] **Phase 2: Playback State Reliability** - Make narration, controls, and slide progression deterministic
+- [x] **Phase 2: Playback State Reliability** - Make narration, controls, and slide progression deterministic
 - [ ] **Phase 3: Grounded Q&A Experience** - Improve conversational quality without breaking session state
 - [ ] **Phase 4: Content Loading and Scaling Foundations** - Make multi-presentation loading safer and more explicit
 - [ ] **Phase 5: Regression Harness** - Add automated coverage around critical flows and failure paths
@@ -49,10 +49,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: Document and simplify playback state ownership across client and server
-- [ ] 02-02: Fix pause/resume/stop semantics and audio lifecycle cleanup
-- [ ] 02-03: Harden slide-advance and interruption sequencing
-- [ ] 02-04: Stabilize reconnect and session-restore flows
+- [x] 02-01: Document and simplify playback state ownership across client and server
+- [x] 02-02: Fix pause/resume/stop semantics and audio lifecycle cleanup
+- [x] 02-03: Harden slide-advance and interruption sequencing
+- [x] 02-04: Stabilize reconnect and session-restore flows
 
 ### Phase 3: Grounded Q&A Experience
 **Goal**: Make audience questions feel more natural while keeping answers grounded and operationally safe
@@ -116,12 +116,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
+Phases execute in numeric order: 3 -> 3.1 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime Guardrails | 4/4 | Complete | 2026-04-19 |
-| 2. Playback State Reliability | 0/4 | Not started | - |
+| 2. Playback State Reliability | 4/4 | Complete | 2026-04-19 |
 | 3. Grounded Q&A Experience | 0/3 | Not started | - |
 | 4. Content Loading and Scaling Foundations | 0/3 | Not started | - |
 | 5. Regression Harness | 0/3 | Not started | - |

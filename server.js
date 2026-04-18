@@ -158,6 +158,7 @@ io.on('connection', (socket) => {
     socket.on('join-session', async (payload) => {
         const sessionId = typeof payload === 'string' ? payload : payload?.sessionId;
         const controlToken = typeof payload === 'object' ? String(payload?.controlToken || '') : '';
+        const clientInstanceId = typeof payload === 'object' ? String(payload?.clientInstanceId || '') : '';
         const db = app.get('db');
         const socketLogger = logger.child({ subsystem: 'realtime', socketId: socket.id, sessionId });
 
@@ -168,8 +169,10 @@ io.on('connection', (socket) => {
         }
 
         socket.join(sessionId);
+        socket.data.clientInstanceId = clientInstanceId;
+        socket.data.sessionId = sessionId;
         socketLogger.info({ event: 'session_socket_joined' });
-        socket.emit('session-joined', { sessionId, isController: true });
+        socket.emit('session-joined', { sessionId, isController: true, playbackContractVersion: 1 });
     });
 
     socket.on('presentation-audio-complete', (payload) => {
@@ -178,7 +181,13 @@ io.on('connection', (socket) => {
         if (!sessionId) {
             return;
         }
-        autoplexRoutes.markPlaybackComplete?.(sessionId, slideIndex);
+        if (socket.data?.sessionId && socket.data.sessionId !== sessionId) {
+            return;
+        }
+        autoplexRoutes.markPlaybackComplete?.(sessionId, slideIndex, {
+            clientInstanceId: payload?.clientInstanceId || socket.data?.clientInstanceId || '',
+            socketId: socket.id
+        });
     });
     
     socket.on('disconnect', () => {

@@ -16,6 +16,7 @@ export class StreamAudioPlayer {
         this._streamStartNotified = false;
         this._iosAudioUnlocked = false;
         this._isPaused = false;
+        this._pausedGainValue = null;
         this.playbackStartedAtMs = null;
         this.playbackEndsAtMs = null;
     }
@@ -109,6 +110,10 @@ export class StreamAudioPlayer {
             clearTimeout(this.bufferTimer);
             this.bufferTimer = null;
         }
+        if (this.gainNode && this._pausedGainValue === null) {
+            this._pausedGainValue = this.gainNode.gain.value;
+            this.gainNode.gain.value = 0;
+        }
         if (this.audioContext && this.audioContext.state === 'running') {
             return this.audioContext.suspend().catch((err) => {
                 console.warn('[Audio] Failed to suspend AudioContext:', err);
@@ -120,6 +125,10 @@ export class StreamAudioPlayer {
     resume() {
         this._isPaused = false;
         return this._resumeContext().then(() => {
+            if (this.gainNode && this._pausedGainValue !== null) {
+                this.gainNode.gain.value = this._pausedGainValue;
+                this._pausedGainValue = null;
+            }
             if (this.chunkQueue.length > 0 && !this.isBuffering) {
                 this.isBuffering = true;
                 if (this.bufferTimer) clearTimeout(this.bufferTimer);
@@ -149,6 +158,10 @@ export class StreamAudioPlayer {
         this.nextStartTime = 0;
         this.playbackStartedAtMs = null;
         this.playbackEndsAtMs = null;
+        if (this.gainNode && this._pausedGainValue !== null) {
+            this.gainNode.gain.value = this._pausedGainValue;
+        }
+        this._pausedGainValue = null;
     }
 
     _clearBuffers() {
@@ -264,6 +277,17 @@ export class StreamAudioPlayer {
         this._stopAllSources();
         this._clearBuffers();
         this._isPaused = false;
+        this._pausedGainValue = null;
+    }
+
+    getPlaybackState() {
+        return {
+            isPaused: this._isPaused,
+            isPlaying: this.isPlaying,
+            hasPendingPlayback: this.hasPendingPlayback(),
+            activeSources: this.activeSources.length,
+            queuedChunks: this.chunkQueue.length
+        };
     }
 
     shiftPlaybackWindow(deltaMs = 0) {

@@ -114,6 +114,10 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 newSlideIndex = targetSlide;
             }
             
+            const changeReason = decision.action === 'jump_to_slide'
+                ? 'manual-override'
+                : (decision.reason || 'auto-advance');
+
             // Update session
             db.run(`
                 UPDATE sessions
@@ -135,7 +139,7 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 from: session.current_slide_index,
                 to: newSlideIndex,
                 slideTitle: newSlide ? newSlide.title : null,
-                reason: decision.reason
+                reason: changeReason
             })]);
             
             // Emit slide change
@@ -143,7 +147,7 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 slideIndex: newSlideIndex,
                 totalSlides,
                 slide: newSlide,
-                reason: decision.reason
+                reason: changeReason
             });
             
             res.json({
@@ -151,7 +155,10 @@ router.post('/advance', requireSessionPlaybackControl(), async (req, res) => {
                 action: decision.action,
                 slideIndex: newSlideIndex,
                 slide: newSlide,
-                decision,
+                decision: {
+                    ...decision,
+                    reason: changeReason
+                },
                 classificationResults
             });
         } else {

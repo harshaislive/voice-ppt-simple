@@ -26,13 +26,14 @@ const deckAssetCache = new Map();
 const pregenProgress = new Map();
 const pregeneratedSessions = new Map();
 const activePresentationRuns = new Map();
+const playbackContracts = new Map();
 
 const PRESENTATION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const PRESENTATION_START_DELAY_MS = parseInt(process.env.PRESENTATION_START_DELAY_MS, 10) || 100;
 const SLIDE_CHANGE_SETTLE_MS = parseInt(process.env.SLIDE_CHANGE_SETTLE_MS, 10) || 120;
 const POST_SLIDE_HOLD_MS = parseInt(process.env.POST_SLIDE_HOLD_MS, 10) || 500;
 
-setInterval(() => {
+const presentationTimeoutSweeper = setInterval(() => {
     const now = Date.now();
     for (const [sessionId, startTime] of presentationStartTimes.entries()) {
         if (now - startTime > PRESENTATION_TIMEOUT_MS) {
@@ -47,6 +48,9 @@ setInterval(() => {
         }
     }
 }, 5 * 60 * 1000);
+if (typeof presentationTimeoutSweeper.unref === 'function') {
+    presentationTimeoutSweeper.unref();
+}
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -689,11 +693,23 @@ function triggerPreGeneration(db, sessionId, slides, sessionMetadata) {
 function waitForPlaybackCompletion(sessionId, fallbackMs, expectedSlideIndex = null) {
     return new Promise((resolve) => {
         let settled = false;
+        const contract = {
+            sessionId,
+            expectedSlideIndex,
+            status: 'waiting_for_client_playback',
+            createdAt: Date.now(),
+            acknowledgedAt: null,
+            clientInstanceId: null,
+            socketId: null
+        };
+        playbackContracts.set(sessionId, contract);
         // Fallback timeout - use caller's duration or minimum 3s (not 12s - too slow)
         const timeout = setTimeout(() => {
             if (!settled) {
                 settled = true;
                 playbackWaiters.delete(sessionId);
+                contract.status = 'timed_out';
+                playbackContracts.delete(sessionId);
                 resolve(false);
             }
         }, Math.max(fallbackMs || 3000, 3000));
@@ -706,17 +722,46 @@ function waitForPlaybackCompletion(sessionId, fallbackMs, expectedSlideIndex = n
                 settled = true;
                 clearTimeout(timeout);
                 playbackWaiters.delete(sessionId);
+                contract.status = 'acknowledged';
+                playbackContracts.delete(sessionId);
                 resolve(true);
             }
         });
     });
 }
 
-function markPlaybackComplete(sessionId, slideIndex) {
+function markPlaybackComplete(sessionId, slideIndex, meta = {}) {
+    const contract = playbackContracts.get(sessionId);
+    if (contract) {
+        if (contract.expectedSlideIndex !== null && slideIndex !== contract.expectedSlideIndex) {
+            return false;
+        }
+
+        if (contract.status === 'acknowledged') {
+            return false;
+        }
+
+        contract.clientInstanceId = meta.clientInstanceId || contract.clientInstanceId;
+        contract.socketId = meta.socketId || contract.socketId;
+        contract.acknowledgedAt = Date.now();
+    }
+
     const waiter = playbackWaiters.get(sessionId);
     if (waiter) {
         waiter(slideIndex);
+        return true;
     }
+
+    return false;
+}
+
+function getPlaybackContract(sessionId) {
+    return playbackContracts.get(sessionId) || null;
+}
+
+function resetPlaybackContracts() {
+    playbackContracts.clear();
+    playbackWaiters.clear();
 }
 
 function waitForContinue(sessionId, io, payload = {}) {
@@ -816,7 +861,7 @@ async function emitCachedPlayback(io, sessionId, slideIndex, cached, options = {
             options.isQA ? 8000 : 12000
         );
     }
-    await waitForPlaybackCompletion(sessionId, waitMs);
+    await waitForPlaybackCompletion(sessionId, waitMs, slideIndex);
 }
 
 function getParticipantName(db, sessionId) {
@@ -1455,7 +1500,7 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                     ...options
                 });
                 const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
-                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 5500, 10000));
+                await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 5500, 10000), slideIndex);
                 const realtimePcmBuffer = Array.isArray(result.audioChunks) && result.audioChunks.length > 0
                     ? Buffer.concat(result.audioChunks)
                     : Buffer.alloc(0);
@@ -1585,7 +1630,7 @@ async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
                 options.isQA ? 8000 : 12000
             );
         }
-        await waitForPlaybackCompletion(sessionId, waitMs);
+        await waitForPlaybackCompletion(sessionId, waitMs, slideIndex);
 
         if (slideIndex >= 0 && !options.isQA && !options.isWrapUp && collectedChunks.length > 0) {
             const pcmBuffer = Buffer.concat(collectedChunks);
@@ -1722,7 +1767,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
                         questionIndex: q + 1
                     });
                     const answerDurationSec = realtimeResult.totalPcmBytes / (24000 * 2);
-                    await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 3000, 5000));
+                    await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(answerDurationSec * 1000) + 3000, 5000), slides.length + q);
                 } else {
                     console.warn('Realtime presenter returned no audio for inline QA; falling back to TTS stream');
                 }
@@ -1852,6 +1897,9 @@ module.exports = router;
 module.exports.markPlaybackComplete = markPlaybackComplete;
 module.exports.triggerPreGeneration = triggerPreGeneration;
 module.exports.getPreGenProgress = getPreGenProgress;
+module.exports.waitForPlaybackCompletion = waitForPlaybackCompletion;
+module.exports.getPlaybackContract = getPlaybackContract;
+module.exports.resetPlaybackContracts = resetPlaybackContracts;
 
 async function waitWhilePaused(db, io, sessionId) {
     let emitted = false;

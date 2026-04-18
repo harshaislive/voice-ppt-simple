@@ -1,3 +1,20 @@
+export function buildPlaybackAckKey(sessionId, slideIndex) {
+    if (!sessionId || !Number.isInteger(slideIndex)) {
+        return '';
+    }
+
+    return `${sessionId}:${slideIndex}`;
+}
+
+export function shouldSendPlaybackAck({ sessionId, slideIndex, isConnected, isReady, lastAckKey }) {
+    const nextKey = buildPlaybackAckKey(sessionId, slideIndex);
+    if (!nextKey || !isConnected || !isReady) {
+        return false;
+    }
+
+    return nextKey !== lastAckKey;
+}
+
 export class SocketClient {
     constructor(app) {
         this.app = app;
@@ -6,6 +23,7 @@ export class SocketClient {
         this.isReady = false;
         this._connectTimeoutId = null;
         this._disconnecting = false;
+        this._lastPlaybackAckKey = '';
     }
 
     connect(sessionId, controlToken) {
@@ -79,6 +97,7 @@ export class SocketClient {
             });
 
             this.socket.on('presentation-start', (data) => {
+                this.resetPlaybackAck();
                 this.app.isQAPhase = false;
                 this.app.sessionStatus = 'presenting';
                 if (data?.totalSlides) {
@@ -90,6 +109,7 @@ export class SocketClient {
             });
 
             this.socket.on('slide-change', (data) => {
+                this.resetPlaybackAck(data?.slideIndex);
                 this.app.updateSlide(data);
             });
 
@@ -166,6 +186,7 @@ export class SocketClient {
             });
 
             this.socket.on('presentation-end', (data) => {
+                this.resetPlaybackAck();
                 this.app.sessionStatus = 'completed';
                 this.app.setStatus('Complete', '', 'Presentation finished');
                 this.app.showCompletion(data);
@@ -206,13 +227,39 @@ export class SocketClient {
         }
         this.isConnected = false;
         this.isReady = false;
+        this._lastPlaybackAckKey = '';
+    }
+
+    resetPlaybackAck(slideIndex = null) {
+        if (Number.isInteger(slideIndex) && this.app?.sessionId) {
+            const nextKey = buildPlaybackAckKey(this.app.sessionId, slideIndex);
+            if (this._lastPlaybackAckKey === nextKey) {
+                this._lastPlaybackAckKey = '';
+            }
+            return;
+        }
+
+        this._lastPlaybackAckKey = '';
     }
 
     notifyPlaybackComplete(sessionId, slideIndex) {
-        if (!this.socket || !this.isConnected || !this.isReady || !sessionId) {
-            return;
+        if (!shouldSendPlaybackAck({
+            sessionId,
+            slideIndex,
+            isConnected: this.isConnected,
+            isReady: this.isReady,
+            lastAckKey: this._lastPlaybackAckKey
+        })) {
+            return false;
         }
-        this.socket.emit('presentation-audio-complete', { sessionId, slideIndex });
+
+        this._lastPlaybackAckKey = buildPlaybackAckKey(sessionId, slideIndex);
+        this.socket.emit('presentation-audio-complete', {
+            sessionId,
+            slideIndex,
+            clientInstanceId: this.app?.clientInstanceId || ''
+        });
+        return true;
     }
 
     async goToSlide(index) {
