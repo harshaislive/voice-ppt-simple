@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Playback State Reliability** - Make narration, controls, and slide progression deterministic
 - [x] **Phase 3: Grounded Q&A Experience** - Improve conversational quality without breaking session state (completed 2026-04-18)
 - [x] **Phase 4: Content Loading and Scaling Foundations** - Make multi-presentation loading safer and more explicit (completed 2026-04-19)
-- [ ] **Phase 5: Regression Harness** - Add automated coverage around critical flows and failure paths
+- [x] **Phase 5: Regression Harness** - Add automated coverage around critical flows and failure paths (completed 2026-04-19)
 - [ ] **Phase 6: Production Readiness Gate** - Verify one real presentation flow end to end and lock release confidence
 
 ## Phase Details
@@ -96,9 +96,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Introduce a test harness for backend/session orchestration
-- [ ] 05-02: Add critical-path integration coverage for presentation and Q&A flows
-- [ ] 05-03: Add auth and fallback regression tests to protect known risk areas
+- [x] 05-01: Introduce a test harness for backend/session orchestration
+- [x] 05-02: Add critical-path integration coverage for presentation and Q&A flows
+- [x] 05-03: Add auth and fallback regression tests to protect known risk areas
 
 ### Phase 6: Production Readiness Gate
 **Goal**: Prove the system is ready for real client-facing use with repeatable release checks and one end-to-end validated presentation
@@ -125,5 +125,5 @@ Phases execute in numeric order: 3 -> 3.1 -> 4
 | 2. Playback State Reliability | 4/4 | Complete | 2026-04-19 |
 | 3. Grounded Q&A Experience | 3/3 | Complete   | 2026-04-18 |
 | 4. Content Loading and Scaling Foundations | 4/4 | Complete   | 2026-04-19 |
-| 5. Regression Harness | 0/3 | Not started | - |
+| 5. Regression Harness | 3/3 | Complete | 2026-04-19 |
 | 6. Production Readiness Gate | 0/2 | Not started | - |
