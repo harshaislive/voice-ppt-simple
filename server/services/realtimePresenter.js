@@ -187,6 +187,9 @@ class RealtimePresenterService {
       context.slideNotes,
       context.knowledgeContext
     ].filter(Boolean).join('\n'));
+    const pronunciationText = pronunciationGuide.length
+      ? `Pronunciation is mandatory. Follow these exactly in speech: ${pronunciationGuide.join('; ')}.`
+      : '';
 
     if (!safeMode) {
       const messages = narrationPrompt.buildMessages(context);
@@ -204,9 +207,9 @@ class RealtimePresenterService {
 
       return {
         instructions: pronunciationGuide.length
-          ? `${instructions} Pronunciation guide: ${pronunciationGuide.join('; ')}. Keep the written words unchanged, but speak them with these pronunciations.`
+          ? `${instructions} ${pronunciationText} Keep the written words unchanged, but speak them with these pronunciations.`
           : instructions,
-        userText: userSections.join('\n\n')
+        userText: [userSections.join('\n\n'), pronunciationText].filter(Boolean).join('\n\n')
       };
     }
 
@@ -217,7 +220,7 @@ class RealtimePresenterService {
 
     return {
       instructions: pronunciationGuide.length
-        ? `${instructions} Pronunciation guide: ${pronunciationGuide.join('; ')}.`
+        ? `${instructions} ${pronunciationText}`
         : instructions,
       userText
     };
@@ -237,6 +240,12 @@ class RealtimePresenterService {
     } = context;
 
     const isQA = slideTitle === 'Audience Question' || context.isQA;
+    const pronunciationGuide = buildPronunciationGuide([
+      slideTitle,
+      slideContent,
+      slideNotes,
+      knowledgeContext
+    ].filter(Boolean).join('\n'));
 
     const lines = [
       `Scene ${slideIndex + 1} of ${totalSlides}.`,
@@ -252,6 +261,10 @@ class RealtimePresenterService {
         ? `Previous scene narration: ${Object.entries(audienceContext).slice(0, 3).map(([key, value]) => value).join(' ')}`
         : ''
     ];
+
+    if (pronunciationGuide.length) {
+      lines.push(`Pronunciation is mandatory. Follow these exactly in speech: ${pronunciationGuide.join('; ')}.`);
+    }
 
     if (isQA) {
       lines.push('Answer the audience question using only the provided project knowledge. Be direct and concise (3-5 sentences).');

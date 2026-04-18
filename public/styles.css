@@ -2096,7 +2096,7 @@ h1, h2, h3, h4 {
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 2px 2px 0 var(--border-color);
+        box-shadow: none;
     }
 
     .interrupt-label {

@@ -1130,7 +1130,8 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
                 slide,
                 slideIndex: resolvedSlideIndex,
                 totalSlides,
-                pendingQuestions
+                pendingQuestions,
+                options: { isReplay: true }
             });
 
             const streamedAudio = narrationResult?.audioHandled
@@ -1558,7 +1559,7 @@ async function applyQuestionClassification(db, sessionId, pendingQuestions, clas
     );
 }
 
-async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides, pendingQuestions }) {
+async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides, pendingQuestions, options = {} }) {
     const context = await buildNarrationContext({ db, sessionId, slide, slideIndex, totalSlides, pendingQuestions });
 
     let narrationText = '';
@@ -1571,7 +1572,8 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                     io.to(sessionId).emit('narration-delta', {
                         delta,
                         full,
-                        slideIndex
+                        slideIndex,
+                        ...options
                     });
                 },
                 onAudioChunk: (chunk) => {
@@ -1581,7 +1583,8 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                         slideIndex,
                         sampleRate: 24000,
                         channels: 1,
-                        bitsPerSample: 16
+                        bitsPerSample: 16,
+                        ...options
                     });
                 }
             });
@@ -1589,7 +1592,8 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
             if (hasRenderableAudio(result)) {
                 io.to(sessionId).emit('audio-end', {
                     slideIndex,
-                    format: 'wav'
+                    format: 'wav',
+                    ...options
                 });
                 const narrationDurationSec = result.totalPcmBytes / (24000 * 2);
                 await waitForPlaybackCompletion(sessionId, Math.max(Math.ceil(narrationDurationSec * 1000) + 5500, 10000));
@@ -1635,7 +1639,8 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
                 io.to(sessionId).emit('narration-delta', {
                     delta,
                     full,
-                    slideIndex
+                    slideIndex,
+                    ...options
                 });
             });
         } else {
@@ -1645,14 +1650,15 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
         console.error('Narration generation failed for slide', slideIndex, err);
         narrationText = slide.content;
         if (shouldStreamNarrationText()) {
-            io.to(sessionId).emit('narration-delta', { delta: narrationText, full: narrationText, slideIndex });
+            io.to(sessionId).emit('narration-delta', { delta: narrationText, full: narrationText, slideIndex, ...options });
         }
     }
 
     if (!isInterrupted(sessionId) && shouldStreamNarrationText()) {
         io.to(sessionId).emit('narration-text', {
             text: narrationText,
-            slideIndex
+            slideIndex,
+            ...options
         });
     }
 

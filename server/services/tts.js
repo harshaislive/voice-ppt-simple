@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const { AzureOpenAI } = require('openai');
 const axios = require('axios');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
-const { applyPronunciationOverrides } = require('./pronunciation');
+const { applyPronunciationOverrides, buildPronunciationSsml } = require('./pronunciation');
 
 const TTS_PROVIDERS = {
   AZURE_REALTIME: 'azure-realtime',
@@ -415,9 +415,11 @@ class TTSService {
     }
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(this.speechKey, this.speechRegion);
-    speechConfig.speechSynthesisVoiceName = this._mapVoice(voice, TTS_PROVIDERS.AZURE_SDK);
+    const mappedVoice = this._mapVoice(voice, TTS_PROVIDERS.AZURE_SDK);
+    speechConfig.speechSynthesisVoiceName = mappedVoice;
     speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm;
     speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestWordBoundary, 'true');
+    const ssml = buildPronunciationSsml(text, mappedVoice);
 
     return new Promise((resolve, reject) => {
       const wordBoundaries = [];
@@ -435,8 +437,8 @@ class TTSService {
         });
       };
 
-      synthesizer.speakTextAsync(
-        text,
+      synthesizer.speakSsmlAsync(
+        ssml || text,
         (result) => {
           try {
             if (result.reason !== sdk.ResultReason.SynthesizingAudioCompleted) {
