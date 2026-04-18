@@ -11,6 +11,7 @@ const analyticsService = require('../services/analytics');
 const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
 const masterSessionService = require('../services/masterSession');
+const { getLogger, getRequestLogger } = require('../middleware/logger');
 const { requireSessionPlaybackControl, requireSessionControl } = require('../middleware/security');
 
 const interruptFlags = new Map();
@@ -975,6 +976,7 @@ async function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSl
 }
 
 router.post('/', requireSessionPlaybackControl(), async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'presentation', sessionId: req.body?.sessionId });
     const { sessionId } = req.body;
     if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -997,9 +999,10 @@ router.post('/', requireSessionPlaybackControl(), async (req, res) => {
 
     global.autoplexIo = io;
     try {
+        logger.info({ event: 'presentation_start_requested' });
         await runPresentation(db, io, sessionId, runId);
     } catch (err) {
-        console.error('Auto-present error:', err);
+        logger.error({ event: 'presentation_failed', err: err.message });
         io.to(sessionId).emit('presentation-error', { error: err.message });
     } finally {
         clearInterrupt(sessionId);
@@ -1102,6 +1105,7 @@ router.post('/prewarm', requireSessionPlaybackControl(), async (req, res) => {
 });
 
 router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'presentation', sessionId: req.body?.sessionId });
     const { sessionId, slideIndex } = req.body;
     if (!sessionId && !req.body.sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -1194,12 +1198,13 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
 
         return res.json({ success: true, cached: !!cached, slideIndex: resolvedSlideIndex });
     } catch (error) {
-        console.error('Replay slide failed:', error);
+        logger.error({ event: 'presentation_replay_failed', slideIndex: resolvedSlideIndex, err: error.message });
         res.status(500).json({ error: 'Failed to replay slide' });
     }
 });
 
 async function runPresentation(db, io, sessionId, runId) {
+    const logger = getLogger().child({ subsystem: 'presentation', sessionId });
     if (!isPresentationRunActive(sessionId, runId)) {
         return;
     }
@@ -1219,7 +1224,7 @@ async function runPresentation(db, io, sessionId, runId) {
     if (session.deck_id && !bypassMaster) {
         masterData = await masterSessionService.getMasterAssets(session.deck_id);
         if (masterData) {
-            console.log(`[AutoPlex] Using master session ${masterData.masterSessionId} for deck ${session.deck_id}`);
+            logger.info({ event: 'source_master_session_selected', deckId: session.deck_id, masterSessionId: masterData.masterSessionId });
         }
     }
 
@@ -1241,6 +1246,7 @@ async function runPresentation(db, io, sessionId, runId) {
         totalSlides: slides.length,
         deckTitle: session.deck_id
     });
+    logger.info({ event: 'presentation_start', totalSlides: slides.length, resumeSlideIndex });
 
     await sleep(PRESENTATION_START_DELAY_MS);
 
@@ -1309,11 +1315,12 @@ async function runPresentation(db, io, sessionId, runId) {
                 setReplayCache(sessionId, currentSlideIndex, cached);
             }
             setDeckAssetCache(session.deck_id, currentSlideIndex, cached);
-            io.to(sessionId).emit('narration-text', {
-                text: cached.text,
-                slideIndex: currentSlideIndex
-            });
-            await emitCachedPlayback(io, sessionId, currentSlideIndex, cached, { isQA: false });
+        io.to(sessionId).emit('narration-text', {
+            text: cached.text,
+            slideIndex: currentSlideIndex
+        });
+        logger.info({ event: 'presentation_slide_played', slideIndex: currentSlideIndex, source: 'cached' });
+        await emitCachedPlayback(io, sessionId, currentSlideIndex, cached, { isQA: false });
 
             const narrationText = cached.text;
             analyticsService.logEvent(sessionId, 'ai_narration', currentSlideIndex, narrationText);
@@ -1339,6 +1346,7 @@ async function runPresentation(db, io, sessionId, runId) {
             });
 
             const streamedAudio = await streamAudio(io, sessionId, narrationResult.text, currentSlideIndex, { isQA: false });
+            logger.info({ event: 'presentation_slide_played', slideIndex: currentSlideIndex, source: 'generated' });
             if (streamedAudio) {
                 await persistSlideNarration({
                     db,
@@ -1379,6 +1387,7 @@ async function runPresentation(db, io, sessionId, runId) {
         totalSlides: slides.length,
         totalQuestionsAnswered: questionsAsked
     });
+    logger.info({ event: 'presentation_end', totalSlides: slides.length, totalQuestionsAnswered: questionsAsked });
 }
 
 async function applyQuestionClassification(db, sessionId, pendingQuestions, classificationResults) {

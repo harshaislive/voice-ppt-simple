@@ -12,7 +12,7 @@ This roadmap hardens an existing AI-led presentation platform into a production-
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Runtime Guardrails** - Lock down sensitive endpoints and establish operational visibility
+- [x] **Phase 1: Runtime Guardrails** - Lock down sensitive endpoints and establish operational visibility
 - [ ] **Phase 2: Playback State Reliability** - Make narration, controls, and slide progression deterministic
 - [ ] **Phase 3: Grounded Q&A Experience** - Improve conversational quality without breaking session state
 - [ ] **Phase 4: Content Loading and Scaling Foundations** - Make multi-presentation loading safer and more explicit
@@ -32,10 +32,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: Audit and secure exposed admin/session endpoints
-- [ ] 01-02: Tighten runtime configuration validation and unsafe fallbacks
-- [ ] 01-03: Add shared structured logger foundation and redaction safeguards
-- [ ] 01-04: Instrument session lifecycle routes and analytics with structured diagnostics
+- [x] 01-01: Audit and secure exposed admin/session endpoints
+- [x] 01-02: Tighten runtime configuration validation and unsafe fallbacks
+- [x] 01-03: Add shared structured logger foundation and redaction safeguards
+- [x] 01-04: Instrument session lifecycle routes and analytics with structured diagnostics
 
 ### Phase 2: Playback State Reliability
 **Goal**: Remove playback desync, abrupt audio behavior, and slide-transition race conditions from the core presentation loop
@@ -120,7 +120,7 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Runtime Guardrails | 0/4 | Not started | - |
+| 1. Runtime Guardrails | 4/4 | Complete | 2026-04-19 |
 | 2. Playback State Reliability | 0/4 | Not started | - |
 | 3. Grounded Q&A Experience | 0/3 | Not started | - |
 | 4. Content Loading and Scaling Foundations | 0/3 | Not started | - |

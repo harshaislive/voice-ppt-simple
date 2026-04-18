@@ -1,13 +1,43 @@
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://ubuntu-small-openclaw.tail05d15d.ts.net', 'http://100.102.10.108:3000', 'https://office-pc.tail05d15d.ts.net'];
 
+function classifyRuntimeEnvironment() {
+    const raw = String(process.env.APP_ENV || process.env.NODE_ENV || 'development').trim().toLowerCase();
+
+    if (['local', 'development', 'dev'].includes(raw)) {
+        return 'development';
+    }
+
+    if (['staging', 'preview', 'preprod'].includes(raw)) {
+        return 'staging';
+    }
+
+    if (raw === 'production') {
+        return 'production';
+    }
+
+    return 'development';
+}
+
+function isLocalDevelopment() {
+    return classifyRuntimeEnvironment() === 'development';
+}
+
+function isProductionClassEnvironment() {
+    return ['staging', 'production'].includes(classifyRuntimeEnvironment());
+}
+
 function isProduction() {
-    return (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+    return classifyRuntimeEnvironment() === 'production';
+}
+
+function hasNamedStagingOverride() {
+    return classifyRuntimeEnvironment() === 'staging' && process.env.STAGING_ALLOW_INSECURE_TEST_OVERRIDE === 'true';
 }
 
 function parseAllowedOrigins() {
     const raw = process.env.ALLOWED_ORIGINS || '';
     if (!raw.trim()) {
-        return isProduction() ? [] : DEFAULT_ALLOWED_ORIGINS;
+        return isProductionClassEnvironment() ? [] : DEFAULT_ALLOWED_ORIGINS;
     }
 
     return raw
@@ -17,27 +47,29 @@ function parseAllowedOrigins() {
 }
 
 function validateRuntimeConfig() {
-    const production = isProduction();
+    const environment = classifyRuntimeEnvironment();
+    const production = environment === 'production';
+    const productionClass = isProductionClassEnvironment();
     const allowedOrigins = parseAllowedOrigins();
     const errors = [];
 
-    if (production && allowedOrigins.length === 0) {
-        errors.push('ALLOWED_ORIGINS must be set in production');
+    if (productionClass && allowedOrigins.length === 0) {
+        errors.push(`ALLOWED_ORIGINS must be set in ${environment}`);
     }
 
-    if (production) {
+    if (productionClass && !hasNamedStagingOverride()) {
         const requiredGroups = [
             {
                 names: ['AZURE_OPENAI_ENDPOINT', 'AZURE_VOICELIVE_ENDPOINT', 'AZURE_EXISTING_AIPROJECT_ENDPOINT'],
-                message: 'Azure chat endpoint is required in production'
+                message: `Azure chat endpoint is required in ${environment}`
             },
             {
                 names: ['AZURE_OPENAI_API_KEY', 'AZURE_VOICELIVE_API_KEY', 'AZURE_AI_API_KEY'],
-                message: 'Azure API key is required in production'
+                message: `Azure API key is required in ${environment}`
             },
             {
                 names: ['AZURE_OPENAI_DEPLOYMENT_NAME', 'AZURE_CHAT_DEPLOYMENT'],
-                message: 'Azure chat deployment is required in production'
+                message: `Azure chat deployment is required in ${environment}`
             }
         ];
 
@@ -60,7 +92,7 @@ function validateRuntimeConfig() {
         );
 
         if (!hasRealtimeConfig && !hasSpeechSdkConfig) {
-            errors.push('Either realtime Azure OpenAI TTS config or Azure Speech SDK config is required in production');
+            errors.push(`Either realtime Azure OpenAI TTS config or Azure Speech SDK config is required in ${environment}`);
         }
 
         if (process.env.CMS_REMOTE_REQUIRED === 'true') {
@@ -79,21 +111,32 @@ function validateRuntimeConfig() {
     }
 
     return {
+        environment,
+        isLocalDevelopment: isLocalDevelopment(),
         isProduction: production,
+        isProductionClass: productionClass,
         allowedOrigins
     };
 }
 
 function createCorsOptions(allowedOrigins = []) {
-    const production = isProduction();
+    const productionClass = isProductionClassEnvironment();
     
-    // In development, allow all origins to simplify setup across various local/tailscale interfaces
-    if (!production) {
+    if (!productionClass) {
         return { origin: true, methods: ['GET', 'POST', 'PATCH'] };
     }
 
     if (!allowedOrigins.length) {
-        return { origin: true, methods: ['GET', 'POST', 'PATCH'] };
+        return {
+            origin(origin, callback) {
+                if (!origin) {
+                    return callback(null, true);
+                }
+
+                return callback(new Error('Origin not allowed by CORS'));
+            },
+            methods: ['GET', 'POST', 'PATCH']
+        };
     }
 
     return {
@@ -109,7 +152,10 @@ function createCorsOptions(allowedOrigins = []) {
 }
 
 module.exports = {
+    classifyRuntimeEnvironment,
     createCorsOptions,
+    hasNamedStagingOverride,
+    isLocalDevelopment,
     parseAllowedOrigins,
     validateRuntimeConfig
 };

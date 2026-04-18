@@ -7,6 +7,7 @@ const analyticsService = require('../services/analytics');
 const ttsService = require('../services/tts');
 const cmsService = require('../services/cms');
 const supabaseSession = require('../services/supabaseSession');
+const { getRequestLogger } = require('../middleware/logger');
 const {
     extractSessionControlToken,
     hasValidSessionControlAsync,
@@ -311,6 +312,7 @@ async function persistQuestionAnswer({ db, io, question, answerText, audioResult
 
 // Submit a question
 router.post('/', async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'qa' });
     try {
         const { sessionId, questionText, submittedBy } = req.body;
         
@@ -355,6 +357,7 @@ router.post('/', async (req, res) => {
         
         // Analytics
         analyticsService.logEvent(sessionId, 'user_question', session.current_slide_index, questionText, { submittedBy: submittedBy || 'anonymous', questionId });
+        logger.info({ event: 'qa_question_submitted', sessionId, questionId, slideIndex: session.current_slide_index });
 
         // Create event
         db.run(`
@@ -380,11 +383,16 @@ router.post('/', async (req, res) => {
 
         // Run parallel thread to generate answer
         setImmediate(async () => {
+            const backgroundLogger = req.app.get('logger')?.child({ subsystem: 'qa', sessionId, questionId }) || logger.child({ sessionId, questionId });
             try {
-                console.log('[Q&A] Starting background answer generation for question:', questionId);
+                backgroundLogger.info({ event: 'qa_generation_started' });
                 const modelService = require('../services/model');
                 const answerContext = await loadQuestionAnswerContext(db, sessionId);
-                console.log('[Q&A] Answer context loaded, slides:', answerContext.slides?.length || 0, 'knowledge context length:', answerContext.knowledgeContext?.length || 0);
+                backgroundLogger.info({
+                    event: 'qa_context_loaded',
+                    slideCount: answerContext.slides?.length || 0,
+                    knowledgeContextLength: answerContext.knowledgeContext?.length || 0
+                });
 
                 const answer = await modelService.generateNarrationStream({
                     slideTitle: 'User Question',
@@ -400,7 +408,7 @@ router.post('/', async (req, res) => {
                     knowledgeContext: answerContext.knowledgeContext
                 }, () => {}); // ignoring stream deltas
 
-                console.log('[Q&A] Answer generated, length:', answer?.length || 0);
+                backgroundLogger.info({ event: 'qa_generation_completed', answerLength: answer?.length || 0 });
 
                 let audioResult = null;
                 // Skip audio synthesis for question answers as requested for a faster, text-first experience
@@ -427,9 +435,9 @@ router.post('/', async (req, res) => {
                     sessionId
                 });
 
-                console.log('[Q&A] Answer persisted and emitted for question:', questionId);
+                backgroundLogger.info({ event: 'qa_answer_ready' });
             } catch (err) {
-                console.error('[Background AI] Failed to generate answer for question:', questionId, err);
+                backgroundLogger.error({ event: 'qa_generation_failed', err: err.message });
                 // Emit a fallback event so the UI shows something
                 io.to(sessionId).emit('question-answer-ready', {
                     questionId,
@@ -454,7 +462,7 @@ router.post('/', async (req, res) => {
             pendingCount
         });
     } catch (error) {
-        console.error('Error submitting question:', error);
+        logger.error({ event: 'qa_submit_failed', err: error.message });
         res.status(500).json({ error: 'Failed to submit question' });
     }
 });

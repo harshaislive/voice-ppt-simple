@@ -12,12 +12,14 @@ const {
     requireAdminApiKey,
     securityHeaders
 } = require('./server/middleware/security');
+const { createLogger } = require('./server/middleware/logger');
 
 // Initialize database
 const { initializeDatabase, getDatabase, saveDatabase } = require('./server/db/init');
 const stateStore = require('./server/services/stateStore');
 const runtimeConfig = validateRuntimeConfig();
 const corsOptions = createCorsOptions(runtimeConfig.allowedOrigins);
+const logger = createLogger();
 
 const app = express();
 const server = http.createServer(app);
@@ -40,6 +42,7 @@ app.use('/api/tts', createRateLimiter({ windowMs: 60 * 1000, max: 20, label: 'TT
 
 // Make io accessible to routes
 app.set('io', io);
+app.set('logger', logger);
 
 // Database initialization
 let db = null;
@@ -150,21 +153,22 @@ app.post('/api/retrieve', requireAdminApiKey, async (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    logger.info({ event: 'socket_client_connected', subsystem: 'realtime', socketId: socket.id });
     
     socket.on('join-session', async (payload) => {
         const sessionId = typeof payload === 'string' ? payload : payload?.sessionId;
         const controlToken = typeof payload === 'object' ? String(payload?.controlToken || '') : '';
-        const clientInstanceId = typeof payload === 'object' ? String(payload?.clientInstanceId || '') : '';
         const db = app.get('db');
+        const socketLogger = logger.child({ subsystem: 'realtime', socketId: socket.id, sessionId });
 
         if (!(await hasValidSessionControlAsync(db, sessionId, controlToken))) {
+            socketLogger.warn({ event: 'auth_socket_join_denied' });
             socket.emit('session-join-error', { error: 'Valid session control token required' });
             return;
         }
 
         socket.join(sessionId);
-        console.log(`Client ${socket.id} joined session ${sessionId}`);
+        socketLogger.info({ event: 'session_socket_joined' });
         socket.emit('session-joined', { sessionId, isController: true });
     });
 
@@ -178,13 +182,14 @@ io.on('connection', (socket) => {
     });
     
     socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
+        logger.info({ event: 'socket_client_disconnected', subsystem: 'realtime', socketId: socket.id });
     });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
+    const requestLogger = req?.app?.get('logger') || logger;
+    requestLogger.error({ event: 'server_unhandled_error', subsystem: 'server', err: err.message });
     res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -209,30 +214,35 @@ initializeDatabase()
         const PORT = process.env.PORT || 3000;
         const HOST = process.env.HOST || '0.0.0.0';
         server.listen(PORT, HOST, () => {
-            console.log(`Voice-PPT server running on http://${HOST}:${PORT}`);
-            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+            logger.info({
+                event: 'server_started',
+                subsystem: 'server',
+                host: HOST,
+                port: Number(PORT),
+                environment: runtimeConfig.environment
+            });
         });
     })
     .catch(error => {
-        console.error('Failed to initialize database:', error);
+        logger.error({ event: 'server_boot_failed', subsystem: 'server', err: error.message });
         process.exit(1);
     });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
+    logger.info({ event: 'server_shutdown_requested', subsystem: 'server', signal: 'SIGTERM' });
     saveDatabase();
     server.close(() => {
-        console.log('Server closed');
+        logger.info({ event: 'server_closed', subsystem: 'server', signal: 'SIGTERM' });
         process.exit(0);
     });
 });
 
 process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');
+    logger.info({ event: 'server_shutdown_requested', subsystem: 'server', signal: 'SIGINT' });
     saveDatabase();
     server.close(() => {
-        console.log('Server closed');
+        logger.info({ event: 'server_closed', subsystem: 'server', signal: 'SIGINT' });
         process.exit(0);
     });
 });

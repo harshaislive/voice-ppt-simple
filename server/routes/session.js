@@ -4,12 +4,15 @@ const { v4: uuidv4 } = require('uuid');
 const cmsService = require('../services/cms');
 const analyticsService = require('../services/analytics');
 const supabaseSession = require('../services/supabaseSession');
+const { getLogger, getRequestLogger } = require('../middleware/logger');
 const {
     generateSessionControlToken,
     hashToken,
     requireAdminApiKey,
     requireSessionControl
 } = require('../middleware/security');
+
+const startupLogger = getLogger().child({ subsystem: 'session' });
 
 // Import pre-generation progress tracker from autoplex
 let pregenProgress = null;
@@ -25,9 +28,9 @@ function getPreGenProgress() {
 
 // Log Supabase session service status on startup
 if (supabaseSession.isConfigured()) {
-    console.log('[Session] Supabase session persistence is configured');
+    startupLogger.info({ event: 'source_session_persistence_configured', mode: 'supabase' });
 } else {
-    console.log('[Session] Supabase not configured - sessions will only use local SQLite');
+    startupLogger.info({ event: 'source_session_persistence_configured', mode: 'sqlite' });
 }
 
 // Public config - no auth required
@@ -47,6 +50,7 @@ router.get('/pregen-progress/:sessionId', (req, res) => {
 
 // Start a new presentation session
 router.post('/start', async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'session' });
     try {
         const { deckId = 'beforest_pitch', participantName = '', passcode = '', bypassMaster = false } = req.body;
         const db = req.app.get('db');
@@ -75,8 +79,13 @@ router.post('/start', async (req, res) => {
         try {
             presentation = await cmsService.loadPresentation(deckId);
             slides = presentation.slides || [];
+            logger.info({
+                event: 'source_presentation_selected',
+                sourceType: presentation?.source || 'unknown',
+                presentationSlug: presentation?.presentationSlug || deckId
+            });
         } catch (error) {
-            console.warn(`Presentation ${deckId} not found, creating empty session`);
+            logger.warn({ event: 'source_presentation_missing', deckId, err: error.message });
             presentation = null;
         }
         
@@ -114,11 +123,9 @@ router.post('/start', async (req, res) => {
                 if (slides.length > 0) {
                     await supabaseSession.createSlides(sessionId, slides);
                 }
-                
-                console.log('[Session] Persisted session to Supabase:', sessionId);
+                logger.info({ event: 'source_session_supabase_synced', sessionId, slideCount: slides.length });
             } catch (err) {
-                console.error('[Session] Failed to persist to Supabase:', err.message);
-                // Continue anyway - SQLite is still the primary
+                logger.error({ event: 'session_persistence_sync_failed', sessionId, err: err.message });
             }
         }
         
@@ -156,6 +163,14 @@ router.post('/start', async (req, res) => {
             const autoplexModule = require('./autoplex');
             autoplexModule.triggerPreGeneration?.(db, sessionId, slides, metadata);
         }
+
+        logger.info({
+            event: 'session_start',
+            sessionId,
+            slideCount: slides.length,
+            sourceType: presentation?.source || 'unknown',
+            projectSlug: presentation?.projectSlug || null
+        });
         
         res.json({
             success: true,
@@ -171,13 +186,14 @@ router.post('/start', async (req, res) => {
             passcodeRequired
         });
     } catch (error) {
-        console.error('Error starting session:', error);
+        logger.error({ event: 'session_start_failed', err: error.message });
         res.status(500).json({ error: 'Failed to start session' });
     }
 });
 
 // Get session state
 router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'session', sessionId: req.params.id });
     try {
         const { id } = req.params;
         const db = req.app.get('db');
@@ -195,7 +211,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
         let fromSupabase = false;
 
         if (session) {
-            console.log('[Session] Session loaded from SQLite:', id);
+            logger.info({ event: 'source_session_loaded', source: 'sqlite' });
         }
 
         // Fall back to Supabase only when the local session is absent.
@@ -206,10 +222,10 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
                     session = supabaseData.session;
                     slides = supabaseData.slides || [];
                     fromSupabase = true;
-                    console.log('[Session] Session loaded from Supabase:', id);
+                    logger.info({ event: 'source_session_loaded', source: 'supabase' });
                 }
             } catch (err) {
-                console.warn('[Session] Failed to load from Supabase:', err.message);
+                logger.warn({ event: 'source_session_load_failed', source: 'supabase', err: err.message });
             }
         }
         
@@ -218,16 +234,14 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             const sqliteSlides = db.all(`SELECT * FROM slides WHERE session_id = ? ORDER BY slide_index ASC`, [id]);
             if (sqliteSlides && sqliteSlides.length > 0) {
                 slides = sqliteSlides;
-                console.log('[Session] Slides loaded from SQLite fallback (Supabase had none):', id);
+                logger.info({ event: 'source_slides_loaded', source: 'sqlite_fallback', slideCount: slides.length });
             }
         }
         
         if (!session) {
-            console.log(`[Session] Session not found: ${id}`);
+            logger.warn({ event: 'session_load_missing' });
             return res.status(404).json({ error: 'Session not found' });
         }
-        
-        console.log(`[Session] Session found, status: ${session.status}, fromSupabase: ${fromSupabase}`);
         
         // Get current slide
         const currentSlide = slides.find(s => s.slide_index === session.current_slide_index) || null;
@@ -244,7 +258,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             try {
                 pendingQuestions = await supabaseSession.getQuestions(id, 'pending');
             } catch (error) {
-                console.warn('[Session] Failed to load pending questions from Supabase:', error.message);
+                logger.warn({ event: 'qa_pending_load_failed', source: 'supabase', err: error.message });
             }
         }
 
@@ -264,7 +278,7 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             participantName = '';
         }
         
-        console.log(`[Session] Returning session data, status: ${session.status}`);
+        logger.info({ event: 'session_load', status: session.status, fromSupabase, slideCount: slides.length });
         res.json({
             session,
             currentSlide,
@@ -274,13 +288,14 @@ router.get('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => 
             slides
         });
     } catch (error) {
-        console.error('Error getting session:', error);
+        logger.error({ event: 'session_load_failed', err: error.message });
         res.status(500).json({ error: 'Failed to get session' });
     }
 });
 
 // Update session state
 router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'session', sessionId: req.params.id });
     try {
         const { id } = req.params;
         const updates = req.body;
@@ -345,7 +360,7 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
         // Update Supabase (fire and forget - SQLite is source of truth for writes)
         if (supabaseSession.isConfigured()) {
             supabaseSession.updateSession(id, sanitizedUpdates).catch(err => {
-                console.error('[Session] Failed to update Supabase:', err.message);
+                logger.error({ event: 'session_update_sync_failed', err: err.message });
             });
         }
         
@@ -355,9 +370,14 @@ router.patch('/:id', requireSessionControl({ keys: ['id'] }), async (req, res) =
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         `, [id, 'session_updated', JSON.stringify(sanitizedUpdates)]);
         
+        logger.info({
+            event: sanitizedUpdates.status === 'completed' ? 'session_end' : 'session_updated',
+            updates: sanitizedUpdates
+        });
+
         res.json({ success: true });
     } catch (error) {
-        console.error('Error updating session:', error);
+        logger.error({ event: 'session_update_failed', err: error.message });
         res.status(500).json({ error: 'Failed to update session' });
     }
 });

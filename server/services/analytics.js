@@ -1,4 +1,5 @@
 const cmsService = require('./cms');
+const { getLogger } = require('../middleware/logger');
 
 class AnalyticsService {
     isConfigured() {
@@ -6,9 +7,10 @@ class AnalyticsService {
     }
 
     async logSessionStart(sessionId, projectSlug, presentationSlug, participantName, totalSlides) {
+        const logger = getLogger().child({ subsystem: 'analytics', sessionId });
         if (!this.isConfigured()) return;
         try {
-            const result = await cmsService.request('analytics_sessions', { on_conflict: 'session_id' }, {
+            await cmsService.request('analytics_sessions', { on_conflict: 'session_id' }, {
                 method: 'POST',
                 body: [{
                     session_id: sessionId,
@@ -19,29 +21,31 @@ class AnalyticsService {
                 }],
                 prefer: 'resolution=merge-duplicates,return=representation'
             });
-            console.log(`[Analytics] logSessionStart: sessionId=${sessionId}, projectSlug=${projectSlug}, result=`, result);
+            logger.info({ event: 'session_start_analytics_persisted', projectSlug, presentationSlug, totalSlides });
         } catch (err) {
-            console.error('Analytics logSessionStart failed:', err.message);
+            logger.error({ event: 'session_start_analytics_failed', err: err.message });
         }
     }
 
     async logSessionEnd(sessionId, questionsAsked) {
+        const logger = getLogger().child({ subsystem: 'analytics', sessionId });
         if (!this.isConfigured()) return;
         try {
-            const result = await cmsService.request(`analytics_sessions`, { session_id: `eq.${sessionId}` }, {
+            await cmsService.request(`analytics_sessions`, { session_id: `eq.${sessionId}` }, {
                 method: 'PATCH',
                 body: {
                     ended_at: new Date().toISOString(),
                     questions_asked: questionsAsked
                 }
             });
-            console.log(`[Analytics] logSessionEnd: sessionId=${sessionId}, questionsAsked=${questionsAsked}, result=`, result);
+            logger.info({ event: 'session_end_analytics_persisted', questionsAsked });
         } catch (err) {
-            console.error('Analytics logSessionEnd failed:', err.message);
+            logger.error({ event: 'session_end_analytics_failed', err: err.message });
         }
     }
 
     async logEvent(sessionId, eventType, slideIndex, content, metadata = {}) {
+        const logger = getLogger().child({ subsystem: 'analytics', sessionId });
         if (!this.isConfigured()) return;
         try {
             await cmsService.request('analytics_events', {}, {
@@ -54,8 +58,9 @@ class AnalyticsService {
                     metadata_json: metadata
                 }]
             });
+            logger.info({ event: 'analytics_event_persisted', eventType, slideIndex });
         } catch (err) {
-            console.error('Analytics logEvent failed:', err.message);
+            logger.error({ event: 'analytics_event_persist_failed', eventType, slideIndex, err: err.message });
         }
     }
 }

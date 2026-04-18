@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const supabaseSession = require('../services/supabaseSession');
+const { isLocalDevelopment, classifyRuntimeEnvironment } = require('../config/runtime');
+const { getRequestLogger, getLogger } = require('./logger');
 
 function hashToken(token) {
     return crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -108,9 +110,16 @@ function hasValidSessionControl(db, sessionId, providedToken) {
 }
 
 async function hasValidSessionControlAsync(db, sessionId, providedToken) {
-    // Global bypass: always allow control if explicitly disabled via environment
     if (process.env.DISABLE_SESSION_CONTROL === 'true') {
-        return true;
+        if (isLocalDevelopment()) {
+            return true;
+        }
+
+        getLogger().warn({
+            event: 'auth_session_control_bypass_rejected',
+            subsystem: 'security',
+            environment: classifyRuntimeEnvironment()
+        });
     }
 
     const localState = getLocalSessionControlState(db, sessionId, providedToken);
@@ -147,15 +156,20 @@ function requireSessionControl(options = {}) {
             const db = req.app.get('db');
             const sessionId = resolveSessionId(req, options);
             const providedToken = extractSessionControlToken(req);
+            const logger = getRequestLogger(req, { subsystem: 'security', sessionId });
 
             if (!sessionId) {
                 return res.status(400).json({ error: 'Session ID is required' });
             }
 
             if (!(await hasValidSessionControlAsync(db, sessionId, providedToken))) {
-                console.log(`[Security] Session control failed for ${sessionId}, token provided: ${!!providedToken}`);
-                const session = db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]);
-                console.log(`[Security] Session exists: ${!!session}, has hash: ${!!session?.control_token_hash}`);
+                const session = db?.get ? db.get('SELECT control_token_hash FROM sessions WHERE id = ?', [sessionId]) : null;
+                logger.warn({
+                    event: 'auth_session_control_denied',
+                    tokenProvided: Boolean(providedToken),
+                    sessionFound: Boolean(session),
+                    requiresToken: Boolean(session?.control_token_hash)
+                });
                 return res.status(403).json({ error: 'Valid session control token required' });
             }
 
@@ -211,12 +225,15 @@ function requireSlideSessionControl() {
 
 function requireAdminApiKey(req, res, next) {
     const configuredKey = String(process.env.ADMIN_API_KEY || '').trim();
+    const logger = getRequestLogger(req, { subsystem: 'security' });
     if (!configuredKey) {
+        logger.error({ event: 'auth_admin_unconfigured' });
         return res.status(503).json({ error: 'ADMIN_API_KEY is not configured' });
     }
 
     const providedKey = String(req.get('x-admin-api-key') || '').trim();
     if (!providedKey || !timingSafeCompare(configuredKey, providedKey)) {
+        logger.warn({ event: 'auth_admin_denied' });
         return res.status(403).json({ error: 'Valid admin API key required' });
     }
 
