@@ -65,7 +65,7 @@ Phase 2 removes playback desync, abrupt audio behavior, and slide-transition rac
 ### Existing diagnostics and coverage
 - `tests/runtime/session-diagnostics.test.js` — Current structured diagnostics harness that can be extended for playback state transitions
 - `.planning/codebase/CONCERNS.md` — Existing notes about fragmented playback ownership and orchestration risk
-- `.planning/phases/01-runtime-guardrails/02-runtime-guardrails-01-SUMMARY.md` — Prior phase hardening established auth/test/logging foundations now available to Phase 2
+- `.planning/phases/01-runtime-guardrails/01-runtime-guardrails-01-SUMMARY.md` — Prior phase hardening established auth/test/logging foundations now available to Phase 2
 
 </canonical_refs>
 

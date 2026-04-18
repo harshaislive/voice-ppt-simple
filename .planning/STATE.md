@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-04-19)
 
 Phase: 2 of 6 (Playback State Reliability)
 Plan: 0 of 4 in current phase
-Status: Phase 1 complete
-Last activity: 2026-04-19 — Phase 1 runtime guardrails executed and verified
+Status: Phase 2 planned
+Last activity: 2026-04-19 — Phase 2 playback reliability researched and planned
 
 Progress: [██░░░░░░░░] 17%
 
@@ -50,7 +50,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- Playback state ownership is still fragmented across browser, socket, and server orchestration code
+- Playback state ownership is still fragmented across browser, socket, and server orchestration code, but Phase 2 now has an explicit planning contract for fixing it
 - There is still no full playback lifecycle regression harness for pause/resume/replay/audio completion
 - Existing frontend playback work in `public/app.js` and `public/services/audio.js` remains unverified
 
@@ -64,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-19 00:00
-Stopped at: Phase 1 complete; Phase 2 ready for discussion/planning
+Stopped at: Phase 2 planned; ready for execution
 Resume file: None
