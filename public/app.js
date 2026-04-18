@@ -1765,6 +1765,11 @@ class VoicePPTApp {
             this.maxViewedSlideIndex = index;
         }
 
+        // Close the scrubber immediately so the selected slide can be seen
+        // while the replay request is still in flight.
+        const scrubber = document.getElementById('scrubber-container');
+        if (scrubber) scrubber.classList.add('hidden');
+
         try {
             await this.replaySlide(index);
         } catch (err) {
@@ -1774,9 +1779,7 @@ class VoicePPTApp {
             }
         }
 
-        // Close the scrubber modal and resume presentation
-        const scrubber = document.getElementById('scrubber-container');
-        if (scrubber) scrubber.classList.add('hidden');
+        // Resume live presentation after the history action completes.
         this.resumePresentationAfterHistory();
 
         // Re-render scrubber to update locked/unlocked state after action
