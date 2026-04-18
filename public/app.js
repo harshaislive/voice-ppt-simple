@@ -93,10 +93,16 @@ class VoicePPTApp {
         };
         this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
+        this.urlParams = new URLSearchParams(window.location.search);
+        this.debugFlags = {
+            skipToEnd: this.urlParams.get('state') === 'end',
+            forceFresh: this.urlParams.get('force_fresh') === 'true' || this.urlParams.has('fresh'),
+            disableMicroCommitments: this.urlParams.get('debug_no_micro') === 'true',
+            openQAOnStart: this.urlParams.get('debug_open_qa') === 'true'
+        };
 
         // Testing Hook: skip to completion screen via URL (?state=end)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('state') && urlParams.get('state') === 'end') {
+        if (this.debugFlags.skipToEnd) {
             console.log('[Test] Skipping to completion screen');
             this._skipToCompletion();
         } else {
@@ -415,6 +421,7 @@ class VoicePPTApp {
     }
 
     shouldOpenMicroCommitment(slideIndex) {
+        if (this.debugFlags?.disableMicroCommitments) return false;
         if (this.isQAPhase || this.wrapUpEndsAt > Date.now()) return false;
         if (this.totalSlides < 4) return false;
         if (slideIndex < 1 || slideIndex >= this.totalSlides - 1) return false;
@@ -589,6 +596,12 @@ class VoicePPTApp {
             await this.socketClient.connect(this.sessionId, this.controlToken);
             document.getElementById('question-input').disabled = false;
             document.getElementById('submit-question').disabled = false;
+            if (['active', 'presenting'].includes(data.session.status)) {
+                await this.restoreCurrentSlidePlayback(restoredSlideIndex);
+            }
+            if (this.debugFlags.openQAOnStart) {
+                this.ui.toggleQuestionDrawer(true);
+            }
             this.setStatus('Resumed', 'live', 'Session restored');
             this.syncQuestionCount();
             console.log('[Session] Restore successful!');
@@ -977,8 +990,7 @@ class VoicePPTApp {
         this.streamPlayer?.unlockIOSAudio();
 
         try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const bypassMaster = this.forceFreshSession || urlParams.get('force_fresh') === 'true' || urlParams.has('fresh');
+            const bypassMaster = this.forceFreshSession || this.debugFlags.forceFresh;
             
             const res = await this.apiFetch('/api/session/start', { 
                 method: 'POST', 
@@ -1040,6 +1052,9 @@ class VoicePPTApp {
             
             this.ui.hideLoadingScreen();
             await this.loadSessionQuestions();
+            if (this.debugFlags.openQAOnStart) {
+                this.ui.toggleQuestionDrawer(true);
+            }
             
             this.setStatus('Ready', 'live', 'Type questions anytime');
             this.syncQuestionCount();
@@ -1063,6 +1078,17 @@ class VoicePPTApp {
             // Now render scrubber with proper accessibility state
             this.renderScrubber();
         } catch (err) { console.error('Initial slide fetch failed:', err); }
+    }
+
+    async restoreCurrentSlidePlayback(slideIndex) {
+        if (!this.sessionId || slideIndex < 0) return;
+        try {
+            this.streamPlayer.reset();
+            this.resetSubtitleState();
+            await this.replaySlide(slideIndex);
+        } catch (err) {
+            console.warn('Failed to restore current slide playback:', err);
+        }
     }
 
     async triggerAutoPlex() {
