@@ -20,9 +20,9 @@
 
 ### Content and Multi-Presentation Support
 
-- [ ] **CMS-01**: Session startup loads the correct presentation, project documents, and knowledge context from Supabase or local fallback without mismatched content
-- [ ] **CMS-02**: New presentation projects can be added through content/configuration patterns without code changes to core presentation logic
-- [ ] **CMS-03**: Content-loading failures surface clear operational errors instead of silent fallback behavior that hides incorrect source usage
+- [x] **CMS-01**: Session startup loads the correct presentation, project documents, and knowledge context from Supabase or local fallback without mismatched content
+- [x] **CMS-02**: New presentation projects can be added through content/configuration patterns without code changes to core presentation logic
+- [x] **CMS-03**: Content-loading failures surface clear operational errors instead of silent fallback behavior that hides incorrect source usage
 
 ### Security and Operations
 
@@ -69,9 +69,9 @@
 | QA-01 | Phase 3 | Complete |
 | QA-02 | Phase 3 | Complete |
 | QA-03 | Phase 3 | Complete |
-| CMS-01 | Phase 4 | Pending |
-| CMS-02 | Phase 4 | Pending |
-| CMS-03 | Phase 4 | Pending |
+| CMS-01 | Phase 4 | Complete |
+| CMS-02 | Phase 4 | Complete |
+| CMS-03 | Phase 4 | Complete |
 | OPS-01 | Phase 1 | Pending |
 | OPS-02 | Phase 1 | Pending |
 | OPS-03 | Phase 1 | Pending |

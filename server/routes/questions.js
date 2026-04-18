@@ -111,10 +111,12 @@ async function loadQuestionAnswerContext(db, sessionId) {
     }
 
     let presentation = null;
-    const deckId = session.deck_id || metadata.presentationSlug || metadata.deckId || null;
-    if (deckId) {
+    const presentationSlug = metadata.presentationSlug || metadata.deckId || session.deck_id || null;
+    if (presentationSlug) {
         try {
-            presentation = await cmsService.loadPresentation(deckId);
+            presentation = await cmsService.loadPresentation(presentationSlug, {
+                expectedSource: metadata.declaredSource || metadata.sourceType || null
+            });
         } catch (error) {
             console.warn('[Questions] Failed to load presentation context:', error.message);
         }

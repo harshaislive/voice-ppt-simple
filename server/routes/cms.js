@@ -48,15 +48,32 @@ router.post('/presentations', requireAdminApiKey, async (req, res) => {
 });
 
 router.get('/presentations/:id', async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'cms' });
     try {
-        const presentation = await cmsService.loadPresentation(req.params.id);
+        const expectedSource = cmsService.normalizeSource?.(req.query?.source) || null;
+        const presentation = await cmsService.loadPresentation(req.params.id, {
+            expectedSource
+        });
         if (!presentation) {
             return res.status(404).json({ error: 'Presentation not found' });
         }
         res.json({ presentation });
     } catch (error) {
-        console.error('Error loading CMS presentation:', error);
-        res.status(500).json({ error: 'Failed to load presentation' });
+        const details = error?.details || {};
+        logger.warn({
+            event: 'cms_presentation_load_failed',
+            presentationId: req.params.id,
+            requestedSource: cmsService.normalizeSource?.(req.query?.source) || null,
+            code: error?.code || details.code || 'CMS_PRESENTATION_LOAD_FAILED',
+            reason: details.reason || error.message
+        });
+        res.status(error?.statusCode || details.statusCode || 500).json({
+            error: details.reason || 'Failed to load presentation',
+            code: error?.code || details.code || 'CMS_PRESENTATION_LOAD_FAILED',
+            presentationId: req.params.id,
+            requestedSource: cmsService.normalizeSource?.(req.query?.source) || null,
+            availableSources: Array.isArray(details.availableSources) ? details.availableSources : []
+        });
     }
 });
 

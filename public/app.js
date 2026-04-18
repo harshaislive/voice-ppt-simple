@@ -28,6 +28,32 @@ export function buildQuestionAnswerPresentation(payload = {}) {
     };
 }
 
+export function normalizePresentationSelection(presentation = {}) {
+    const presentationSlug = String(presentation.presentationSlug || presentation.id || '').trim();
+    const source = String(presentation.source || presentation.declaredSource || '').trim() || 'local';
+    return {
+        ...presentation,
+        id: String(presentation.id || presentationSlug).trim(),
+        presentationSlug,
+        source
+    };
+}
+
+export function selectPresentationFromCatalog(presentations = [], requestedIdentifier = '') {
+    const normalized = presentations.map((presentation) => normalizePresentationSelection(presentation));
+    const requested = String(requestedIdentifier || '').trim();
+    if (requested) {
+        return normalized.find((presentation) => presentation.id === requested || presentation.presentationSlug === requested) || null;
+    }
+    if (normalized.length === 1) {
+        return normalized[0];
+    }
+    return normalized.find((presentation) => presentation.isDefault)
+        || normalized.find((presentation) => presentation.source === 'supabase')
+        || normalized[0]
+        || null;
+}
+
 export class VoicePPTApp {
     constructor() {
         this.clientInstanceId = this.getOrCreateClientInstanceId();
@@ -158,7 +184,7 @@ export class VoicePPTApp {
             }
 
             if (this.presentationCatalog.length > 0) {
-                const pres = this.presentationCatalog.find(p => p.source === 'supabase') || this.presentationCatalog[0];
+                const pres = selectPresentationFromCatalog(this.presentationCatalog, this.getRequestedDeckId());
                 const presId = pres.id || pres.slug || '';
                 try {
                     const detailRes = await fetch(`/api/cms/presentations/${encodeURIComponent(presId)}`);
@@ -270,6 +296,8 @@ export class VoicePPTApp {
             controlToken: data.controlToken,
             participantName: data.participantName,
             deckId: data.deckId,
+            presentationSlug: data.presentationSlug || data.deckId,
+            presentationSource: data.presentationSource || '',
             projectSlug: data.projectSlug,
             presentationTitle: data.presentationTitle,
             slideCount: data.slideCount,
@@ -591,12 +619,10 @@ export class VoicePPTApp {
             const res = await fetch('/api/cms/presentations');
             const data = await res.json();
             if (!Array.isArray(data.presentations) || data.presentations.length === 0) return;
-            this.presentationCatalog = data.presentations;
+            this.presentationCatalog = data.presentations.map((presentation) => normalizePresentationSelection(presentation));
 
             const requestedDeckId = this.getRequestedDeckId();
-            const p = data.presentations.find(pres => pres.id === requestedDeckId || pres.presentationSlug === requestedDeckId)
-                || data.presentations.find(pres => pres.source === 'supabase')
-                || data.presentations[0];
+            const p = selectPresentationFromCatalog(this.presentationCatalog, requestedDeckId);
             this.currentProjectSlug = p?.projectSlug || this.currentProjectSlug || '';
             this.loadLoadingQuotes(this.currentProjectSlug);
             const titleEl = document.getElementById('home-start-title');
@@ -692,10 +718,13 @@ export class VoicePPTApp {
 
     async startSession() {
         const requestedDeckId = this.getRequestedDeckId();
-        const selectedPresentation = this.presentationCatalog.find(p => p.id === requestedDeckId || p.presentationSlug === requestedDeckId)
-            || this.presentationCatalog.find(p => p.source === 'supabase')
-            || this.presentationCatalog[0];
-        const deckId = selectedPresentation?.id || requestedDeckId || '10_percent_lifestyle';
+        const selectedPresentation = selectPresentationFromCatalog(this.presentationCatalog, requestedDeckId);
+        if (requestedDeckId && !selectedPresentation) {
+            this.setStatus('Presentation unavailable', 'paused', 'The requested presentation could not be found in this catalog');
+            return;
+        }
+        const presentationSlug = selectedPresentation?.presentationSlug || requestedDeckId || '10_percent_lifestyle';
+        const deckId = selectedPresentation?.id || presentationSlug;
         const participantName = (document.getElementById('participant-name').value || '').trim();
         const passcodeEl = document.getElementById('session-passcode');
         const passcode = passcodeEl ? (passcodeEl.value || '').trim() : '';
@@ -713,7 +742,14 @@ export class VoicePPTApp {
             
             const res = await this.apiFetch('/api/session/start', { 
                 method: 'POST', 
-                body: JSON.stringify({ deckId, participantName, passcode, bypassMaster }) 
+                body: JSON.stringify({
+                    deckId,
+                    presentationSlug,
+                    presentationSource: selectedPresentation?.source || '',
+                    participantName,
+                    passcode,
+                    bypassMaster
+                }) 
             });
             const data = await res.json();
             if (!data.success) {
@@ -727,6 +763,11 @@ export class VoicePPTApp {
                 if (data.error === 'Passcode required') {
                     passcodeEl.focus();
                     this.setStatus('Passcode required', 'paused', 'Enter the passcode to join');
+                    btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience';
+                    return;
+                }
+                if (data.code && data.presentationSlug) {
+                    this.setStatus('Presentation unavailable', 'paused', data.error || 'The requested presentation could not be loaded');
                     btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience';
                     return;
                 }
@@ -745,6 +786,8 @@ export class VoicePPTApp {
                 controlToken: this.controlToken,
                 participantName: this.participantName,
                 deckId: data.deckId || deckId,
+                presentationSlug: data.presentationSlug || presentationSlug,
+                presentationSource: data.presentationSource || selectedPresentation?.source || '',
                 projectSlug: this.currentProjectSlug,
                 presentationTitle: data.presentationTitle || deckId.replace(/_/g, ' '),
                 slideCount: this.totalSlides,

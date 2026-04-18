@@ -52,8 +52,17 @@ router.get('/pregen-progress/:sessionId', (req, res) => {
 router.post('/start', async (req, res) => {
     const logger = getRequestLogger(req, { subsystem: 'session' });
     try {
-        const { deckId = 'beforest_pitch', participantName = '', passcode = '', bypassMaster = false } = req.body;
+        const {
+            deckId = 'beforest_pitch',
+            presentationSlug = '',
+            presentationSource = '',
+            participantName = '',
+            passcode = '',
+            bypassMaster = false
+        } = req.body;
         const db = req.app.get('db');
+        const requestedPresentationSlug = String(presentationSlug || deckId || '').trim() || 'beforest_pitch';
+        const requestedSource = cmsService.normalizeSource?.(presentationSource) || null;
         
         const configuredPasscode = process.env.DEFAULT_PASSCODE;
         const passcodeRequired = !!configuredPasscode;
@@ -77,23 +86,43 @@ router.post('/start', async (req, res) => {
         let slides = [];
         
         try {
-            presentation = await cmsService.loadPresentation(deckId);
+            presentation = await cmsService.loadPresentation(requestedPresentationSlug, {
+                expectedSource: requestedSource
+            });
             slides = presentation.slides || [];
             logger.info({
                 event: 'source_presentation_selected',
                 sourceType: presentation?.source || 'unknown',
-                presentationSlug: presentation?.presentationSlug || deckId
+                declaredSource: presentation?.declaredSource || presentation?.source || 'unknown',
+                requestedSource: requestedSource || 'any',
+                presentationSlug: presentation?.presentationSlug || requestedPresentationSlug
             });
         } catch (error) {
-            logger.warn({ event: 'source_presentation_missing', deckId, err: error.message });
-            presentation = null;
+            const details = error?.details || {};
+            logger.warn({
+                event: 'source_presentation_missing',
+                presentationSlug: requestedPresentationSlug,
+                requestedSource: requestedSource || 'any',
+                code: error?.code || details.code || 'PRESENTATION_NOT_FOUND',
+                reason: details.reason || error.message
+            });
+            return res.status(error?.statusCode || details.statusCode || 404).json({
+                success: false,
+                error: details.reason || error.message || 'Presentation not found',
+                code: error?.code || details.code || 'PRESENTATION_NOT_FOUND',
+                presentationSlug: requestedPresentationSlug,
+                requestedSource: requestedSource || null,
+                availableSources: Array.isArray(details.availableSources) ? details.availableSources : []
+            });
         }
         
         const metadata = JSON.stringify({
             participantName: normalizedParticipantName,
             sourceType: presentation?.source || 'unknown',
-            presentationTitle: presentation?.title || deckId,
-            presentationSlug: presentation?.presentationSlug || deckId,
+            declaredSource: presentation?.declaredSource || presentation?.source || 'unknown',
+            presentationTitle: presentation?.title || requestedPresentationSlug,
+            presentationSlug: presentation?.presentationSlug || requestedPresentationSlug,
+            deckId: presentation?.presentationSlug || requestedPresentationSlug,
             projectSlug: presentation?.projectSlug || null,
             knowledgeDocs: presentation?.knowledgeDocs || {},
             deckSchema: presentation?.deckSchema || null,
@@ -106,14 +135,14 @@ router.post('/start', async (req, res) => {
         db.run(`
             INSERT INTO sessions (id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata)
             VALUES (?, ?, ?, 0, 'active', ?, ?, ?)
-        `, [sessionId, presentation?.presentationSlug || deckId, controlTokenHash, now, now, metadata]);
+        `, [sessionId, presentation.presentationSlug || requestedPresentationSlug, controlTokenHash, now, now, metadata]);
         
         // Write to Supabase (for persistent cross-server persistence)
         if (supabaseSession.isConfigured()) {
             try {
                 await supabaseSession.createSession({
                     id: sessionId,
-                    deckId: presentation?.presentationSlug || deckId,
+                    deckId: presentation.presentationSlug || requestedPresentationSlug,
                     controlTokenHash,
                     currentSlideIndex: 0,
                     status: 'active',
@@ -134,14 +163,14 @@ router.post('/start', async (req, res) => {
             db.run(`
                 INSERT INTO slides (id, session_id, deck_id, slide_index, title, content, image, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [uuidv4(), sessionId, presentation?.presentationSlug || deckId, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
+            `, [uuidv4(), sessionId, presentation.presentationSlug || requestedPresentationSlug, index, slide.title, slide.content, slide.image || null, slide.notes || null, now]);
         });
         
         // Analytics log session start
         analyticsService.logSessionStart(
             sessionId,
             presentation?.projectSlug,
-            presentation?.presentationSlug || deckId,
+            presentation?.presentationSlug || requestedPresentationSlug,
             normalizedParticipantName,
             slides.length
         );
@@ -151,7 +180,8 @@ router.post('/start', async (req, res) => {
             INSERT INTO events (session_id, event_type, event_data, created_at)
             VALUES (?, ?, ?, ?)
         `, [sessionId, 'session_started', JSON.stringify({
-            deckId: presentation?.presentationSlug || deckId,
+            deckId: presentation?.presentationSlug || requestedPresentationSlug,
+            presentationSlug: presentation?.presentationSlug || requestedPresentationSlug,
             slideCount: slides.length,
             participantName: normalizedParticipantName,
             sourceType: presentation?.source || 'unknown',
@@ -176,9 +206,11 @@ router.post('/start', async (req, res) => {
             success: true,
             sessionId,
             controlToken,
-            deckId: presentation?.presentationSlug || deckId,
+            deckId: presentation?.presentationSlug || requestedPresentationSlug,
+            presentationSlug: presentation?.presentationSlug || requestedPresentationSlug,
+            presentationSource: presentation?.source || requestedSource || null,
             projectSlug: presentation?.projectSlug || null,
-            presentationTitle: presentation?.title || deckId,
+            presentationTitle: presentation?.title || requestedPresentationSlug,
             participantName: normalizedParticipantName,
             slideCount: slides.length,
             status: 'active',

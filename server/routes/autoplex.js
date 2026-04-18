@@ -517,7 +517,7 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
         // --- MASTER SESSION OPTIMIZATION ---
         // If this deck has a master session, we can skip all LLM/TTS generation
         // and just "pre-warm" the caches from the master assets.
-        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
+        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId;
         const bypassMaster = sessionMetadata.bypassMaster === true;
 
         if (deckId) {
@@ -926,10 +926,12 @@ async function buildFullQAContext(sessionMetadata, slides) {
     let knowledgeDocs = sessionMetadata.knowledgeDocs || {};
     
     // Always attempt to reload CMS knowledge to ensure we have the absolute latest Supabase docs
-    const deckId = sessionMetadata.deckId || sessionMetadata.presentationSlug || sessionMetadata.projectSlug;
+    const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId;
     if (deckId) {
         try {
-            const presentation = await cmsService.loadPresentation(deckId);
+            const presentation = await cmsService.loadPresentation(deckId, {
+                expectedSource: sessionMetadata.declaredSource || sessionMetadata.sourceType || null
+            });
             if (presentation?.knowledgeDocs && Object.keys(presentation.knowledgeDocs).length > 0) {
                 knowledgeDocs = { ...knowledgeDocs, ...presentation.knowledgeDocs };
                 console.log(`[QAContext] Reloaded knowledge from CMS for ${deckId}. Total docs:`, Object.keys(knowledgeDocs).length);
@@ -985,10 +987,12 @@ async function buildNarrationContext({ db, sessionId, slide, slideIndex, totalSl
 
     let knowledgeContext = buildKnowledgeContext(sessionMetadata);
     if (!knowledgeContext || knowledgeContext.length < 200) {
-        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId || sessionMetadata.projectSlug;
+        const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId;
         if (deckId) {
             try {
-                const presentation = await cmsService.loadPresentation(deckId);
+                const presentation = await cmsService.loadPresentation(deckId, {
+                    expectedSource: sessionMetadata.declaredSource || sessionMetadata.sourceType || null
+                });
                 if (presentation?.knowledgeDocs && Object.keys(presentation.knowledgeDocs).length > 0) {
                     knowledgeContext = buildKnowledgeContext({ ...sessionMetadata, knowledgeDocs: presentation.knowledgeDocs });
                 }

@@ -1,5 +1,16 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { getLogger } = require('../middleware/logger');
+
+class ContentResolutionError extends Error {
+    constructor(message, details = {}) {
+        super(message);
+        this.name = 'ContentResolutionError';
+        this.code = details.code || 'CONTENT_RESOLUTION_FAILED';
+        this.statusCode = details.statusCode || 500;
+        this.details = details;
+    }
+}
 
 class CMSService {
     constructor() {
@@ -11,6 +22,7 @@ class CMSService {
         // In-memory TTL cache — avoids repeated Supabase round-trips during pre-generation
         this._presentationCache = new Map(); // identifier -> { data, expiresAt }
         this._cacheTtlMs = 5 * 60 * 1000; // 5 minutes
+        this.logger = getLogger().child({ subsystem: 'cms' });
     }
 
     isSupabaseConfigured() {
@@ -21,60 +33,166 @@ class CMSService {
         return configured;
     }
 
+    normalizeSource(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        return normalized === 'local' || normalized === 'supabase' ? normalized : null;
+    }
+
+    buildPresentationSummary(item = {}) {
+        const resolvedSource = this.normalizeSource(item.source) || 'local';
+        const declaredSource = this.normalizeSource(item.declaredSource || item.source) || resolvedSource;
+        return {
+            ...item,
+            source: resolvedSource,
+            declaredSource,
+            resolvedSource,
+            availableSources: Array.isArray(item.availableSources) && item.availableSources.length > 0
+                ? Array.from(new Set(item.availableSources.map((source) => this.normalizeSource(source)).filter(Boolean)))
+                : [resolvedSource]
+        };
+    }
+
+    mergeCatalogEntries(entries = []) {
+        const merged = new Map();
+
+        entries.forEach((entry) => {
+            const summary = this.buildPresentationSummary(entry);
+            const key = summary.presentationSlug || summary.id;
+            if (!key) {
+                return;
+            }
+
+            const existing = merged.get(key);
+            if (!existing) {
+                merged.set(key, {
+                    ...summary,
+                    availableSources: [...summary.availableSources]
+                });
+                return;
+            }
+
+            const availableSources = Array.from(new Set([
+                ...(existing.availableSources || []),
+                ...(summary.availableSources || []),
+                summary.source
+            ].filter(Boolean)));
+            const preferred = summary.source === existing.declaredSource
+                ? summary
+                : existing;
+
+            merged.set(key, {
+                ...preferred,
+                declaredSource: existing.declaredSource || summary.declaredSource || preferred.source,
+                availableSources
+            });
+        });
+
+        return Array.from(merged.values()).sort((left, right) => left.title.localeCompare(right.title));
+    }
+
+    createMissingSourceError(identifier, expectedSource, code = 'PRESENTATION_SOURCE_NOT_FOUND', statusCode = 404, extra = {}) {
+        return new ContentResolutionError(`Presentation '${identifier}' could not be loaded from ${expectedSource}`, {
+            code,
+            statusCode,
+            identifier,
+            expectedSource,
+            ...extra
+        });
+    }
+
     async listPresentations() {
         const local = await this.listLocalPresentations();
         if (!this.isSupabaseConfigured()) {
             console.warn('[CMS] listPresentations: Supabase not configured, using local only');
-            return local;
+            return this.mergeCatalogEntries(local);
         }
 
         try {
             const remote = await this.listSupabasePresentations();
-            const merged = new Map();
-            remote.forEach((item) => merged.set(item.id, item));
-            local.forEach((item) => {
-                if (!merged.has(item.id)) merged.set(item.id, item);
-            });
-            const result = Array.from(merged.values());
+            const result = this.mergeCatalogEntries([...remote, ...local]);
             console.log(`[CMS] listPresentations: ${remote.length} remote + ${local.length} local = ${result.length} total`);
             return result;
         } catch (error) {
             console.error('CMS listPresentations failed, using local fallback:', error.message);
-            return local;
+            return this.mergeCatalogEntries(local);
         }
     }
 
-    async loadPresentation(identifier) {
+    async loadPresentation(identifier, options = {}) {
+        const expectedSource = this.normalizeSource(options.expectedSource || options.source);
+        const cacheKey = JSON.stringify({ identifier, expectedSource: expectedSource || 'any' });
         // Check cache first — prevents redundant Supabase calls during per-slide pre-generation
-        const cached = this._presentationCache.get(identifier);
+        const cached = this._presentationCache.get(cacheKey);
         if (cached && cached.expiresAt > Date.now()) {
-            console.log(`[CMS] loadPresentation: cache hit for '${identifier}'`);
+            console.log(`[CMS] loadPresentation: cache hit for '${identifier}' (${expectedSource || 'any'})`);
             return cached.data;
         }
 
-        let result = null;
-        if (this.isSupabaseConfigured()) {
-            try {
-                const remote = await this.loadPresentationFromSupabase(identifier);
-                if (remote) {
-                    console.log(`[CMS] loadPresentation: using Supabase for '${identifier}'`);
-                    result = remote;
+        const hasSupabase = this.isSupabaseConfigured();
+        const candidateLoaders = [];
+        if (!expectedSource || expectedSource === 'supabase') {
+            candidateLoaders.push('supabase');
+        }
+        if (!expectedSource || expectedSource === 'local') {
+            candidateLoaders.push('local');
+        }
+
+        if (expectedSource === 'supabase' && !hasSupabase) {
+            throw this.createMissingSourceError(identifier, 'supabase', 'PRESENTATION_SOURCE_UNAVAILABLE', 503, {
+                reason: 'Supabase is not configured'
+            });
+        }
+
+        const candidates = [];
+        let remoteError = null;
+        for (const source of candidateLoaders) {
+            if (source === 'supabase') {
+                try {
+                    const remote = await this.loadPresentationFromSupabase(identifier);
+                    if (remote) {
+                        candidates.push(this.buildPresentationSummary(remote));
+                    }
+                } catch (error) {
+                    remoteError = error;
+                    this.logger.error({
+                        event: 'content_source_load_failed',
+                        identifier,
+                        source: 'supabase',
+                        err: error.message
+                    });
                 }
-            } catch (error) {
-                console.error('CMS remote presentation load failed, using local fallback:', error.message);
+                continue;
             }
-        } else {
-            console.warn('[CMS] loadPresentation: Supabase not configured, using local');
+
+            const local = await this.loadPresentationFromLocal(identifier);
+            if (local) {
+                candidates.push(this.buildPresentationSummary(local));
+            }
+        }
+
+        let result = null;
+        if (expectedSource) {
+            result = candidates.find((candidate) => candidate.source === expectedSource) || null;
+            if (!result) {
+                throw this.createMissingSourceError(identifier, expectedSource, remoteError ? 'PRESENTATION_SOURCE_FAILED' : 'PRESENTATION_SOURCE_NOT_FOUND', remoteError ? 502 : 404, {
+                    reason: remoteError ? remoteError.message : `No ${expectedSource} presentation matched '${identifier}'`,
+                    availableSources: candidates.map((candidate) => candidate.source)
+                });
+            }
+        } else if (candidates.length > 0) {
+            result = candidates.find((candidate) => candidate.source === 'supabase')
+                || candidates.find((candidate) => candidate.source === 'local')
+                || candidates[0];
         }
 
         if (!result) {
-            result = await this.loadPresentationFromLocal(identifier);
+            throw this.createMissingSourceError(identifier, 'any', 'PRESENTATION_NOT_FOUND', 404, {
+                reason: `No presentation matched '${identifier}'`
+            });
         }
 
         // Store in cache regardless of source (local or remote)
-        if (result) {
-            this._presentationCache.set(identifier, { data: result, expiresAt: Date.now() + this._cacheTtlMs });
-        }
+        this._presentationCache.set(cacheKey, { data: result, expiresAt: Date.now() + this._cacheTtlMs });
         return result;
     }
 
@@ -83,7 +201,11 @@ class CMSService {
      */
     invalidateCache(identifier) {
         if (identifier) {
-            this._presentationCache.delete(identifier);
+            for (const key of this._presentationCache.keys()) {
+                if (key.includes(`"identifier":"${identifier}"`)) {
+                    this._presentationCache.delete(key);
+                }
+            }
         } else {
             this._presentationCache.clear();
         }
@@ -118,13 +240,14 @@ class CMSService {
             const deckPath = path.join(this.baseDir, file);
             const raw = await fs.readFile(deckPath, 'utf8');
             const parsed = JSON.parse(raw);
-            decks.push({
+            decks.push(this.buildPresentationSummary({
                 id: parsed.id || path.basename(file, '.json'),
                 title: parsed.title || parsed.name || this.humanize(path.basename(file, '.json')),
                 source: 'local',
+                declaredSource: this.normalizeSource(parsed.source) || 'local',
                 projectSlug: parsed.projectSlug || null,
                 presentationSlug: parsed.id || path.basename(file, '.json')
-            });
+            }));
         }
 
         return decks;
@@ -139,10 +262,11 @@ class CMSService {
         const directPath = path.join(this.baseDir, `${identifier}.json`);
         const raw = await fs.readFile(directPath, 'utf8');
         const parsed = JSON.parse(raw);
-        return {
+        return this.buildPresentationSummary({
             id: parsed.id || identifier,
             title: parsed.title || parsed.name || this.humanize(identifier),
             source: 'local',
+            declaredSource: this.normalizeSource(parsed.source) || 'local',
             projectSlug: parsed.projectSlug || null,
             presentationSlug: parsed.id || identifier,
             slides: Array.isArray(parsed.slides) ? parsed.slides : [],
@@ -150,7 +274,7 @@ class CMSService {
             deckSchema: parsed.deckSchema || null,
             flowConfig: parsed.flowConfig || null,
             designConfig: parsed.designConfig || null
-        };
+        });
     }
 
     async listProjectPresentations() {
@@ -159,29 +283,38 @@ class CMSService {
             const presentations = [];
 
             for (const projectDirName of projectDirs) {
-                const projectDir = path.join(this.projectsDir, projectDirName);
-                const stat = await fs.stat(projectDir);
-                if (!stat.isDirectory()) {
-                    continue;
-                }
-
-                const projectConfig = await this.readJson(path.join(projectDir, 'project.json'));
-                const presentationsDir = path.join(projectDir, 'presentations');
-                let files = [];
                 try {
-                    files = (await fs.readdir(presentationsDir)).filter((file) => file.endsWith('.json'));
-                } catch {
-                    files = [];
-                }
+                    const projectDir = path.join(this.projectsDir, projectDirName);
+                    const stat = await fs.stat(projectDir);
+                    if (!stat.isDirectory()) {
+                        continue;
+                    }
 
-                for (const file of files) {
-                    const presentation = await this.readJson(path.join(presentationsDir, file));
-                    presentations.push({
-                        id: presentation.slug || presentation.id || path.basename(file, '.json'),
-                        title: presentation.title || this.humanize(path.basename(file, '.json')),
-                        source: 'local',
-                        projectSlug: projectConfig.slug || projectDirName,
-                        presentationSlug: presentation.slug || presentation.id || path.basename(file, '.json')
+                    const projectConfig = await this.readJson(path.join(projectDir, 'project.json'));
+                    const presentationsDir = path.join(projectDir, 'presentations');
+                    let files = [];
+                    try {
+                        files = (await fs.readdir(presentationsDir)).filter((file) => file.endsWith('.json'));
+                    } catch {
+                        files = [];
+                    }
+
+                    for (const file of files) {
+                        const presentation = await this.readJson(path.join(presentationsDir, file));
+                        presentations.push(this.buildPresentationSummary({
+                            id: presentation.slug || presentation.id || path.basename(file, '.json'),
+                            title: presentation.title || this.humanize(path.basename(file, '.json')),
+                            source: 'local',
+                            declaredSource: this.normalizeSource(presentation.source || projectConfig?.config_json?.presentationSource) || 'local',
+                            projectSlug: projectConfig.slug || projectDirName,
+                            presentationSlug: presentation.slug || presentation.id || path.basename(file, '.json')
+                        }));
+                    }
+                } catch (error) {
+                    this.logger.warn({
+                        event: 'content_project_package_invalid',
+                        projectSlug: projectDirName,
+                        reason: error.message
                     });
                 }
             }
@@ -213,45 +346,54 @@ class CMSService {
             const projectDirs = await fs.readdir(this.projectsDir);
 
             for (const projectDirName of projectDirs) {
-                const projectDir = path.join(this.projectsDir, projectDirName);
-                const stat = await fs.stat(projectDir);
-                if (!stat.isDirectory()) {
-                    continue;
-                }
-
-                const projectConfig = await this.readJson(path.join(projectDir, 'project.json'));
-                const presentationsDir = path.join(projectDir, 'presentations');
-                let files = [];
                 try {
-                    files = (await fs.readdir(presentationsDir)).filter((file) => file.endsWith('.json'));
-                } catch {
-                    files = [];
-                }
-
-                for (const file of files) {
-                    const filePath = path.join(presentationsDir, file);
-                    const presentation = await this.readJson(filePath);
-                    const slug = presentation.slug || presentation.id || path.basename(file, '.json');
-                    if (slug !== identifier && presentation.id !== identifier) {
+                    const projectDir = path.join(this.projectsDir, projectDirName);
+                    const stat = await fs.stat(projectDir);
+                    if (!stat.isDirectory()) {
                         continue;
                     }
 
-                    const knowledgeDocs = await this.readProjectDocs(projectDir);
-                    return {
-                        id: slug,
-                        title: presentation.title || this.humanize(slug),
-                        source: 'local',
-                        projectSlug: projectConfig.slug || projectDirName,
-                        presentationSlug: slug,
-                        startTitle: presentation.startTitle || null,
-                        startSubtitle: presentation.startSubtitle || null,
-                        slides: Array.isArray(presentation.slides) ? presentation.slides : [],
-                        knowledgeDocs,
-                        deckSchema: await this.readOptionalJson(path.join(projectDir, 'content_schema.json')),
-                        flowConfig: await this.readOptionalText(path.join(projectDir, 'flow.md')),
-                        designConfig: await this.readOptionalText(path.join(projectDir, 'design.md')),
-                        projectConfig
-                    };
+                    const projectConfig = await this.readJson(path.join(projectDir, 'project.json'));
+                    const presentationsDir = path.join(projectDir, 'presentations');
+                    let files = [];
+                    try {
+                        files = (await fs.readdir(presentationsDir)).filter((file) => file.endsWith('.json'));
+                    } catch {
+                        files = [];
+                    }
+
+                    for (const file of files) {
+                        const filePath = path.join(presentationsDir, file);
+                        const presentation = await this.readJson(filePath);
+                        const slug = presentation.slug || presentation.id || path.basename(file, '.json');
+                        if (slug !== identifier && presentation.id !== identifier) {
+                            continue;
+                        }
+
+                        const knowledgeDocs = await this.readProjectDocs(projectDir);
+                        return this.buildPresentationSummary({
+                            id: slug,
+                            title: presentation.title || this.humanize(slug),
+                            source: 'local',
+                            declaredSource: this.normalizeSource(presentation.source || projectConfig?.config_json?.presentationSource) || 'local',
+                            projectSlug: projectConfig.slug || projectDirName,
+                            presentationSlug: slug,
+                            startTitle: presentation.startTitle || null,
+                            startSubtitle: presentation.startSubtitle || null,
+                            slides: Array.isArray(presentation.slides) ? presentation.slides : [],
+                            knowledgeDocs,
+                            deckSchema: await this.readOptionalJson(path.join(projectDir, 'content_schema.json')),
+                            flowConfig: await this.readOptionalText(path.join(projectDir, 'flow.md')),
+                            designConfig: await this.readOptionalText(path.join(projectDir, 'design.md')),
+                            projectConfig
+                        });
+                    }
+                } catch (error) {
+                    this.logger.warn({
+                        event: 'content_project_package_invalid',
+                        projectSlug: projectDirName,
+                        reason: error.message
+                    });
                 }
             }
 
@@ -294,16 +436,17 @@ class CMSService {
                 const pick = allImages[Math.floor(Math.random() * allImages.length)];
                 startImage = this._optimizeImageUrl(pick);
             }
-            return {
+            return this.buildPresentationSummary({
                 id: row.slug || row.id,
                 title: row.title || this.humanize(row.slug || row.id),
                 source: 'supabase',
+                declaredSource: this.normalizeSource(row.design_json?.sourceOfTruth || row.design_json?.source) || 'supabase',
                 projectSlug: row.project_id || null,
                 presentationSlug: row.slug || row.id,
                 startTitle: row.design_json?.startTitle || null,
                 startSubtitle: row.design_json?.startSubtitle || null,
                 startImage
-            };
+            });
         }));
 
         return results;
@@ -335,10 +478,11 @@ class CMSService {
             })
         ]);
 
-        return {
+        return this.buildPresentationSummary({
             id: presentation.slug || presentation.id,
             title: presentation.title || this.humanize(presentation.slug || presentation.id),
             source: 'supabase',
+            declaredSource: this.normalizeSource(presentation.design_json?.sourceOfTruth || presentation.design_json?.source) || 'supabase',
             projectSlug: presentation.project_id,
             presentationSlug: presentation.slug || presentation.id,
             slides: slides.map((slide) => this.normalizeSlide(slide)),
@@ -348,7 +492,7 @@ class CMSService {
             designConfig: presentation.design_json || null,
             startTitle: presentation.design_json?.startTitle || null,
             startSubtitle: presentation.design_json?.startSubtitle || null
-        };
+        });
     }
 
     async loadProjectFromSupabase(projectSlug) {
@@ -381,10 +525,11 @@ class CMSService {
             source: 'supabase',
             config: project.config_json || {},
             knowledgeDocs: this.normalizeKnowledgeDocs(docs),
-            presentations: presentations.map((presentation) => ({
+            presentations: presentations.map((presentation) => this.buildPresentationSummary({
                 id: presentation.slug || presentation.id,
                 title: presentation.title || this.humanize(presentation.slug || presentation.id),
                 source: 'supabase',
+                declaredSource: 'supabase',
                 projectSlug: project.slug,
                 presentationSlug: presentation.slug || presentation.id
             }))
@@ -816,3 +961,4 @@ class CMSService {
 }
 
 module.exports = new CMSService();
+module.exports.ContentResolutionError = ContentResolutionError;
