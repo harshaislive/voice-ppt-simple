@@ -7,7 +7,7 @@ This roadmap hardens an existing AI-led presentation platform into a production-
 ## Phases
 
 **Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
+- Integer phases (1, 2, 3, 4, 5, 6): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
@@ -77,12 +77,13 @@ Plans:
   1. Session startup loads the intended presentation and project context from the correct source every time
   2. Adding a new presentation project follows a documented content/config pattern instead of code surgery
   3. Source selection, fallback behavior, and content-loading failures are visible and diagnosable
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: Clarify source-of-truth rules for local content, Supabase content, and persisted session data
-- [ ] 04-02: Normalize multi-presentation project loading and configuration boundaries
-- [ ] 04-03: Improve content-source logging, errors, and operator guidance
+- [ ] 04-01: Enforce explicit source-of-truth rules for presentation loading
+- [ ] 04-02: Normalize canonical presentation identity across client and server
+- [ ] 04-03: Standardize project-package onboarding for new presentations
+- [ ] 04-04: Improve fail-closed diagnostics and operator-visible loading errors
 
 ### Phase 5: Regression Harness
 **Goal**: Build automated coverage around the runtime behaviors that currently regress during manual iteration
@@ -123,6 +124,6 @@ Phases execute in numeric order: 3 -> 3.1 -> 4
 | 1. Runtime Guardrails | 4/4 | Complete | 2026-04-19 |
 | 2. Playback State Reliability | 4/4 | Complete | 2026-04-19 |
 | 3. Grounded Q&A Experience | 3/3 | Complete   | 2026-04-18 |
-| 4. Content Loading and Scaling Foundations | 0/3 | Not started | - |
+| 4. Content Loading and Scaling Foundations | 0/4 | Planned | - |
 | 5. Regression Harness | 0/3 | Not started | - |
 | 6. Production Readiness Gate | 0/2 | Not started | - |
