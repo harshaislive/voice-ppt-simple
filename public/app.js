@@ -707,10 +707,15 @@ export class VoicePPTApp {
         return {
             id: slide.id || `pilot-slide-${index + 1}`,
             slide_index: index,
+            kind: slide.kind || 'presentation',
             title: slide.title || '',
             content: slide.content || '',
             image: slide.image || '',
             notes: slide.notes || '',
+            backgroundColor: slide.backgroundColor || '',
+            textColor: slide.textColor || '',
+            isQuoteSlide: Boolean(slide.isQuoteSlide),
+            quoteAuthor: slide.quoteAuthor || '',
             narrationText: slide.narrationText || '',
             audioPath: slide.audioPath || '',
             durationMs: Number(slide.durationMs || 0),
@@ -1188,14 +1193,31 @@ export class VoicePPTApp {
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
         const notesEl = document.getElementById('slide-notes');
         if (notesEl) notesEl.textContent = '';
+        const presentationStage = document.querySelector('.presentation-stage');
         const stage = document.querySelector('.slide-visual-shell');
+        const copy = document.querySelector('.slide-copy');
         const imageUrl = data.slide && data.slide.image ? data.slide.image : null;
+        const isQuoteSlide = Boolean(data.slide?.isQuoteSlide || data.slide?.kind === 'quote');
+        const backgroundColor = String(data.slide?.backgroundColor || '').trim();
+        const textColor = String(data.slide?.textColor || '').trim();
+        if (presentationStage) presentationStage.classList.toggle('is-quote-slide', isQuoteSlide);
+        if (copy) {
+            copy.classList.toggle('is-quote-slide', isQuoteSlide);
+            copy.classList.remove('theme-light', 'theme-dark');
+            copy.style.backgroundColor = isQuoteSlide && backgroundColor ? backgroundColor : '';
+            copy.style.color = isQuoteSlide && textColor ? textColor : '';
+        }
         if (stage) {
-            if (imageUrl) {
+            stage.classList.toggle('is-quote-slide', isQuoteSlide);
+            stage.style.backgroundColor = isQuoteSlide && backgroundColor ? backgroundColor : '';
+            if (imageUrl && !isQuoteSlide) {
                 stage.classList.add('blur-up');
                 const img = new Image(); img.onload = () => { stage.style.backgroundImage = `url(${imageUrl})`; stage.classList.remove('blur-up'); this.analyzeImageBrightness(imageUrl); };
                 img.src = imageUrl;
-            } else { stage.style.backgroundImage = 'none'; stage.classList.remove('blur-up'); }
+            } else {
+                stage.style.backgroundImage = 'none';
+                stage.classList.remove('blur-up');
+            }
         }
         const main = document.querySelector('.slide-main');
         if (main) main.scrollTop = 0;
@@ -1840,6 +1862,10 @@ export class VoicePPTApp {
                 button.style.backgroundImage = `url(${slide.image})`;
             } else {
                 button.classList.add('no-image');
+                button.style.backgroundImage = 'none';
+                if (slide?.backgroundColor) {
+                    button.style.backgroundColor = slide.backgroundColor;
+                }
             }
             
             const slideTitle = slide?.title ? String(slide.title) : 'Untitled slide';

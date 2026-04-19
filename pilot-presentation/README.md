@@ -5,7 +5,7 @@ This folder is a self-contained presentation package for the simplified pilot fl
 - Project: `76a124f9-0a4b-42cf-9984-ae68ebbb91ff`
 - Presentation: `10_percent_lifestyle`
 - Source: `supabase`
-- Generated: `2026-04-19T07:28:08.854Z`
+- Generated: `2026-04-19T07:48:00.650Z`
 - Voice: `default`
 - TTS Provider: `azure-sdk`
 

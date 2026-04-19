@@ -763,6 +763,84 @@ h1, h2, h3, h4 {
     padding-bottom: 120px; /* Space for footer */
 }
 
+.presentation-stage.is-quote-slide {
+    background: var(--quote-slide-bg, var(--text));
+}
+
+.presentation-stage.is-quote-slide .slide-main {
+    background: transparent;
+}
+
+.slide-visual-shell.is-quote-slide {
+    min-height: 0;
+    flex: 0 0 0;
+    border-bottom: none;
+    background-image: none !important;
+}
+
+.slide-copy.is-quote-slide {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 32px;
+    padding: 72px 40px 140px;
+    background: var(--quote-slide-bg, var(--text));
+    color: var(--quote-slide-text, #fdfbf7);
+}
+
+.slide-copy.is-quote-slide .folio-bar {
+    border-bottom-color: rgba(253, 251, 247, 0.16);
+}
+
+.slide-copy.is-quote-slide .folio-date,
+.slide-copy.is-quote-slide .folio-deck,
+.slide-copy.is-quote-slide .slide-subtitle,
+.slide-copy.is-quote-slide .full-transcription,
+.slide-copy.is-quote-slide .transcript-reel-meta,
+.slide-copy.is-quote-slide .transcript-reel-word,
+.slide-copy.is-quote-slide .transcript-reel-phrase {
+    color: inherit;
+}
+
+.slide-copy.is-quote-slide .slide-title {
+    max-width: 16ch;
+    font-size: clamp(3rem, 7vw, 5.8rem);
+    line-height: 0.95;
+    color: inherit;
+}
+
+.slide-copy.is-quote-slide .slide-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0.72;
+}
+
+.slide-copy.is-quote-slide .narration-controls {
+    background: transparent;
+}
+
+.slide-copy.is-quote-slide .narration-progress-track {
+    background: rgba(253, 251, 247, 0.18);
+}
+
+.slide-copy.is-quote-slide .narration-progress-fill {
+    background: rgba(253, 251, 247, 0.92);
+}
+
+.slide-copy.is-quote-slide .slide-pause-btn {
+    background: rgba(253, 251, 247, 0.12);
+    color: #fdfbf7;
+    border: 1px solid rgba(253, 251, 247, 0.16);
+    box-shadow: none;
+}
+
+.slide-copy.is-quote-slide .slide-pause-btn:hover {
+    background: rgba(253, 251, 247, 0.2);
+}
+
 .folio-bar {
     display: flex;
     align-items: center;

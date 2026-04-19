@@ -11,6 +11,32 @@ const ROOT = path.join(__dirname, '..');
 const DEFAULT_PROJECT = 'beforest';
 const DEFAULT_PRESENTATION = '10_percent_lifestyle';
 const DEFAULT_OUTPUT_DIR = path.join(ROOT, 'pilot-presentation');
+const QUOTE_SLIDES = [
+    {
+        afterSlideIndex: 0,
+        title: '“You can get very good at a life that is quietly hurting you.”',
+        content: 'Beforest',
+        narrationText: 'You can get very good at a life that is quietly hurting you.',
+        backgroundColor: '#342e29',
+        textColor: '#fdfbf7'
+    },
+    {
+        afterSlideIndex: 2,
+        title: '“Rest is not a reward. It is a rhythm worth protecting.”',
+        content: 'Beforest',
+        narrationText: 'Rest is not a reward. It is a rhythm worth protecting.',
+        backgroundColor: '#86312b',
+        textColor: '#fdfbf7'
+    },
+    {
+        afterSlideIndex: 4,
+        title: '“You decide with your feet, not your eyes.”',
+        content: 'Beforest',
+        narrationText: 'You decide with your feet, not your eyes.',
+        backgroundColor: '#002140',
+        textColor: '#fdfbf7'
+    }
+];
 
 function readTextIfExists(filePath) {
     if (!fs.existsSync(filePath)) return '';
@@ -135,6 +161,56 @@ async function buildSlideAsset({ slide, slideIndex, totalSlides, knowledgeContex
     };
 }
 
+async function buildQuoteSlideAsset({ quote, voice }) {
+    const narrationText = String(quote.narrationText || quote.title || '').trim();
+    const ttsResult = await ttsService.synthesizeDetailed(narrationText, voice);
+
+    return {
+        narrationText,
+        audioBuffer: ttsResult.audioBuffer,
+        wordBoundaries: Array.isArray(ttsResult.wordBoundaries) ? ttsResult.wordBoundaries : [],
+        durationMs: ttsResult.pcmBuffer
+            ? Math.round(
+                (ttsResult.pcmBuffer.length / ((ttsResult.sampleRate || 24000) * (ttsResult.channels || 1) * (ttsResult.bitsPerSample || 16) / 8)) * 1000
+            )
+            : 0,
+        sampleRate: ttsResult.sampleRate || 24000,
+        channels: ttsResult.channels || 1,
+        bitsPerSample: ttsResult.bitsPerSample || 16
+    };
+}
+
+function buildSequenceWithQuotes(slides = []) {
+    const sequence = [];
+    slides.forEach((slide, index) => {
+        sequence.push({
+            kind: 'presentation',
+            slide,
+            originalIndex: index
+        });
+        QUOTE_SLIDES
+            .filter((quote) => quote.afterSlideIndex === index)
+            .forEach((quote, quoteIndex) => {
+                sequence.push({
+                    kind: 'quote',
+                    slide: {
+                        id: `quote-${index + 1}-${quoteIndex + 1}`,
+                        title: quote.title,
+                        content: quote.content,
+                        notes: '',
+                        image: '',
+                        backgroundColor: quote.backgroundColor,
+                        textColor: quote.textColor,
+                        isQuoteSlide: true,
+                        quoteAuthor: quote.content
+                    },
+                    quote
+                });
+            });
+    });
+    return sequence;
+}
+
 async function main() {
     const source = String(process.env.PILOT_SOURCE || 'supabase').trim().toLowerCase();
     const projectSlug = process.env.PILOT_PROJECT_SLUG || DEFAULT_PROJECT;
@@ -153,6 +229,8 @@ async function main() {
         throw new Error(`Presentation "${presentationSlug}" has no slides`);
     }
 
+    const slideSequence = buildSequenceWithQuotes(slides);
+
     cleanOutputDir(outputDir);
 
     const manifest = {
@@ -162,7 +240,7 @@ async function main() {
             presentationSlug: presentation.presentationSlug || presentation.slug || presentation.id || presentationSlug,
             title: presentation.title || presentation.presentationSlug || presentation.slug || presentation.id,
             description: presentation.description || '',
-            slideCount: slides.length,
+            slideCount: slideSequence.length,
             voice,
             ttsProvider: ttsService.provider || 'unknown',
             source
@@ -170,17 +248,23 @@ async function main() {
         slides: []
     };
 
-    for (let index = 0; index < slides.length; index++) {
-        const slide = slides[index];
-        process.stdout.write(`\n[${index + 1}/${slides.length}] Building "${slide.title}"\n`);
+    for (let index = 0; index < slideSequence.length; index++) {
+        const entry = slideSequence[index];
+        const slide = entry.slide;
+        process.stdout.write(`\n[${index + 1}/${slideSequence.length}] Building "${slide.title}"\n`);
 
-        const built = await buildSlideAsset({
-            slide,
-            slideIndex: index,
-            totalSlides: slides.length,
-            knowledgeContext,
-            voice
-        });
+        const built = entry.kind === 'quote'
+            ? await buildQuoteSlideAsset({
+                quote: entry.quote,
+                voice
+            })
+            : await buildSlideAsset({
+                slide,
+                slideIndex: entry.originalIndex,
+                totalSlides: slides.length,
+                knowledgeContext,
+                voice
+            });
 
         const audioFileName = `slide-${String(index + 1).padStart(2, '0')}.wav`;
         const audioDiskPath = path.join(outputDir, 'audio', audioFileName);
@@ -189,10 +273,15 @@ async function main() {
         manifest.slides.push({
             id: slide.id || `slide-${index + 1}`,
             index,
+            kind: entry.kind,
             title: slide.title,
             content: slide.content,
             notes: slide.notes || '',
             image: slide.image || '',
+            backgroundColor: slide.backgroundColor || '',
+            textColor: slide.textColor || '',
+            isQuoteSlide: Boolean(slide.isQuoteSlide),
+            quoteAuthor: slide.quoteAuthor || '',
             narrationText: built.narrationText,
             audioPath: `audio/${audioFileName}`,
             durationMs: built.durationMs,
