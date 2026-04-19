@@ -56,6 +56,7 @@ export function selectPresentationFromCatalog(presentations = [], requestedIdent
 
 export class VoicePPTApp {
     constructor() {
+        this.pilotAdvanceTimer = null;
         this.pilotMode = false;
         this.pilotManifest = null;
         this.pilotAudio = new Audio();
@@ -805,8 +806,21 @@ export class VoicePPTApp {
                 });
                 return;
             }
-            void this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
+            const currentSlide = this.slideDeck[this.currentSlideIndex] || this.currentSlide;
+            const advanceDelayMs = currentSlide?.isQuoteSlide ? 2200 : 350;
+            this.clearPilotAdvanceTimer();
+            this.pilotAdvanceTimer = setTimeout(() => {
+                this.pilotAdvanceTimer = null;
+                void this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
+            }, advanceDelayMs);
         });
+    }
+
+    clearPilotAdvanceTimer() {
+        if (this.pilotAdvanceTimer) {
+            clearTimeout(this.pilotAdvanceTimer);
+            this.pilotAdvanceTimer = null;
+        }
     }
 
     handlePilotPlaybackStartFailure(slideIndex, error) {
@@ -870,6 +884,7 @@ export class VoicePPTApp {
         const slide = this.slideDeck[index];
         if (!slide) return;
 
+        this.clearPilotAdvanceTimer();
         this.pilotAudio.pause();
         this.pilotAudio.currentTime = 0;
         this.resetSubtitleState();

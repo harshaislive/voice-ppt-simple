@@ -827,14 +827,7 @@ h1, h2, h3, h4 {
 
 .slide-copy.is-quote-slide .narration-controls {
     background: transparent;
-}
-
-.slide-copy.is-quote-slide .narration-progress-track {
-    background: rgba(253, 251, 247, 0.18);
-}
-
-.slide-copy.is-quote-slide .narration-progress-fill {
-    background: rgba(253, 251, 247, 0.92);
+    justify-content: flex-end;
 }
 
 .slide-copy.is-quote-slide .slide-pause-btn {
@@ -846,6 +839,15 @@ h1, h2, h3, h4 {
 
 .slide-copy.is-quote-slide .slide-pause-btn:hover {
     background: rgba(253, 251, 247, 0.2);
+}
+
+.slide-copy.is-quote-slide .narration-progress-track {
+    display: none;
+}
+
+.slide-copy.is-quote-slide .slide-pause-btn {
+    flex: 0 0 auto;
+    width: 44px;
 }
 
 .folio-bar {
