@@ -2047,8 +2047,40 @@ export class VoicePPTApp {
             answerDetails,
             answerAudioUrl
         });
+        this.scrollQuestionCardIntoView(target);
         this.syncQuestionCount();
         this.registerQuestionAnswerNotification(id, meta.suppressNotification);
+    }
+
+    scrollQuestionCardIntoView(card) {
+        if (!card) return;
+        const container = document.querySelector('.qa-content-area');
+        if (!container) {
+            card.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            const containerRect = container.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            const footerBuffer = 24;
+            const hiddenBottom = cardRect.bottom - containerRect.bottom + footerBuffer;
+            if (hiddenBottom > 0) {
+                container.scrollTo({
+                    top: container.scrollTop + hiddenBottom,
+                    behavior: 'smooth'
+                });
+                return;
+            }
+
+            const hiddenTop = containerRect.top - cardRect.top + footerBuffer;
+            if (hiddenTop > 0) {
+                container.scrollTo({
+                    top: Math.max(0, container.scrollTop - hiddenTop),
+                    behavior: 'smooth'
+                });
+            }
+        });
     }
 
     handleQuestionAnswerReady(data) {
