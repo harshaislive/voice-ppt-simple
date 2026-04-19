@@ -75,6 +75,35 @@ function buildQuestionKnowledgeContext({ sessionMetadata = {}, presentation = nu
     return sections.join('\n\n').slice(0, 16000);
 }
 
+function buildPilotQuestionPolicy({ currentSlideIndex = 0, totalSlides = 0 } = {}) {
+    const slideNumber = Number(currentSlideIndex || 0) + 1;
+    const allowLinks = slideNumber >= 9 || slideNumber >= Math.max(1, totalSlides);
+
+    if (allowLinks) {
+        return `PILOT Q&A POLICY:
+- You know the viewer is near the close of the presentation.
+- Answer with the same assertive, authoritative, approachable tone as the slides.
+- If next-step intent is clear, you may offer the trial stay naturally.
+- If you mention a destination, keep it brief and direct.`;
+    }
+
+    return `PILOT Q&A POLICY:
+- You know the viewer is still inside the presentation, not at the final call-to-action yet.
+- Answer the question clearly, but do not send them away from the presentation.
+- Do not include links, URLs, domains, booking paths, or external next-step instructions yet.
+- If they ask about next steps too early, tell them calmly to stay with the presentation a little longer before deciding.
+- Sound firm, protective, and authoritative, never evasive or salesy.`;
+}
+
+function stripLinksFromAnswer(text = '') {
+    return String(text || '')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1')
+        .replace(/https?:\/\/[^\s]+/gi, '')
+        .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
 async function loadQuestionAnswerContext(db, sessionId) {
     const context = {
         session: null,
@@ -574,27 +603,39 @@ router.post('/pilot', async (req, res) => {
             currentSlide,
             slides
         });
+        const resolvedSlideIndex = Number(answerContext.currentSlide?.slide_index || currentSlideIndex || 0);
+        const totalSlides = answerContext.slides?.length || 1;
+        const allowLinks = resolvedSlideIndex + 1 >= 9 || resolvedSlideIndex + 1 >= totalSlides;
+        const pilotQuestionPolicy = buildPilotQuestionPolicy({
+            currentSlideIndex: resolvedSlideIndex,
+            totalSlides
+        });
 
-        const answer = await modelService.generateNarrationStream({
+        let answer = await modelService.generateNarrationStream({
             slideTitle: 'User Question',
             slideContent: String(questionText || '').trim(),
             slideNotes: answerContext.currentSlide
-                ? `Current slide: "${answerContext.currentSlide.title || ''}". Visible text: "${answerContext.currentSlide.content || ''}"${answerContext.currentSlide.notes ? `\nPresenter notes: ${answerContext.currentSlide.notes}` : ''}`
-                : 'Answer directly and use the presentation knowledge if available.',
+                ? `Current slide: "${answerContext.currentSlide.title || ''}". Visible text: "${answerContext.currentSlide.content || ''}"${answerContext.currentSlide.notes ? `\nPresenter notes: ${answerContext.currentSlide.notes}` : ''}\n\n${pilotQuestionPolicy}`
+                : `Answer directly and use the presentation knowledge if available.\n\n${pilotQuestionPolicy}`,
             pendingQuestions: [],
             participantName: submittedBy || 'Guest',
-            slideIndex: Number(answerContext.currentSlide?.slide_index || currentSlideIndex || 0),
-            totalSlides: answerContext.slides?.length || 1,
+            slideIndex: resolvedSlideIndex,
+            totalSlides,
             style: 'conversational',
             knowledgeContext: answerContext.knowledgeContext
         }, () => {});
+
+        if (!allowLinks) {
+            answer = stripLinksFromAnswer(answer);
+        }
 
         const meta = buildAnswerMeta(questionText, answer);
         logger.info({
             event: 'pilot_qa_answer_ready',
             presentationSlug: String(presentationSlug || '').trim(),
             projectSlug: String(projectSlug || '').trim(),
-            slideIndex: Number(answerContext.currentSlide?.slide_index || currentSlideIndex || 0)
+            slideIndex: resolvedSlideIndex,
+            allowLinks
         });
 
         res.json({
