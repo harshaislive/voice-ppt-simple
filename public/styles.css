@@ -1311,7 +1311,7 @@ h1, h2, h3, h4 {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 480px;
+    width: min(100vw, 640px);
     background: var(--bg);
     border-left: 1px solid rgba(52, 46, 41, 0.1);
     z-index: 7001;
@@ -1593,10 +1593,10 @@ h1, h2, h3, h4 {
 }
 
 .qa-send-btn {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    min-height: 48px;
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
     background: var(--accent-green);
     color: #fff;
     border: none;
@@ -1606,11 +1606,12 @@ h1, h2, h3, h4 {
     cursor: pointer;
     transition: all 0.2s ease;
     border-radius: 50%;
+    box-shadow: 0 14px 28px rgba(77, 90, 66, 0.26);
 }
 
 .qa-send-btn:hover {
     background: var(--text);
-    transform: scale(1.05);
+    transform: translateY(-1px) scale(1.04);
 }
 
 .qa-send-btn:disabled {
@@ -1620,9 +1621,9 @@ h1, h2, h3, h4 {
 }
 
 .qa-send-btn svg {
-    width: 28px;
-    height: 28px;
-    margin-left: 3px;
+    width: 32px;
+    height: 32px;
+    margin-left: 0;
     filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.15));
 }
 
@@ -2975,7 +2976,7 @@ h1, h2, h3, h4 {
 
     /* --- Q&A Panel: Wider on Desktop --- */
     .qa-panel {
-        width: 600px;
+        width: min(100vw, 640px);
     }
 
     .qa-panel-inner {
@@ -3217,7 +3218,7 @@ h1, h2, h3, h4 {
     }
 
     .qa-panel {
-        width: min(100vw, 520px);
+        width: min(100vw, 560px);
     }
 }
 

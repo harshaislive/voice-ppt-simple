@@ -1942,10 +1942,16 @@ export class VoicePPTApp {
         // The pause path stops sources and marks the stream player paused; it does not
         // necessarily suspend the AudioContext.
         if (this.isAudioPaused) {
+            const resumedAtMs = performance.now();
+            const pauseDurationMs = this.pauseStartMs
+                ? Math.max(0, resumedAtMs - this.pauseStartMs)
+                : 0;
             await this.streamPlayer.resume();
             this.isAudioPaused = false;
             if (this.pendingPlaybackStartAt) {
-                this.pendingPlaybackStartAt = performance.now() - this.pausedPlaybackOffsetMs;
+                this.pendingPlaybackStartAt += pauseDurationMs;
+            } else if (this.pausedPlaybackOffsetMs > 0) {
+                this.pendingPlaybackStartAt = resumedAtMs - this.pausedPlaybackOffsetMs;
             }
             this.pauseStartMs = null;
             this.pausedPlaybackOffsetMs = 0;
@@ -1973,11 +1979,17 @@ export class VoicePPTApp {
         }
         // Fallback for browsers that really suspend the AudioContext
         else if (this.streamPlayer.audioContext.state === 'suspended') {
+            const resumedAtMs = performance.now();
+            const pauseDurationMs = this.pauseStartMs
+                ? Math.max(0, resumedAtMs - this.pauseStartMs)
+                : 0;
             await this.streamPlayer.audioContext.resume();
             await this.streamPlayer.resume();
             this.isAudioPaused = false;
             if (this.pendingPlaybackStartAt) {
-                this.pendingPlaybackStartAt = performance.now() - this.pausedPlaybackOffsetMs;
+                this.pendingPlaybackStartAt += pauseDurationMs;
+            } else if (this.pausedPlaybackOffsetMs > 0) {
+                this.pendingPlaybackStartAt = resumedAtMs - this.pausedPlaybackOffsetMs;
             }
             this.pauseStartMs = null;
             this.pausedPlaybackOffsetMs = 0;

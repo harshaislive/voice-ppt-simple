@@ -12,6 +12,7 @@ describe('playback pause and resume', () => {
         const { VoicePPTApp } = await importVoicePPTAppModule();
         const pause = jest.fn().mockResolvedValue();
         const resume = jest.fn().mockResolvedValue();
+        const shiftPlaybackWindow = jest.fn();
         const replaySlide = jest.fn();
         const pauseAutoplex = jest.fn().mockResolvedValue();
 
@@ -22,7 +23,7 @@ describe('playback pause and resume', () => {
                 hasPendingPlayback: () => true,
                 pause,
                 resume,
-                shiftPlaybackWindow: jest.fn()
+                shiftPlaybackWindow
             },
             pendingPlaybackStartAt: 100,
             totalAudioDurationMs: 5000,
@@ -48,16 +49,44 @@ describe('playback pause and resume', () => {
         expect(app.isAudioPaused).toBe(true);
         expect(app.pausedPlaybackOffsetMs).toBe(900);
 
-        app.isAudioPaused = true;
         now = 1600;
-        app.pauseStartMs = performance.now();
         app._isTogglingPause = false;
         await VoicePPTApp.prototype.toggleAudioPause.call(app);
         expect(resume).toHaveBeenCalled();
+        expect(shiftPlaybackWindow).not.toHaveBeenCalled();
         expect(pauseAutoplex).toHaveBeenLastCalledWith(false);
         expect(replaySlide).not.toHaveBeenCalled();
         expect(app.pendingPlaybackStartAt).toBe(700);
+        expect(app.pauseStartMs).toBeNull();
         expect(app.pausedPlaybackOffsetMs).toBe(0);
+        performance.now = originalPerformanceNow;
+        timeoutSpy.mockRestore();
+    });
+
+    test('stream player shifts playback window by pause duration before flushing resume work', async () => {
+        const { StreamAudioPlayer } = await importAudioModule();
+        const player = new StreamAudioPlayer();
+        const originalPerformanceNow = performance.now;
+        let now = 1000;
+        performance.now = jest.fn(() => now);
+        player._resumeContext = jest.fn().mockResolvedValue();
+        player.shiftPlaybackWindow = jest.fn();
+        player._pausedAtMs = 1000;
+        player.chunkQueue = [{ pcmBase64: 'abc', sampleRate: 24000, channels: 1 }];
+
+        const timeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((fn) => {
+            fn();
+            return 0;
+        });
+        player._flushQueue = jest.fn();
+
+        now = 1600;
+        await player.resume();
+
+        expect(player.shiftPlaybackWindow).toHaveBeenCalledWith(600);
+        expect(player._pausedAtMs).toBeNull();
+        expect(player._flushQueue).toHaveBeenCalled();
+
         performance.now = originalPerformanceNow;
         timeoutSpy.mockRestore();
     });

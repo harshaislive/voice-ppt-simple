@@ -17,6 +17,7 @@ export class StreamAudioPlayer {
         this._iosAudioUnlocked = false;
         this._isPaused = false;
         this._pausedGainValue = null;
+        this._pausedAtMs = null;
         this.playbackStartedAtMs = null;
         this.playbackEndsAtMs = null;
     }
@@ -106,6 +107,9 @@ export class StreamAudioPlayer {
 
     pause() {
         this._isPaused = true;
+        if (this._pausedAtMs === null) {
+            this._pausedAtMs = performance.now();
+        }
         if (this.bufferTimer) {
             clearTimeout(this.bufferTimer);
             this.bufferTimer = null;
@@ -125,6 +129,14 @@ export class StreamAudioPlayer {
     resume() {
         this._isPaused = false;
         return this._resumeContext().then(() => {
+            const pauseDurationMs = this._pausedAtMs === null
+                ? 0
+                : Math.max(0, performance.now() - this._pausedAtMs);
+            this._pausedAtMs = null;
+
+            if (pauseDurationMs > 0) {
+                this.shiftPlaybackWindow(pauseDurationMs);
+            }
             if (this.gainNode && this._pausedGainValue !== null) {
                 this.gainNode.gain.value = this._pausedGainValue;
                 this._pausedGainValue = null;
@@ -158,6 +170,7 @@ export class StreamAudioPlayer {
         this.nextStartTime = 0;
         this.playbackStartedAtMs = null;
         this.playbackEndsAtMs = null;
+        this._pausedAtMs = null;
         if (this.gainNode && this._pausedGainValue !== null) {
             this.gainNode.gain.value = this._pausedGainValue;
         }
