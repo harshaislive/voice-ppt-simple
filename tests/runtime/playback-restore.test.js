@@ -160,4 +160,28 @@ describe('playback restore behavior', () => {
         expect(pauseAutoplex).toHaveBeenCalledWith(false);
         expect(restorePresentationStatus).toHaveBeenCalled();
     });
+
+    test('resume persisted session restores then resumes the presentation loop', async () => {
+        const { VoicePPTApp } = await importVoicePPTAppModule();
+        const persisted = { sessionId: 'session-4', controlToken: 'token' };
+        const restorePersistedSession = jest.fn().mockResolvedValue(true);
+        const pauseAutoplex = jest.fn().mockResolvedValue();
+        const triggerAutoPlex = jest.fn().mockResolvedValue();
+        const restorePresentationStatus = jest.fn();
+
+        const resumed = await VoicePPTApp.prototype.resumePersistedSession.call({
+            getPersistedSession: jest.fn(() => persisted),
+            restorePersistedSession,
+            pauseAutoplex,
+            triggerAutoPlex,
+            restorePresentationStatus,
+            sessionId: 'session-4'
+        });
+
+        expect(resumed).toBe(true);
+        expect(restorePersistedSession).toHaveBeenCalledWith(persisted);
+        expect(pauseAutoplex).toHaveBeenCalledWith(false);
+        expect(triggerAutoPlex).toHaveBeenCalled();
+        expect(restorePresentationStatus).toHaveBeenCalled();
+    });
 });

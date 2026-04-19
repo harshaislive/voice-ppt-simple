@@ -173,8 +173,8 @@ export class VoicePPTApp {
 
     getDefaultLoadingQuotes() {
         return [
-            { text: 'Good presentations feel effortless because the system is doing the hard work underneath.', author: 'Voice-PPT' },
-            { text: 'Clarity lands faster when the experience is calm, responsive, and grounded.', author: 'Voice-PPT' }
+            { text: "10% isn't about subtraction - it's about protection.", author: 'Beforest' },
+            { text: 'Nature does not hurry, yet everything is accomplished.', author: 'Lao Tzu' }
         ];
     }
 
@@ -433,6 +433,26 @@ export class VoicePPTApp {
         }
     }
 
+    async resumePersistedSession() {
+        const persisted = this.getPersistedSession();
+        if (!persisted) return false;
+
+        const restored = await this.restorePersistedSession(persisted);
+        if (!restored || !this.sessionId) {
+            return restored;
+        }
+
+        try {
+            await this.pauseAutoplex(false);
+            await this.triggerAutoPlex();
+            this.restorePresentationStatus();
+            return true;
+        } catch (err) {
+            console.error('Failed to resume persisted session:', err);
+            return false;
+        }
+    }
+
     async loadSessionConfig() {
         try {
             const [configRes, persistedSession] = await Promise.all([
@@ -565,8 +585,7 @@ export class VoicePPTApp {
         });
 
         on('resume-session', 'click', () => {
-            const persisted = this.getPersistedSession();
-            if (persisted) this.restorePersistedSession(persisted);
+            this.resumePersistedSession();
         });
         on('new-session', 'click', () => {
             this.clearPersistedSession();
@@ -776,12 +795,14 @@ export class VoicePPTApp {
                 throw new Error(data.error || 'Failed to start');
             }
 
-            // Start the loading experience (The 10% Breath)
-            this.ui.showLoadingScreen(this.loadingQuotes);
-
             this.sessionId = data.sessionId; this.controlToken = data.controlToken || '';
             this.totalSlides = data.slideCount || 0; this.participantName = data.participantName || participantName;
             this.currentProjectSlug = data.projectSlug || selectedPresentation?.projectSlug || this.currentProjectSlug || '';
+            await this.loadLoadingQuotes(this.currentProjectSlug);
+
+            // Start the loading experience (The 10% Breath)
+            this.ui.showLoadingScreen(this.loadingQuotes);
+
             this.resetSessionRuntimeState();
             this.persistSession({
                 sessionId: this.sessionId,

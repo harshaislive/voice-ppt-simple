@@ -219,7 +219,7 @@ export class SocketClient {
 
             this._connectTimeoutId = setTimeout(() => {
                 failConnect('Disconnected', 'Timed out joining presentation room');
-            }, 2500);
+            }, 8000);
         });
     }
 
