@@ -266,18 +266,38 @@ body.theme-reel .full-transcription .word.active {
 
 body.theme-reel .slide-copy.is-quote-slide {
     min-height: 100%;
-    padding: 92px 48px 112px;
+    padding: 88px 48px 112px;
     justify-content: center;
     background: var(--quote-slide-bg, var(--reel-earth));
+    align-items: center;
+    text-align: center;
 }
 
 body.theme-reel .slide-copy.is-quote-slide .slide-title {
-    max-width: 11ch;
-    font-size: clamp(3rem, 6vw, 5.5rem);
+    max-width: 12ch;
+    font-size: clamp(2.5rem, 4.8vw, 4.4rem);
+    margin-left: auto;
+    margin-right: auto;
 }
 
 body.theme-reel .slide-copy.is-quote-slide .transcript-reel-word.is-active {
     color: var(--reel-coral);
+}
+
+body.theme-reel .presentation-stage.is-quote-slide .slide-container {
+    grid-template-columns: 1fr;
+}
+
+body.theme-reel .presentation-stage.is-quote-slide .slide-copy {
+    border-left: 0;
+}
+
+body.theme-reel .slide-copy.is-quote-slide .slide-subtitle,
+body.theme-reel .slide-copy.is-quote-slide .narration-controls,
+body.theme-reel .slide-copy.is-quote-slide .folio-bar {
+    width: min(100%, 760px);
+    margin-left: auto;
+    margin-right: auto;
 }
 
 body.theme-reel .presentation-footer {
@@ -418,5 +438,10 @@ body.theme-reel .chat-widget-toggle {
 
     body.theme-reel .slide-copy.is-quote-slide {
         padding: 74px 24px 112px;
+    }
+
+    body.theme-reel .slide-copy.is-quote-slide .slide-title {
+        font-size: clamp(2.2rem, 9vw, 3.8rem);
+        max-width: 11ch;
     }
 }

@@ -2077,8 +2077,6 @@ export class VoicePPTApp {
 
     renderScrubber() {
         const filmstrip = document.getElementById('scrubber-filmstrip');
-        const prevBtn = document.getElementById('scrubber-prev');
-        const nextBtn = document.getElementById('scrubber-next');
         if (!filmstrip) return;
 
         if (!Array.isArray(this.slideDeck) || this.slideDeck.length === 0) {
@@ -2086,17 +2084,13 @@ export class VoicePPTApp {
             if (this.ui?.renderEmptyHistory) {
                 this.ui.renderEmptyHistory('scrubber-filmstrip');
             }
-            if (prevBtn) prevBtn.disabled = true;
-            if (nextBtn) nextBtn.disabled = true;
+            this.updateScrubberNavState();
             return;
         }
 
         const accessibleIndex = Math.max(this.currentSlideIndex, this.maxViewedSlideIndex);
         filmstrip.innerHTML = '';
         filmstrip.dataset.slideCount = String(this.slideDeck.length);
-
-        if (prevBtn) prevBtn.disabled = this.currentSlideIndex <= 0;
-        if (nextBtn) nextBtn.disabled = this.currentSlideIndex >= accessibleIndex;
         this.slideDeck.forEach((slide, index) => {
             const isFuture = index > accessibleIndex;
             const button = document.createElement('button');
@@ -2104,11 +2098,14 @@ export class VoicePPTApp {
             button.className = 'scrubber-thumb';
             if (index === this.currentSlideIndex) button.classList.add('active');
             if (isFuture) button.classList.add('disabled');
-            
+
+            const isQuote = Boolean(slide?.isQuoteSlide || slide?.kind === 'quote');
+
             if (slide?.image) {
                 button.style.backgroundImage = `url(${slide.image})`;
             } else {
                 button.classList.add('no-image');
+                if (isQuote) button.classList.add('is-quote-thumb');
                 button.style.backgroundImage = 'none';
                 if (slide?.backgroundColor) {
                     button.style.backgroundColor = slide.backgroundColor;
@@ -2129,10 +2126,19 @@ export class VoicePPTApp {
             button.setAttribute('aria-label', `Slide ${index + 1}: ${slideTitle}`);
             button.title = isFuture ? 'Locked' : `Replay slide ${index + 1}: ${slideTitle}`;
             
+            const fallbackMarkup = !slide?.image
+                ? `
+                    <div class="scrubber-thumb-fallback">
+                        ${isQuote ? '<span class="scrubber-thumb-quote-mark">“</span>' : '<span class="scrubber-thumb-quote-mark scrubber-thumb-quote-mark--small">Slide</span>'}
+                    </div>
+                `
+                : '';
+
             button.innerHTML = `
                 <div class="scrubber-thumb-overlay">
                     ${actionIcon}
                 </div>
+                ${fallbackMarkup}
                 <span class="scrubber-thumb-index">${index + 1}</span>
                 <span class="scrubber-thumb-title">${this.escapeHtml(slideTitle)}</span>
             `;
@@ -2144,6 +2150,9 @@ export class VoicePPTApp {
             }
             filmstrip.appendChild(button);
         });
+
+        this.ensureScrubberScrollBinding();
+        requestAnimationFrame(() => this.updateScrubberNavState());
     }
 
     async handleScrubberSelect(index) {
@@ -2193,10 +2202,36 @@ export class VoicePPTApp {
     }
 
     async navigateScrubber(direction) {
-        const targetIndex = this.currentSlideIndex + direction;
-        if (targetIndex >= 0 && targetIndex <= this.maxViewedSlideIndex) {
-            await this.handleScrubberSelect(targetIndex);
+        const inner = document.querySelector('.scrubber-inner');
+        if (!inner) return;
+        const amount = Math.max(220, Math.floor(inner.clientWidth * 0.55));
+        inner.scrollBy({ left: direction * amount, behavior: 'smooth' });
+        window.setTimeout(() => this.updateScrubberNavState(), 220);
+    }
+
+    ensureScrubberScrollBinding() {
+        const inner = document.querySelector('.scrubber-inner');
+        if (!inner || inner.dataset.boundScrollNav === 'true') return;
+        inner.dataset.boundScrollNav = 'true';
+        inner.addEventListener('scroll', () => this.updateScrubberNavState(), { passive: true });
+    }
+
+    updateScrubberNavState() {
+        const inner = document.querySelector('.scrubber-inner');
+        const prevBtn = document.getElementById('scrubber-prev');
+        const nextBtn = document.getElementById('scrubber-next');
+        if (!inner) {
+            if (prevBtn) prevBtn.disabled = true;
+            if (nextBtn) nextBtn.disabled = true;
+            return;
         }
+
+        const maxScrollLeft = Math.max(0, inner.scrollWidth - inner.clientWidth);
+        const atStart = inner.scrollLeft <= 4;
+        const atEnd = inner.scrollLeft >= maxScrollLeft - 4 || maxScrollLeft <= 4;
+
+        if (prevBtn) prevBtn.disabled = atStart;
+        if (nextBtn) nextBtn.disabled = atEnd;
     }
 
     async replaySlide(index) {

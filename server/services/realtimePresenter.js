@@ -203,8 +203,8 @@ class RealtimePresenterService {
       }
 
       const instructions = isQA
-        ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the participant name once if provided. If the answer is not in the knowledge docs, say you do not have enough information in this presentation and that someone from the team can follow up. Adult speaking to adult. Calm, sharp, conversational. Prefer "uhm" over "um" if a hesitation naturally appears.`
-        : `You are a narrator for ${projectLabel}. Speak in a grounded, confident, conversational voice shaped by the provided project knowledge. Keep one consistent voice throughout. Adult speaking to adult. Include a few natural spoken disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts. Do not make pricing claims, comparisons, or offer framing that are not explicitly supported by the slide, notes, or knowledge docs.`;
+        ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded in the provided project knowledge. 3-5 sentences. No preamble. No "Great question". Use the participant name once if provided. If the answer is not in the knowledge docs, say you do not have enough information in this presentation and that someone from the team can follow up. Adult speaking to adult. Calm, sharp, conversational. Avoid filler sounds like "uhm", "uh", or "um".`
+        : `You are a narrator for ${projectLabel}. Speak in a grounded, confident, conversational voice shaped by the provided project knowledge. Keep one consistent voice throughout. Adult speaking to adult. Let the voice feel human through cadence and sentence rhythm, not filler sounds. Avoid "uhm", "uh", or "um". Stay grounded in the provided context and never invent facts. Do not make pricing claims, comparisons, or offer framing that are not explicitly supported by the slide, notes, or knowledge docs.`;
 
       return {
         instructions: pronunciationGuide.length
@@ -216,8 +216,8 @@ class RealtimePresenterService {
 
     const userText = this._buildSafePrompt(context);
     const instructions = isQA
-      ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you do not have the information in this presentation. Prefer "uhm" over "um" if a hesitation naturally appears.`
-      : `You are a narrator for ${projectLabel}. Be grounded, concise, and natural. Adult speaking to adult. Use a few natural disfluencies when they fit, and prefer "uhm" over "um". Stay grounded in the provided context and never invent facts.`;
+      ? `You are answering a user question about ${projectLabel}. Be direct, calm, and grounded. 3-5 sentences. No preamble. Adult speaking to adult. If unsure, say you do not have the information in this presentation. Avoid filler sounds like "uhm", "uh", or "um".`
+      : `You are a narrator for ${projectLabel}. Be grounded, concise, and natural. Adult speaking to adult. Let the voice feel human through cadence, not filler sounds. Avoid "uhm", "uh", or "um". Stay grounded in the provided context and never invent facts.`;
 
     return {
       instructions: pronunciationGuide.length

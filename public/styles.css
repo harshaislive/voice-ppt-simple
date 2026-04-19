@@ -1058,19 +1058,20 @@ h1, h2, h3, h4 {
 .scrubber-nav {
     display: flex;
     gap: 8px;
-    margin-top: 6px;
+    margin-top: 12px;
 }
 
 .scrubber-nav-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: transparent;
+    border-radius: 999px;
+    border: 1px solid rgba(52, 46, 41, 0.14);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 10px 24px rgba(31, 24, 19, 0.08);
 }
 
 .scrubber-nav-btn:disabled {
@@ -1098,6 +1099,10 @@ h1, h2, h3, h4 {
     line-height: 1.5;
     color: var(--text);
     opacity: 0.72;
+}
+
+.scrubber-copy::after {
+    content: ' Use the arrows to browse, then click a slide to replay it.';
 }
 
 .scrubber-filmstrip {
@@ -1176,6 +1181,10 @@ h1, h2, h3, h4 {
     background: linear-gradient(180deg, #a28f78, #6f5f50);
 }
 
+.scrubber-thumb.is-quote-thumb {
+    background-image: none !important;
+}
+
 .scrubber-thumb-index,
 .scrubber-thumb-title {
     position: relative;
@@ -1216,6 +1225,31 @@ h1, h2, h3, h4 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+}
+
+.scrubber-thumb-fallback {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    pointer-events: none;
+}
+
+.scrubber-thumb-quote-mark {
+    font-family: var(--font-serif);
+    font-size: 3.2rem;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.22);
+}
+
+.scrubber-thumb-quote-mark--small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
 }
 
 .scrubber-thumb-overlay {

@@ -13,6 +13,11 @@ const PRONUNCIATION_OVERRIDES = [
     pattern: /\bBeforest\b/gi,
     spoken: 'Bee-forest',
     guide: 'Beforest -> pronounce exactly "Bee-forest"'
+  },
+  {
+    pattern: /\bCoorg\b/gi,
+    spoken: 'Koorg',
+    guide: 'Coorg -> pronounce exactly "Koorg"'
   }
 ];
 
