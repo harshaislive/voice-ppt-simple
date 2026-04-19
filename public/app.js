@@ -286,6 +286,11 @@ export class VoicePPTApp {
     configurePilotStartScreen() {
         const metadata = this.pilotManifest?.metadata || {};
         const firstSlide = this.pilotManifest?.slides?.[0] || null;
+        const contextualSubtitle = String(
+            metadata.description
+            || firstSlide?.content
+            || 'A quiet introduction to the Beforest way of living.'
+        ).trim();
         this.presentationCatalog = [{
             id: metadata.presentationSlug || 'pilot-package',
             presentationSlug: metadata.presentationSlug || 'pilot-package',
@@ -293,7 +298,7 @@ export class VoicePPTApp {
             source: metadata.source || 'local',
             projectSlug: metadata.projectSlug || '',
             startTitle: metadata.title || 'Pilot Presentation',
-            startSubtitle: 'Frozen presentation package',
+            startSubtitle: contextualSubtitle,
             startImage: firstSlide?.image || ''
         }];
         this.currentProjectSlug = metadata.projectSlug || '';
@@ -303,7 +308,7 @@ export class VoicePPTApp {
         const titleEl = document.getElementById('home-start-title');
         const subEl = document.getElementById('home-start-sub');
         if (titleEl) this.setMultilineText(titleEl, metadata.title || 'Pilot Presentation', 'Pilot Presentation');
-        if (subEl) subEl.textContent = 'Frozen presentation package';
+        if (subEl) subEl.textContent = contextualSubtitle;
 
         const heroEl = document.getElementById('start-hero');
         if (heroEl && firstSlide?.image) {
@@ -322,7 +327,7 @@ export class VoicePPTApp {
             passcodeEl.style.display = 'none';
         }
         if (hintEl) {
-            hintEl.textContent = 'This pilot runs from a frozen local presentation package.';
+            hintEl.textContent = 'Take this at your own pace. Pause when you want, continue when it feels right.';
         }
         localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, 'false');
         this.configurePilotInteractionMode();
