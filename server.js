@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { createCorsOptions, validateRuntimeConfig } = require('./server/config/runtime');
 const {
     createRateLimiter,
@@ -72,6 +73,15 @@ app.use('/api/analytics', analyticsRoutes);
 // Health check
 app.get('/pilot', (_req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'pilot.html'));
+});
+
+app.get('/reel-style', (_req, res) => {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    let html = fs.readFileSync(indexPath, 'utf8');
+    html = html.replace('<title>Voice-PPT</title>', '<title>Beforest Reel Style</title>');
+    html = html.replace('</head>', '    <link rel="stylesheet" href="/reel-style.css">\n</head>');
+    html = html.replace('<body>', '<body class="theme-reel">');
+    res.type('html').send(html);
 });
 
 app.get('/api/health', (req, res) => {

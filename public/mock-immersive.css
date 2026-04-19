@@ -1,0 +1,542 @@
+:root {
+    --earth: #342e29;
+    --red: #86312b;
+    --forest: #344736;
+    --blue: #002140;
+    --warm: #ffc083;
+    --coral: #ff774a;
+    --soft-green: #b8dc99;
+    --soft-blue: #b0ddf1;
+    --paper: #fdfbf7;
+    --mist: #e7e4df;
+    --ink: #1d1814;
+    --muted: rgba(29, 24, 20, 0.68);
+    --line: rgba(29, 24, 20, 0.12);
+    --glass: rgba(253, 251, 247, 0.11);
+    --shadow: 0 28px 90px rgba(17, 13, 10, 0.22);
+}
+
+@font-face {
+    font-family: "Arizona Flare";
+    src: url("/fonts/ABCArizonaFlare-Regular-Trial.woff2") format("woff2"),
+         url("/fonts/ABCArizonaFlare-Regular-Trial.woff") format("woff");
+    font-style: normal;
+    font-weight: 400;
+}
+
+@font-face {
+    font-family: "Arizona Flare";
+    src: url("/fonts/ABCArizonaFlare-Light-Trial.woff2") format("woff2"),
+         url("/fonts/ABCArizonaFlare-Light-Trial.woff") format("woff");
+    font-style: normal;
+    font-weight: 300;
+}
+
+@font-face {
+    font-family: "Arizona Sans";
+    src: url("/fonts/ABCArizonaSans-Regular-Trial.woff2") format("woff2"),
+         url("/fonts/ABCArizonaSans-Regular-Trial.woff") format("woff");
+    font-style: normal;
+    font-weight: 400;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    background:
+        radial-gradient(circle at top left, rgba(255, 192, 131, 0.2), transparent 28%),
+        linear-gradient(180deg, #f7f3ec 0%, #eee7de 100%);
+    color: var(--ink);
+    font-family: "Arizona Sans", sans-serif;
+}
+
+body {
+    padding: 36px 20px 96px;
+}
+
+.page {
+    max-width: 1540px;
+    margin: 0 auto;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    margin-bottom: 24px;
+}
+
+.hero {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 30px;
+    align-items: end;
+    margin-bottom: 34px;
+}
+
+.eyebrow {
+    display: inline-block;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.72rem;
+    color: rgba(29, 24, 20, 0.5);
+}
+
+.hero h1 {
+    margin: 0;
+    font-family: "Arizona Flare", serif;
+    font-size: clamp(3rem, 6vw, 6.8rem);
+    line-height: 0.9;
+    letter-spacing: -0.055em;
+    max-width: 10ch;
+}
+
+.hero p {
+    margin: 18px 0 0;
+    max-width: 56ch;
+    font-size: 1.02rem;
+    line-height: 1.65;
+    color: var(--muted);
+}
+
+.summary {
+    padding: 24px;
+    border: 1px solid var(--line);
+    background: rgba(253, 251, 247, 0.76);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 50px rgba(17, 13, 10, 0.08);
+}
+
+.summary strong {
+    display: block;
+    margin-bottom: 10px;
+    font-family: "Arizona Flare", serif;
+    font-size: 1.15rem;
+    font-weight: 400;
+}
+
+.summary p {
+    margin: 0;
+    font-size: 0.94rem;
+    line-height: 1.6;
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.panel-label {
+    margin-bottom: 10px;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(29, 24, 20, 0.48);
+}
+
+.frame {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(29, 24, 20, 0.14);
+    background: #0f0c09;
+    box-shadow: var(--shadow);
+}
+
+.frame.desktop {
+    aspect-ratio: 16 / 10;
+    min-height: 460px;
+}
+
+.frame.mobile {
+    aspect-ratio: 9 / 18;
+    min-height: 460px;
+    max-width: 340px;
+}
+
+.screen {
+    position: absolute;
+    inset: 0;
+    color: var(--paper);
+}
+
+.media {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transform: scale(1.03);
+}
+
+.grain {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(7, 8, 7, 0.05), rgba(7, 8, 7, 0.32) 48%, rgba(7, 8, 7, 0.82) 100%),
+        radial-gradient(circle at top right, rgba(255, 192, 131, 0.14), transparent 24%);
+}
+
+.topline {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.7rem;
+    color: rgba(253, 251, 247, 0.78);
+}
+
+.title {
+    font-family: "Arizona Flare", serif;
+    font-size: clamp(2.4rem, 4.4vw, 5rem);
+    line-height: 0.92;
+    letter-spacing: -0.06em;
+}
+
+.sub {
+    margin-top: 14px;
+    font-size: 0.96rem;
+    line-height: 1.58;
+    color: rgba(253, 251, 247, 0.8);
+    max-width: 40ch;
+}
+
+.transcript {
+    margin-top: 18px;
+    font-family: "Arizona Flare", serif;
+    font-size: 1rem;
+    line-height: 1.46;
+    color: rgba(253, 251, 247, 0.76);
+}
+
+.transcript .hot {
+    color: var(--coral);
+}
+
+.progress {
+    margin-top: 16px;
+    height: 3px;
+    background: rgba(253, 251, 247, 0.16);
+    overflow: hidden;
+}
+
+.progress::after {
+    content: "";
+    display: block;
+    width: 42%;
+    height: 100%;
+    background: var(--warm);
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(253, 251, 247, 0.14);
+    border: 1px solid rgba(253, 251, 247, 0.18);
+    backdrop-filter: blur(12px);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+}
+
+.note-card,
+.metric-card,
+.choice-card,
+.quote-card {
+    background: var(--glass);
+    border: 1px solid rgba(253, 251, 247, 0.14);
+    backdrop-filter: blur(12px);
+    color: rgba(253, 251, 247, 0.9);
+}
+
+.reel-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 28px 26px 24px;
+}
+
+.reel-bottom .title {
+    max-width: 10ch;
+}
+
+.reel-bottom .sub {
+    max-width: 46ch;
+}
+
+.proof-card {
+    position: absolute;
+    right: 24px;
+    top: 78px;
+    width: min(33vw, 320px);
+    padding: 18px;
+}
+
+.proof-card strong,
+.note-card strong,
+.metric-card strong,
+.choice-card strong {
+    display: block;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.7rem;
+    color: rgba(253, 251, 247, 0.72);
+}
+
+.proof-card p,
+.note-card p,
+.metric-card p,
+.choice-card p,
+.quote-card p {
+    margin: 0;
+    line-height: 1.5;
+    font-size: 0.92rem;
+}
+
+.poster-copy {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 48%;
+    padding: 88px 30px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: linear-gradient(90deg, rgba(0, 33, 64, 0.88), rgba(0, 33, 64, 0.42) 74%, rgba(0, 33, 64, 0));
+}
+
+.poster-chip {
+    position: absolute;
+    right: 22px;
+    bottom: 22px;
+    width: 136px;
+    padding: 14px;
+}
+
+.rail-copy {
+    position: absolute;
+    left: 0;
+    right: 28%;
+    bottom: 0;
+    padding: 30px 28px 28px;
+}
+
+.story-rail {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28%;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(10, 12, 10, 0.44);
+    border-left: 1px solid rgba(253, 251, 247, 0.12);
+    backdrop-filter: blur(8px);
+}
+
+.story-bars {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    right: 14px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+.story-bars span {
+    display: block;
+    height: 3px;
+    background: rgba(253, 251, 247, 0.22);
+}
+
+.story-bars span:first-child {
+    background: var(--warm);
+}
+
+.choices {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.choice-card {
+    padding: 16px 16px 18px;
+    min-height: 112px;
+}
+
+.quote-shell {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 42px;
+}
+
+.quote-card {
+    width: min(100%, 720px);
+    padding: 28px 30px 30px;
+    text-align: center;
+}
+
+.quote-card blockquote {
+    margin: 0;
+    font-family: "Arizona Flare", serif;
+    font-size: clamp(2.2rem, 4vw, 4.3rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+}
+
+.quote-card p {
+    margin-top: 18px;
+    color: rgba(253, 251, 247, 0.72);
+}
+
+.mobile .title {
+    font-size: 2.15rem;
+    max-width: 9ch;
+}
+
+.mobile .sub {
+    font-size: 0.86rem;
+    max-width: 24ch;
+}
+
+.mobile .reel-bottom,
+.mobile .rail-copy {
+    padding: 22px 18px 18px;
+}
+
+.mobile .proof-card {
+    top: auto;
+    right: 14px;
+    left: 14px;
+    bottom: 168px;
+    width: auto;
+}
+
+.mobile .poster-copy {
+    width: 100%;
+    padding: 76px 18px 18px;
+    background: linear-gradient(180deg, rgba(0, 33, 64, 0.06), rgba(0, 33, 64, 0.86));
+}
+
+.mobile .poster-chip {
+    right: 14px;
+    bottom: 122px;
+    width: 128px;
+}
+
+.mobile .story-rail {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 88px;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    overflow-x: auto;
+    border-left: 0;
+    border-top: 1px solid rgba(253, 251, 247, 0.12);
+}
+
+.mobile .metric-card,
+.mobile .note-card {
+    min-width: 180px;
+}
+
+.mobile .choices {
+    grid-template-columns: 1fr;
+    bottom: 18px;
+    left: 16px;
+    right: 16px;
+}
+
+.mobile .quote-card {
+    padding: 22px 20px 24px;
+}
+
+.mobile .quote-card blockquote {
+    font-size: 2.1rem;
+}
+
+.index-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+}
+
+.index-card {
+    padding: 24px;
+    border: 1px solid var(--line);
+    background: rgba(253, 251, 247, 0.72);
+    box-shadow: 0 20px 56px rgba(17, 13, 10, 0.08);
+}
+
+.index-card h2 {
+    margin: 0 0 10px;
+    font-family: "Arizona Flare", serif;
+    font-size: 2rem;
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+    font-weight: 400;
+}
+
+.index-card p {
+    margin: 0 0 16px;
+    color: var(--muted);
+    line-height: 1.58;
+}
+
+.index-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--earth);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+}
+
+@media (max-width: 1100px) {
+    .hero,
+    .pair,
+    .index-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .summary {
+        max-width: 720px;
+    }
+}

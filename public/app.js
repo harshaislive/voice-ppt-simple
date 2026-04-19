@@ -1372,7 +1372,7 @@ export class VoicePPTApp {
         this.fullNarrationTranscript = '';
         this.ui.updateFullTranscriptionDisplay('');
         document.getElementById('slide-counter').textContent = `${data.slideIndex + 1} / ${data.totalSlides || this.totalSlides || this.slideDeck.length || '?'}`;
-        document.getElementById('slide-title').textContent = data.slide ? data.slide.title : '';
+        this.renderSlideHeadline(data.slide ? data.slide.title : '');
         document.getElementById('slide-subtitle').textContent = data.slide ? data.slide.content : '';
         const notesEl = document.getElementById('slide-notes');
         if (notesEl) notesEl.textContent = '';
@@ -1408,6 +1408,62 @@ export class VoicePPTApp {
         if (this.azureVoice.connected) this.azureVoice.syncSlideContext();
         this.updateFolio();
         this.renderScrubber();
+    }
+
+    isQuoteSlide(slide = this.currentSlide) {
+        return Boolean(slide?.isQuoteSlide || slide?.kind === 'quote');
+    }
+
+    clearFullTranscriptionDisplay() {
+        const el = document.getElementById('full-transcription');
+        if (el) el.innerHTML = '';
+    }
+
+    getGlobalActiveTranscriptWordIndex() {
+        if (!this.transcriptChunks.length || this.transcriptChunkIndex < 0 || this.activeTranscriptWordIndex < 0) {
+            return -1;
+        }
+
+        let globalIndex = 0;
+        for (let i = 0; i < this.transcriptChunkIndex; i += 1) {
+            globalIndex += Array.isArray(this.transcriptChunks[i]?.words) ? this.transcriptChunks[i].words.length : 0;
+        }
+        return globalIndex + this.activeTranscriptWordIndex;
+    }
+
+    renderSlideHeadline(text = '', activeWordIndex = -1) {
+        const titleEl = document.getElementById('slide-title');
+        if (!titleEl) return;
+
+        const titleText = String(text || '');
+        if (!this.isQuoteSlide()) {
+            titleEl.textContent = titleText;
+            return;
+        }
+
+        const tokens = titleText.split(/(\s+)/);
+        const fragment = document.createDocumentFragment();
+        let wordIndex = 0;
+
+        tokens.forEach((token) => {
+            if (!token) return;
+            if (/^\s+$/.test(token)) {
+                fragment.appendChild(document.createTextNode(token));
+                return;
+            }
+
+            const span = document.createElement('span');
+            span.className = 'slide-title-word';
+            if (wordIndex === activeWordIndex) {
+                span.classList.add('is-active');
+            }
+            span.textContent = token;
+            fragment.appendChild(span);
+            wordIndex += 1;
+        });
+
+        titleEl.innerHTML = '';
+        titleEl.appendChild(fragment);
     }
 
     handleNarrationDelta(data) {
@@ -1633,6 +1689,12 @@ export class VoicePPTApp {
     }
 
     renderFullTranscription() {
+        if (this.isQuoteSlide()) {
+            this.renderSlideHeadline(this.currentSlide?.title || '', this.transcriptChunkMode === 'live' ? this.getGlobalActiveTranscriptWordIndex() : -1);
+            this.clearFullTranscriptionDisplay();
+            return;
+        }
+
         if (this.transcriptChunkMode === 'waiting' || !this.transcriptChunks.length) {
             this.ui.renderTranscriptWaiting('full-transcription');
             return;
@@ -2853,15 +2915,12 @@ export class VoicePPTApp {
         cta.rel = 'noopener noreferrer';
         cta.className = 'cta-block';
         cta.innerHTML = `
-            <div class="cta-block-left" style="display:flex;align-items:center;gap:12px;">
-                <div class="cta-block-icon" style="opacity:0.6;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="2" y1="12" x2="22" y2="12"/>
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                    </svg>
+            <div class="cta-block-left">
+                <div class="cta-block-copy">
+                    <div class="cta-block-kicker">First Step</div>
+                    <div class="cta-block-label">Take the trial stay</div>
+                    <div class="cta-block-note">hospitality.beforest.co</div>
                 </div>
-                <div class="cta-block-label">Start Your Beforest Trial</div>
             </div>
             <div class="cta-block-arrow">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2872,7 +2931,7 @@ export class VoicePPTApp {
         container.appendChild(cta);
         section.classList.remove('hidden');
         if (completionTitle) completionTitle.textContent = 'Start Your Trial';
-        if (footerNote) footerNote.textContent = 'If this feels right, take the first real step now.';
+        if (footerNote) footerNote.textContent = 'If this already feels clear, do not overthink the next step.';
     }
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
