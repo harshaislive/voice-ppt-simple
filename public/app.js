@@ -791,8 +791,23 @@ export class VoicePPTApp {
                 });
                 return;
             }
-            this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
+            void this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
         });
+    }
+
+    handlePilotPlaybackStartFailure(slideIndex, error) {
+        console.warn('Pilot playback start failed:', error);
+        this.isAudioPaused = true;
+        this.pendingPlaybackStartAt = null;
+        this.stopTranscriptProgress();
+        if (this.transcriptChunks.length > 0) {
+            this.transcriptChunkMode = 'complete';
+            this.transcriptChunkIndex = 0;
+            this.activeTranscriptWordIndex = -1;
+            this.renderFullTranscription();
+        }
+        this.syncSlidePauseButton({ paused: true, enabled: true });
+        this.setStatus('Tap to continue', 'paused', `Slide ${slideIndex + 1} is ready. Press play to begin.`);
     }
 
     async startPilotSession() {
@@ -860,7 +875,11 @@ export class VoicePPTApp {
         this.isAudioPaused = !autoPlay;
         this.syncSlidePauseButton({ paused: !autoPlay, enabled: true });
         if (autoPlay) {
-            await this.pilotAudio.play();
+            try {
+                await this.pilotAudio.play();
+            } catch (error) {
+                this.handlePilotPlaybackStartFailure(index, error);
+            }
         } else {
             this.setStatus('Ready', 'paused', `Slide ${index + 1} ready`);
         }
