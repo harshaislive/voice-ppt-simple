@@ -1234,7 +1234,7 @@ router.post('/replay-slide', requireSessionPlaybackControl(), async (req, res) =
 
             const streamedAudio = narrationResult?.audioHandled
                 ? narrationResult
-                : await streamAudio(io, sessionId, narrationResult.text, resolvedSlideIndex, { isReplay: true });
+                : await streamAudio(db, io, sessionId, narrationResult.text, resolvedSlideIndex, { isReplay: true });
 
             if (streamedAudio) {
                 await persistSlideNarration({
@@ -1403,7 +1403,7 @@ async function runPresentation(db, io, sessionId, runId) {
                 pendingQuestions: updatedPendingQuestions.slice(0, 5).map((q) => q.question_text)
             });
 
-            const streamedAudio = await streamAudio(io, sessionId, narrationResult.text, currentSlideIndex, { isQA: false });
+            const streamedAudio = await streamAudio(db, io, sessionId, narrationResult.text, currentSlideIndex, { isQA: false });
             logger.info({ event: 'presentation_slide_played', slideIndex: currentSlideIndex, source: 'generated' });
             if (streamedAudio) {
                 await persistSlideNarration({
@@ -1588,7 +1588,7 @@ async function narrateSlide({ db, io, sessionId, slide, slideIndex, totalSlides,
     return { text: narrationText, audioHandled: false };
 }
 
-async function streamAudio(io, sessionId, text, slideIndex, options = {}) {
+async function streamAudio(db, io, sessionId, text, slideIndex, options = {}) {
     try {
         let totalPcmBytes = 0;
         const collectedChunks = [];
@@ -1861,7 +1861,7 @@ async function answerQuestionsInline({ db, io, sessionId, slides, currentSlideIn
         }
 
         if (!shouldUseRealtimePresenter()) {
-            await streamAudio(io, sessionId, answer, slides.length + q, {
+            await streamAudio(db, io, sessionId, answer, slides.length + q, {
                 isQA: true,
                 questionIndex: q + 1
             });
