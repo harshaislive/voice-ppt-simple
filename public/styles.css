@@ -3190,6 +3190,22 @@ h1, h2, h3, h4 {
         margin-right: auto;
     }
 
+    .presentation-stage.is-quote-slide .slide-copy .narration-controls {
+        justify-content: center;
+    }
+
+    .presentation-stage.is-quote-slide .slide-copy .slide-pause-btn {
+        position: relative;
+        right: auto;
+        bottom: auto;
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        margin: 0 auto;
+        border-radius: 999px;
+    }
+
     /* Desktop-only reaction pills floating inside footer */
     .reaction-btn {
         width: 44px;
