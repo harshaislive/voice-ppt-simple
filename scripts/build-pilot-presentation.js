@@ -11,6 +11,43 @@ const ROOT = path.join(__dirname, '..');
 const DEFAULT_PROJECT = 'beforest';
 const DEFAULT_PRESENTATION = '10_percent_lifestyle';
 const DEFAULT_OUTPUT_DIR = path.join(ROOT, 'pilot-presentation');
+const SLIDE_REWRITES = [
+    {
+        title: 'Full calendars do not make full lives.',
+        content: 'Most ambitious lives do not break from lack of drive. They break from lack of protected recovery.',
+        notes: 'Open with a firm truth. Speak like an authority who has seen this pattern too many times. Name the cost of constant output without sounding dramatic. End by setting up the idea that the answer is not escape, but protection.'
+    },
+    {
+        title: 'You do not need escape. You need protected time.',
+        content: 'Thirty nights a year in the deep quiet of the wilderness is enough to restore rhythm, sleep, and perspective.',
+        notes: 'Make the 10% idea feel precise and believable. This is not a luxury fantasy. It is a disciplined amount of recovery inside a real life. End by asking whether any promise like this matters if the place behind it cannot be trusted.'
+    },
+    {
+        title: 'Trust should be built on land, not language.',
+        content: 'Seven years. Six collectives. 1,300 acres. 250 families. Substance before story.',
+        notes: 'Use the numbers like proof, not decoration. This slide should feel authoritative and earned. Emphasize restoration, stewardship, and long-term work. End by moving from credibility to what those places actually let a person feel.'
+    },
+    {
+        title: 'Beforest is where recovery becomes real.',
+        content: 'Rewilded landscapes across Coorg, Hyderabad, Bhopal, and Mumbai. Places built for belonging, not passing through.',
+        notes: 'Now translate proof into lived experience. This is where the idea becomes tangible. Keep the tone grounded and protective. End by introducing the model itself: how this rhythm is practiced over time.'
+    },
+    {
+        title: 'Access changes behaviour faster than ownership.',
+        content: '30 person-nights a year for 10 years. A living practice, not a someday promise.',
+        notes: 'Explain the membership rhythm with clarity and calm authority. This is not accumulation. It is a recurring return to what restores you. End by setting up the real risk: what happens if someone keeps postponing this kind of reset.'
+    },
+    {
+        title: 'The cost of waiting is another year unchanged.',
+        content: 'Every year deferred is another year without reset, clarity, or protected margin.',
+        notes: 'This is urgency without pressure. Speak to the cost of drift, not the fear of missing out. Be direct, steady, and humane. End by making the next step feel simple and proportionate.'
+    },
+    {
+        title: 'Start with the smallest real step.',
+        content: 'Take the Blyton Bungalow trial stay in Coorg and feel the shift before you decide anything bigger.',
+        notes: 'Close with confidence and low friction. This is the first real step, not a leap of faith. Keep it authoritative, warm, and practical. Route clearly toward the trial stay.'
+    }
+];
 const QUOTE_SLIDES = [
     {
         afterSlideIndex: 0,
@@ -211,6 +248,22 @@ function buildSequenceWithQuotes(slides = []) {
     return sequence;
 }
 
+function applyNarrativeRewrite(slides = []) {
+    return slides.map((slide, index) => {
+        const rewrite = SLIDE_REWRITES[index];
+        if (!rewrite) {
+            return { ...slide };
+        }
+
+        return {
+            ...slide,
+            title: rewrite.title,
+            content: rewrite.content,
+            notes: rewrite.notes
+        };
+    });
+}
+
 async function main() {
     const source = String(process.env.PILOT_SOURCE || 'supabase').trim().toLowerCase();
     const projectSlug = process.env.PILOT_PROJECT_SLUG || DEFAULT_PROJECT;
@@ -223,7 +276,8 @@ async function main() {
     const loaded = await loadPresentation(projectSlug, presentationSlug, source);
     const { presentation, docs } = loaded;
     const knowledgeContext = buildKnowledgeContext(docs);
-    const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
+    const sourceSlides = Array.isArray(presentation.slides) ? presentation.slides : [];
+    const slides = applyNarrativeRewrite(sourceSlides);
 
     if (!slides.length) {
         throw new Error(`Presentation "${presentationSlug}" has no slides`);
