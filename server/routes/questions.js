@@ -104,6 +104,49 @@ function stripLinksFromAnswer(text = '') {
         .trim();
 }
 
+router.post('/pilot-response', async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'qa', sessionId: req.body?.sessionId });
+    try {
+        const {
+            sessionId,
+            presentationSlug,
+            projectSlug,
+            questionId,
+            prompt,
+            answer,
+            slideIndex
+        } = req.body || {};
+
+        if (!String(sessionId || '').trim() || !String(questionId || '').trim() || !String(prompt || '').trim()) {
+            return res.status(400).json({ error: 'sessionId, questionId, and prompt are required' });
+        }
+
+        await analyticsService.logEvent(
+            String(sessionId).trim(),
+            'pilot_interstitial_response',
+            Number.isFinite(Number(slideIndex)) ? Number(slideIndex) : null,
+            String(answer || '').trim(),
+            {
+                questionId: String(questionId).trim(),
+                prompt: String(prompt).trim(),
+                presentationSlug: String(presentationSlug || '').trim(),
+                projectSlug: String(projectSlug || '').trim()
+            }
+        );
+
+        logger.info({
+            event: 'pilot_interstitial_response_saved',
+            questionId: String(questionId).trim(),
+            slideIndex: Number.isFinite(Number(slideIndex)) ? Number(slideIndex) : null
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        logger.error({ event: 'pilot_interstitial_response_failed', err: error.message });
+        res.status(500).json({ error: 'Failed to save pilot response' });
+    }
+});
+
 async function loadQuestionAnswerContext(db, sessionId) {
     const context = {
         session: null,

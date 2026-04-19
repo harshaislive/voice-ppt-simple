@@ -56,6 +56,37 @@ export function selectPresentationFromCatalog(presentations = [], requestedIdent
 
 export class VoicePPTApp {
     constructor() {
+        this.pilotInterstitials = [
+            {
+                afterSlideIndex: 2,
+                id: 'depletion',
+                eyebrow: 'A Quick Check',
+                title: 'What feels most depleted right now?',
+                detail: 'Choose the first honest answer.',
+                type: 'choices',
+                options: ['Time', 'Energy', 'Focus', 'Perspective']
+            },
+            {
+                afterSlideIndex: 6,
+                id: 'change',
+                eyebrow: 'A Clearer Lens',
+                title: 'What would protected time change first?',
+                detail: 'Do not overthink it.',
+                type: 'choices',
+                options: ['Sleep', 'Attention', 'Relationships', 'Decision-making']
+            },
+            {
+                afterSlideIndex: 8,
+                id: 'readiness',
+                eyebrow: 'One Last Question',
+                title: 'Would you seriously consider a trial stay this season?',
+                detail: 'A clear answer is better than a polite one.',
+                type: 'choices',
+                options: ['Yes', 'Possibly', 'Need more clarity', 'Not now']
+            }
+        ];
+        this.pendingInterstitial = null;
+        this.pilotResponses = [];
         this.pilotAdvanceTimer = null;
         this.pilotMode = false;
         this.pilotManifest = null;
@@ -683,6 +714,13 @@ export class VoicePPTApp {
             this.loadPresentationCatalog();
             document.getElementById('participant-name')?.focus();
         });
+        on('interstitial-submit', 'click', () => this.submitInterstitialResponse());
+        on('interstitial-input', 'keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.submitInterstitialResponse();
+            }
+        });
     }
 
     bindQuestionAudioControls() {
@@ -802,6 +840,13 @@ export class VoicePPTApp {
                 });
                 return;
             }
+            const interstitial = this.getInterstitialForSlide(this.currentSlideIndex);
+            if (interstitial) {
+                this.pendingPlaybackStartAt = null;
+                this.syncSlidePauseButton({ paused: false, enabled: false });
+                this.openInterstitial(interstitial);
+                return;
+            }
             const currentSlide = this.slideDeck[this.currentSlideIndex] || this.currentSlide;
             const advanceDelayMs = currentSlide?.isQuoteSlide ? 2200 : 350;
             this.clearPilotAdvanceTimer();
@@ -834,6 +879,87 @@ export class VoicePPTApp {
         this.setStatus('Tap to continue', 'paused', `Slide ${slideIndex + 1} is ready. Press play to begin.`);
     }
 
+    getInterstitialForSlide(slideIndex) {
+        return this.pilotInterstitials.find((item) => item.afterSlideIndex === slideIndex) || null;
+    }
+
+    openInterstitial(interstitial) {
+        this.pendingInterstitial = interstitial;
+        const overlay = document.getElementById('interstitial-overlay');
+        const eyebrow = document.getElementById('interstitial-eyebrow');
+        const title = document.getElementById('interstitial-title');
+        const detail = document.getElementById('interstitial-detail');
+        const options = document.getElementById('interstitial-options');
+        const inputWrap = document.getElementById('interstitial-input-wrap');
+        const input = document.getElementById('interstitial-input');
+
+        if (eyebrow) eyebrow.textContent = interstitial.eyebrow || 'A Quick Question';
+        if (title) title.textContent = interstitial.title || '';
+        if (detail) detail.textContent = interstitial.detail || '';
+        if (options) options.innerHTML = '';
+        if (input) input.value = '';
+
+        if (interstitial.type === 'choices' && options) {
+            interstitial.options.forEach((option) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'interstitial-option';
+                button.textContent = option;
+                button.addEventListener('click', () => this.submitInterstitialResponse(option));
+                options.appendChild(button);
+            });
+            if (inputWrap) inputWrap.classList.add('hidden');
+        } else if (inputWrap) {
+            inputWrap.classList.remove('hidden');
+        }
+
+        if (overlay) overlay.classList.remove('hidden');
+        this.setStatus('A quick question', 'paused', 'One answer, then we continue.');
+    }
+
+    closeInterstitial() {
+        const overlay = document.getElementById('interstitial-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        this.pendingInterstitial = null;
+    }
+
+    async saveInterstitialResponse(interstitial, answer) {
+        try {
+            await fetch('/api/questions/pilot-response', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    presentationSlug: this.pilotManifest?.metadata?.presentationSlug || '',
+                    projectSlug: this.currentProjectSlug || '',
+                    questionId: interstitial.id,
+                    prompt: interstitial.title,
+                    answer,
+                    slideIndex: this.currentSlideIndex
+                })
+            });
+        } catch (error) {
+            console.warn('Pilot interstitial response save failed:', error);
+        }
+    }
+
+    async submitInterstitialResponse(forcedAnswer = '') {
+        const interstitial = this.pendingInterstitial;
+        if (!interstitial) return;
+        const input = document.getElementById('interstitial-input');
+        const answer = String(forcedAnswer || input?.value || '').trim();
+        if (!answer) return;
+
+        this.pilotResponses.push({
+            id: interstitial.id,
+            prompt: interstitial.title,
+            answer
+        });
+        await this.saveInterstitialResponse(interstitial, answer);
+        this.closeInterstitial();
+        await this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
+    }
+
     async startPilotSession() {
         if (!this.pilotManifest?.slides?.length) {
             throw new Error('Pilot package not loaded');
@@ -850,13 +976,14 @@ export class VoicePPTApp {
         this.configurePilotInteractionMode();
         this.attachPilotAudioEvents();
 
-        this.sessionId = 'pilot-local';
+        this.sessionId = `pilot-${Date.now()}`;
         this.controlToken = '';
         this.participantName = '';
         this.currentProjectSlug = this.pilotManifest.metadata?.projectSlug || '';
         this.totalSlides = Number(this.pilotManifest.metadata?.slideCount || this.pilotManifest.slides.length || 0);
         this.slideDeck = this.pilotManifest.slides.map((slide, index) => this.mapPilotSlide(slide, index));
         this.sessionStatus = 'presenting';
+        this.pilotResponses = [];
 
         await this.loadLoadingQuotes(this.currentProjectSlug);
         this.ui.showLoadingScreen(this.loadingQuotes);
@@ -2599,7 +2726,10 @@ export class VoicePPTApp {
         const summaryEl = document.getElementById('completion-summary');
         if (summaryEl) {
             if (this.pilotMode) {
-                summaryEl.textContent = 'Take the first step with a Beforest hospitality trial.';
+                const responses = this.pilotResponses.map((item) => item.answer).filter(Boolean);
+                summaryEl.textContent = responses.length > 0
+                    ? `What you asked for was clear: ${responses.join(', ')}. The trial stay is the simplest way to test that in real life.`
+                    : 'Take the first step with a Beforest hospitality trial.';
             } else {
                 summaryEl.textContent = `${data.totalSlides || this.slideDeck.length} slides delivered. ${data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length} questions discussed.`;
             }
@@ -2610,6 +2740,7 @@ export class VoicePPTApp {
             deckTitle: document.getElementById('deck-label').textContent, 
             totalSlides: data.totalSlides, 
             questionsAnswered: data.totalQuestionsAnswered, 
+            pilotResponses: this.pilotResponses,
             userQuestions: this.userQuestions, 
             timestamp: new Date().toISOString() 
         };

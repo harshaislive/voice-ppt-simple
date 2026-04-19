@@ -1421,6 +1421,91 @@ h1, h2, h3, h4 {
     transform: translateX(100%);
 }
 
+.interstitial-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 6500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(24, 20, 16, 0.28);
+    backdrop-filter: blur(6px);
+}
+
+.interstitial-card {
+    width: min(100%, 720px);
+    padding: 40px 36px;
+    background: var(--bg);
+    border: 1px solid rgba(52, 46, 41, 0.12);
+    box-shadow: 0 28px 90px rgba(24, 19, 15, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.interstitial-eyebrow {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    opacity: 0.46;
+    margin-bottom: 12px;
+}
+
+.interstitial-title {
+    font-size: clamp(2rem, 4vw, 3.1rem);
+    line-height: 0.98;
+    max-width: 14ch;
+}
+
+.interstitial-detail {
+    margin-top: 14px;
+    max-width: 42ch;
+    font-size: 0.96rem;
+    line-height: 1.55;
+    opacity: 0.66;
+}
+
+.interstitial-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.interstitial-option {
+    justify-content: flex-start;
+    min-height: 56px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid rgba(52, 46, 41, 0.12);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.interstitial-input-wrap {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.interstitial-input {
+    flex: 1;
+    height: 56px;
+    border: 1px solid rgba(52, 46, 41, 0.12);
+    padding: 0 16px;
+    font-size: 1rem;
+}
+
+.interstitial-submit {
+    margin-top: 0;
+    height: 56px;
+    min-width: 160px;
+}
+
 .qa-panel-inner {
     height: 100%;
     display: flex;
@@ -1782,6 +1867,19 @@ h1, h2, h3, h4 {
 
     .qa-footer {
         padding: 24px 24px 32px;
+    }
+
+    .interstitial-card {
+        padding: 32px 24px;
+    }
+
+    .interstitial-options {
+        grid-template-columns: 1fr;
+    }
+
+    .interstitial-input-wrap {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 
