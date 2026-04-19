@@ -798,9 +798,16 @@ h1, h2, h3, h4 {
 .slide-copy.is-quote-slide .slide-subtitle,
 .slide-copy.is-quote-slide .full-transcription,
 .slide-copy.is-quote-slide .transcript-reel-meta,
-.slide-copy.is-quote-slide .transcript-reel-word,
 .slide-copy.is-quote-slide .transcript-reel-phrase {
     color: inherit;
+}
+
+.slide-copy.is-quote-slide .transcript-reel-word {
+    color: rgba(253, 251, 247, 0.62);
+}
+
+.slide-copy.is-quote-slide .transcript-reel-word.is-active {
+    color: #a24f3d;
 }
 
 .slide-copy.is-quote-slide .slide-title {
@@ -1493,6 +1500,27 @@ h1, h2, h3, h4 {
     padding: 0 40px;
     padding-bottom: 180px; /* Space for sticky footer and long answers */
     min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(134, 49, 43, 0.7) rgba(52, 46, 41, 0.08);
+}
+
+.qa-content-area::-webkit-scrollbar {
+    width: 10px;
+}
+
+.qa-content-area::-webkit-scrollbar-track {
+    background: rgba(52, 46, 41, 0.08);
+    border-radius: 999px;
+}
+
+.qa-content-area::-webkit-scrollbar-thumb {
+    background: rgba(134, 49, 43, 0.72);
+    border-radius: 999px;
+    border: 2px solid rgba(253, 251, 247, 0.9);
+}
+
+.qa-content-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(158, 52, 48, 0.9);
 }
 
 .qa-list {
