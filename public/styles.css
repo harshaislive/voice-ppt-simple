@@ -3394,40 +3394,37 @@ h1, h2, h3, h4 {
 .cta-blocks {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     max-width: 100%;
 }
 
 .cta-block {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    border: none;
-    border-radius: 22px;
-    padding: 20px 22px;
+    justify-content: center;
+    align-self: flex-start;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0;
+    padding: 14px 18px;
     text-decoration: none;
     color: #fff;
-    background: linear-gradient(180deg, rgba(158, 52, 48, 0.98), rgba(134, 49, 43, 0.98));
-    box-shadow: 0 22px 46px rgba(134, 49, 43, 0.28);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #86312b;
+    box-shadow: none;
+    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cta-block:hover {
-    background: linear-gradient(180deg, rgba(174, 60, 55, 1), rgba(134, 49, 43, 1));
+    background: #9e3430;
     color: #fff;
     transform: translateY(-2px);
 }
 
 .cta-block-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+    display: block;
 }
 
 .cta-block-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: block;
 }
 
 .cta-block-kicker {
@@ -3436,22 +3433,26 @@ h1, h2, h3, h4 {
     text-transform: uppercase;
     letter-spacing: 0.2em;
     color: rgba(253, 251, 247, 0.76);
+    margin-bottom: 10px;
 }
 
 .cta-block-label {
-    font-family: var(--font-serif);
-    font-size: 1.2rem;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
     line-height: 1;
-    letter-spacing: -0.03em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .cta-block-note {
-    font-size: 0.88rem;
-    color: rgba(253, 251, 247, 0.7);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: rgba(253, 251, 247, 0.78);
+    margin-top: 10px;
 }
 
 .cta-block-arrow {
-    opacity: 0.82;
+    display: none;
 }
 
 .completion-footer-note {
