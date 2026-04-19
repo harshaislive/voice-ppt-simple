@@ -56,6 +56,9 @@ export function selectPresentationFromCatalog(presentations = [], requestedIdent
 
 export class VoicePPTApp {
     constructor() {
+        this.pilotMode = false;
+        this.pilotManifest = null;
+        this.pilotAudio = new Audio();
         this.clientInstanceId = this.getOrCreateClientInstanceId();
         this.sessionId = null;
         this.controlToken = '';
@@ -146,9 +149,19 @@ export class VoicePPTApp {
             console.log('[Test] Skipping to completion screen');
             this._skipToCompletion();
         } else {
-            this.loadSessionConfig();
-            this.loadPresentationCatalog();
+            this.initializeApp();
         }
+    }
+
+    async initializeApp() {
+        const pilotLoaded = await this.loadPilotManifest();
+        if (pilotLoaded) {
+            this.configurePilotStartScreen();
+            return;
+        }
+
+        this.loadSessionConfig();
+        this.loadPresentationCatalog();
     }
 
     async loadLoadingQuotes(projectSlug = '') {
@@ -253,6 +266,78 @@ export class VoicePPTApp {
         this.socketClient?.resetPlaybackAck?.();
         this.syncSlidePauseButton?.({ paused: false, enabled: false });
         this.activeTranscriptMode = 'idle';
+    }
+
+    async loadPilotManifest() {
+        try {
+            const res = await fetch('/pilot-package/manifest.json', { cache: 'no-store' });
+            if (!res.ok) {
+                return false;
+            }
+            this.pilotManifest = await res.json();
+            this.pilotMode = true;
+            return true;
+        } catch (err) {
+            console.warn('Pilot manifest unavailable:', err);
+            return false;
+        }
+    }
+
+    configurePilotStartScreen() {
+        const metadata = this.pilotManifest?.metadata || {};
+        const firstSlide = this.pilotManifest?.slides?.[0] || null;
+        this.presentationCatalog = [{
+            id: metadata.presentationSlug || 'pilot-package',
+            presentationSlug: metadata.presentationSlug || 'pilot-package',
+            title: metadata.title || 'Pilot Presentation',
+            source: metadata.source || 'local',
+            projectSlug: metadata.projectSlug || '',
+            startTitle: metadata.title || 'Pilot Presentation',
+            startSubtitle: 'Frozen presentation package',
+            startImage: firstSlide?.image || ''
+        }];
+        this.currentProjectSlug = metadata.projectSlug || '';
+        this.setStartScreenMode('form');
+        this.clearPersistedSession();
+
+        const titleEl = document.getElementById('home-start-title');
+        const subEl = document.getElementById('home-start-sub');
+        if (titleEl) this.setMultilineText(titleEl, metadata.title || 'Pilot Presentation', 'Pilot Presentation');
+        if (subEl) subEl.textContent = 'Frozen presentation package';
+
+        const heroEl = document.getElementById('start-hero');
+        if (heroEl && firstSlide?.image) {
+            this.setBackgroundImage(heroEl, firstSlide.image);
+        }
+
+        const nameInput = document.getElementById('participant-name');
+        const passcodeEl = document.getElementById('session-passcode');
+        const hintEl = document.querySelector('.start-hint');
+        if (nameInput) {
+            nameInput.value = '';
+            nameInput.style.display = 'none';
+        }
+        if (passcodeEl) {
+            passcodeEl.value = '';
+            passcodeEl.style.display = 'none';
+        }
+        if (hintEl) {
+            hintEl.textContent = 'This pilot runs from a frozen local presentation package.';
+        }
+        localStorage.setItem(VoicePPTApp.STORAGE_KEYS.PASSCODE_REQUIRED, 'false');
+        this.configurePilotInteractionMode();
+    }
+
+    configurePilotInteractionMode() {
+        this.setQuestionInputsEnabled(false);
+        const interruptBtn = document.getElementById('interrupt-mic');
+        const footerContinueBtn = document.getElementById('footer-continue-btn');
+        const slideTurnMic = document.getElementById('slide-turn-mic');
+        const chatWidget = document.getElementById('completion-chat-widget');
+        if (interruptBtn) interruptBtn.style.display = 'none';
+        if (footerContinueBtn) footerContinueBtn.style.display = 'none';
+        if (slideTurnMic) slideTurnMic.style.display = 'none';
+        if (chatWidget) chatWidget.style.display = 'none';
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -618,6 +703,152 @@ export class VoicePPTApp {
         this.syncSlidePauseButton({ paused: false, enabled: false });
     }
 
+    mapPilotSlide(slide = {}, index = 0) {
+        return {
+            id: slide.id || `pilot-slide-${index + 1}`,
+            slide_index: index,
+            title: slide.title || '',
+            content: slide.content || '',
+            image: slide.image || '',
+            notes: slide.notes || '',
+            narrationText: slide.narrationText || '',
+            audioPath: slide.audioPath || '',
+            durationMs: Number(slide.durationMs || 0),
+            wordBoundaries: Array.isArray(slide.wordBoundaries) ? slide.wordBoundaries : []
+        };
+    }
+
+    buildPilotAudioUrl(slide = {}) {
+        if (!slide.audioPath) return '';
+        const version = encodeURIComponent(this.pilotManifest?.metadata?.generatedAt || Date.now());
+        return `/pilot-package/${slide.audioPath}?v=${version}`;
+    }
+
+    syncPilotPlaybackClock() {
+        if (!this.pilotAudio) return;
+        this.pendingPlaybackStartAt = performance.now() - (this.pilotAudio.currentTime * 1000);
+        this.slideAudioStarted = true;
+        this.activeAudioSlideIndex = this.currentSlideIndex;
+    }
+
+    hydratePilotTranscript(slide) {
+        this.narrationSourceText = String(slide?.narrationText || '').trim();
+        this.fullNarrationTranscript = this.narrationSourceText;
+        this.wordBoundaries = Array.isArray(slide?.wordBoundaries) ? slide.wordBoundaries : [];
+        this.totalAudioDurationMs = Number(slide?.durationMs || 0);
+        this.subtitleReady = true;
+        this.refreshTranscriptReel();
+        this.renderFullTranscription();
+    }
+
+    attachPilotAudioEvents() {
+        if (!this.pilotAudio || this._pilotAudioEventsBound) return;
+        this._pilotAudioEventsBound = true;
+
+        this.pilotAudio.addEventListener('play', () => {
+            this.isAudioPaused = false;
+            this.syncPilotPlaybackClock();
+            this.startTranscriptProgress();
+            this.syncSlidePauseButton({ paused: false, enabled: true });
+            this.setStatus('Presenting', 'live', 'Narration live');
+        });
+
+        this.pilotAudio.addEventListener('pause', () => {
+            if (this.pilotAudio.ended) return;
+            this.isAudioPaused = true;
+            this.stopTranscriptProgress();
+            this.syncTranscriptFrameWithPlayback();
+            this.renderFullTranscription();
+            this.syncSlidePauseButton({ paused: true, enabled: true });
+            this.setStatus('Paused', 'paused', 'Presentation paused');
+        });
+
+        this.pilotAudio.addEventListener('timeupdate', () => {
+            this.syncPilotPlaybackClock();
+            this.renderFullTranscription();
+        });
+
+        this.pilotAudio.addEventListener('ended', () => {
+            this.stopTranscriptProgress();
+            const lastIndex = this.slideDeck.length - 1;
+            if (this.currentSlideIndex >= lastIndex) {
+                this.pendingPlaybackStartAt = null;
+                this.syncSlidePauseButton({ paused: false, enabled: false });
+                this.showCompletion({
+                    totalSlides: this.slideDeck.length,
+                    totalQuestionsAnswered: 0
+                });
+                return;
+            }
+            this.playPilotSlide(this.currentSlideIndex + 1, { autoPlay: true });
+        });
+    }
+
+    async startPilotSession() {
+        if (!this.pilotManifest?.slides?.length) {
+            throw new Error('Pilot package not loaded');
+        }
+
+        const btn = document.getElementById('start-presentation');
+        if (btn) {
+            btn.disabled = true;
+            btn.querySelector('span').textContent = 'Starting...';
+        }
+
+        this.clearPersistedSession();
+        this.resetSessionRuntimeState();
+        this.configurePilotInteractionMode();
+        this.attachPilotAudioEvents();
+
+        this.sessionId = 'pilot-local';
+        this.controlToken = '';
+        this.participantName = '';
+        this.currentProjectSlug = this.pilotManifest.metadata?.projectSlug || '';
+        this.totalSlides = Number(this.pilotManifest.metadata?.slideCount || this.pilotManifest.slides.length || 0);
+        this.slideDeck = this.pilotManifest.slides.map((slide, index) => this.mapPilotSlide(slide, index));
+        this.sessionStatus = 'presenting';
+
+        await this.loadLoadingQuotes(this.currentProjectSlug);
+        this.ui.showLoadingScreen(this.loadingQuotes);
+
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('present-view').classList.remove('hidden');
+        document.getElementById('deck-label').textContent = this.pilotManifest.metadata?.title || 'Pilot Presentation';
+
+        this.updateSlide({
+            slideIndex: 0,
+            totalSlides: this.totalSlides,
+            slide: this.slideDeck[0]
+        });
+
+        this.ui.hideLoadingScreen();
+        await this.playPilotSlide(0, { autoPlay: true });
+    }
+
+    async playPilotSlide(index, options = {}) {
+        const autoPlay = options.autoPlay !== false;
+        const slide = this.slideDeck[index];
+        if (!slide) return;
+
+        this.pilotAudio.pause();
+        this.pilotAudio.currentTime = 0;
+        this.resetSubtitleState();
+        this.updateSlide({
+            slideIndex: index,
+            totalSlides: this.totalSlides || this.slideDeck.length,
+            slide
+        });
+        this.hydratePilotTranscript(slide);
+        this.pilotAudio.src = this.buildPilotAudioUrl(slide);
+        this.isAudioPaused = !autoPlay;
+        this.syncSlidePauseButton({ paused: !autoPlay, enabled: true });
+        if (autoPlay) {
+            await this.pilotAudio.play();
+        } else {
+            this.setStatus('Ready', 'paused', `Slide ${index + 1} ready`);
+        }
+    }
+
     // Proxy UI methods for cleaner access
     setStatus(t, s, d) { this.ui.setStatus(t, s, d); }
     showTranscript(s) { this.ui.showTranscript(s); }
@@ -738,6 +969,21 @@ export class VoicePPTApp {
     }
 
     async startSession() {
+        if (this.pilotMode) {
+            try {
+                await this.startPilotSession();
+            } catch (err) {
+                console.error('Pilot session failed to start:', err);
+                this.setStatus('Pilot unavailable', 'paused', 'The local presentation package could not be opened');
+                const btn = document.getElementById('start-presentation');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.querySelector('span').textContent = 'Begin Experience';
+                }
+            }
+            return;
+        }
+
         const requestedDeckId = this.getRequestedDeckId();
         const selectedPresentation = selectPresentationFromCatalog(this.presentationCatalog, requestedDeckId);
         if (requestedDeckId && !selectedPresentation) {
@@ -1590,6 +1836,12 @@ export class VoicePPTApp {
             });
         }
 
+        if (this.pilotMode) {
+            await this.playPilotSlide(index, { autoPlay: true });
+            this.renderScrubber();
+            return;
+        }
+
         try {
             await this.replaySlide(index);
         } catch (err) {
@@ -1924,6 +2176,19 @@ export class VoicePPTApp {
     async stopVoiceMode() { this.voiceModeEnabled = false; await this.azureVoice.disconnect(); await this.pauseAutoplex(false); this.updateMicState(); this.restorePresentationStatus(); }
 
     async continuePresentationFlow() {
+        if (this.pilotMode) {
+            const nextIndex = this.currentSlideIndex + 1;
+            if (nextIndex >= this.slideDeck.length) {
+                this.showCompletion({
+                    totalSlides: this.slideDeck.length,
+                    totalQuestionsAnswered: 0
+                });
+                return;
+            }
+            await this.playPilotSlide(nextIndex, { autoPlay: true });
+            return;
+        }
+
         if (!this.sessionId) return;
         this.streamPlayer.reset();
         this.resetSubtitleState();
@@ -1940,6 +2205,18 @@ export class VoicePPTApp {
     async pauseAutoplex(p) { if (!this.sessionId) return; try { await this.apiFetch(`/api/autoplex/${p ? 'pause' : 'resume'}`, { method: 'POST', body: JSON.stringify({ sessionId: this.sessionId }) }); } catch (err) { console.error(err); } }
 
     async resumePresentationAfterHistory() {
+        if (this.pilotMode) {
+            if (this.isAudioPaused || this.pilotAudio?.ended) return;
+            if (this.pilotAudio?.paused) {
+                try {
+                    await this.pilotAudio.play();
+                } catch (err) {
+                    console.warn('Pilot playback resume failed:', err);
+                }
+            }
+            return;
+        }
+
         if (!this.sessionId) return;
         try {
             await this.pauseAutoplex(false);
@@ -1950,6 +2227,28 @@ export class VoicePPTApp {
     }
 
     async toggleAudioPause() {
+        if (this.pilotMode) {
+            if (!this.pilotAudio || !this.pilotAudio.src) {
+                this.syncSlidePauseButton({ paused: false, enabled: false });
+                return;
+            }
+            if (this._isTogglingPause) return;
+            this._isTogglingPause = true;
+            setTimeout(() => { this._isTogglingPause = false; }, 300);
+
+            if (this.pilotAudio.paused || this.pilotAudio.ended) {
+                try {
+                    await this.pilotAudio.play();
+                } catch (err) {
+                    console.warn('Pilot playback resume failed:', err);
+                }
+                return;
+            }
+
+            this.pilotAudio.pause();
+            return;
+        }
+
         if (!this.streamPlayer || !this.streamPlayer.audioContext) return;
         const hasPlayback = this.streamPlayer.isPlaying
             || this.streamPlayer.hasPendingPlayback()
@@ -2119,7 +2418,13 @@ export class VoicePPTApp {
     showCompletion(data) {
         this.isFinalState = true;
         const summaryEl = document.getElementById('completion-summary');
-        if (summaryEl) summaryEl.textContent = `${data.totalSlides || this.slideDeck.length} slides delivered. ${data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length} questions discussed.`;
+        if (summaryEl) {
+            if (this.pilotMode) {
+                summaryEl.textContent = 'Take the first step with a Beforest hospitality trial.';
+            } else {
+                summaryEl.textContent = `${data.totalSlides || this.slideDeck.length} slides delivered. ${data.totalQuestionsAnswered || Array.from(this.questions.values()).filter(q => q.status === 'answered').length} questions discussed.`;
+            }
+        }
         
         const activity = { 
             participantName: this.participantName, 
@@ -2153,10 +2458,15 @@ export class VoicePPTApp {
 
         this.loadCtaBlocks();
 
-        this.setStatus('Complete', 'paused', 'Your session summary is ready');
+        this.setStatus('Complete', 'paused', this.pilotMode ? 'Ready for your first step' : 'Your session summary is ready');
     }
 
     async loadCtaBlocks() {
+        if (this.pilotMode) {
+            this.renderPilotCtaBlock();
+            return;
+        }
+
         const projectSlug = this.getCurrentProjectSlug();
         if (!projectSlug) {
             const section = document.getElementById('completion-cta');
@@ -2217,6 +2527,42 @@ export class VoicePPTApp {
             const section = document.getElementById('completion-cta');
             if (section) section.classList.add('hidden');
         }
+    }
+
+    renderPilotCtaBlock() {
+        const section = document.getElementById('completion-cta');
+        const container = document.getElementById('cta-blocks');
+        const footerNote = document.querySelector('.completion-footer-note p');
+        const completionTitle = document.querySelector('.completion-title');
+        if (!section || !container) return;
+
+        container.innerHTML = '';
+        const cta = document.createElement('a');
+        cta.href = 'https://hospitality.beforest.co';
+        cta.target = '_blank';
+        cta.rel = 'noopener noreferrer';
+        cta.className = 'cta-block';
+        cta.innerHTML = `
+            <div class="cta-block-left" style="display:flex;align-items:center;gap:12px;">
+                <div class="cta-block-icon" style="opacity:0.6;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="2" y1="12" x2="22" y2="12"/>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </div>
+                <div class="cta-block-label">Start Your Beforest Trial</div>
+            </div>
+            <div class="cta-block-arrow">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </div>
+        `;
+        container.appendChild(cta);
+        section.classList.remove('hidden');
+        if (completionTitle) completionTitle.textContent = 'Start Your Trial';
+        if (footerNote) footerNote.textContent = 'If this feels right, take the first real step now.';
     }
 
     onVoiceTurnState(t, s, d) { this.setStatus(t, s, d); }
