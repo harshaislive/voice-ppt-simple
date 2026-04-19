@@ -6,6 +6,9 @@ describe('playback pause and resume', () => {
             fn();
             return 0;
         });
+        const originalPerformanceNow = performance.now;
+        let now = 1000;
+        performance.now = jest.fn(() => now);
         const { VoicePPTApp } = await importVoicePPTAppModule();
         const pause = jest.fn().mockResolvedValue();
         const resume = jest.fn().mockResolvedValue();
@@ -22,30 +25,40 @@ describe('playback pause and resume', () => {
                 shiftPlaybackWindow: jest.fn()
             },
             pendingPlaybackStartAt: 100,
+            totalAudioDurationMs: 5000,
             isAudioPaused: false,
             pauseStartMs: null,
+            pausedPlaybackOffsetMs: 0,
             syncSlidePauseButton: jest.fn(),
             clearTranscriptChunkTimers: jest.fn(),
             stopTranscriptProgress: jest.fn(),
             syncTranscriptReelPlayback: jest.fn(),
+            syncTranscriptFrameWithPlayback: jest.fn(),
+            renderFullTranscription: jest.fn(),
             startTranscriptProgress: jest.fn(),
             pauseAutoplex,
             replaySlide,
-            _isTogglingPause: false
+            _isTogglingPause: false,
+            getCurrentPlaybackOffsetMs: VoicePPTApp.prototype.getCurrentPlaybackOffsetMs
         };
 
         await VoicePPTApp.prototype.toggleAudioPause.call(app);
         expect(pause).toHaveBeenCalled();
         expect(pauseAutoplex).toHaveBeenCalledWith(true);
         expect(app.isAudioPaused).toBe(true);
+        expect(app.pausedPlaybackOffsetMs).toBe(900);
 
         app.isAudioPaused = true;
+        now = 1600;
         app.pauseStartMs = performance.now();
         app._isTogglingPause = false;
         await VoicePPTApp.prototype.toggleAudioPause.call(app);
         expect(resume).toHaveBeenCalled();
         expect(pauseAutoplex).toHaveBeenLastCalledWith(false);
         expect(replaySlide).not.toHaveBeenCalled();
+        expect(app.pendingPlaybackStartAt).toBe(700);
+        expect(app.pausedPlaybackOffsetMs).toBe(0);
+        performance.now = originalPerformanceNow;
         timeoutSpy.mockRestore();
     });
 

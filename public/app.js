@@ -109,6 +109,7 @@ export class VoicePPTApp {
 
         this.isAudioPaused = false;
         this.pauseStartMs = null;
+        this.pausedPlaybackOffsetMs = 0;
         this.forceFreshSession = false;
 
 
@@ -245,6 +246,7 @@ export class VoicePPTApp {
         this.awaitingPlaybackComplete = false;
         this.isAudioPaused = false;
         this.pauseStartMs = null;
+        this.pausedPlaybackOffsetMs = 0;
         this.stopTranscriptProgress?.();
         this.clearTranscriptChunkTimers?.();
         this.streamPlayer?.reset?.();
@@ -1940,14 +1942,13 @@ export class VoicePPTApp {
         // The pause path stops sources and marks the stream player paused; it does not
         // necessarily suspend the AudioContext.
         if (this.isAudioPaused) {
-            const pausedForMs = this.pauseStartMs ? Math.max(0, performance.now() - this.pauseStartMs) : 0;
             await this.streamPlayer.resume();
             this.isAudioPaused = false;
-            if (pausedForMs > 0 && this.pendingPlaybackStartAt) {
-                this.pendingPlaybackStartAt += pausedForMs;
-                this.streamPlayer.shiftPlaybackWindow(pausedForMs);
+            if (this.pendingPlaybackStartAt) {
+                this.pendingPlaybackStartAt = performance.now() - this.pausedPlaybackOffsetMs;
             }
             this.pauseStartMs = null;
+            this.pausedPlaybackOffsetMs = 0;
             this.syncSlidePauseButton({ paused: false, enabled: true });
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
@@ -1959,30 +1960,43 @@ export class VoicePPTApp {
         if (this.streamPlayer.audioContext.state === 'running') {
             // Use the audio player's pause() method - it sets _isPaused = true
             // which blocks all new chunks from being processed
+            this.pausedPlaybackOffsetMs = this.getCurrentPlaybackOffsetMs();
             await this.streamPlayer.pause();
             this.isAudioPaused = true;
             this.pauseStartMs = performance.now();
             this.clearTranscriptChunkTimers();
             this.stopTranscriptProgress();
+            this.syncTranscriptFrameWithPlayback();
+            this.renderFullTranscription();
             this.syncSlidePauseButton({ paused: true, enabled: true });
             await this.pauseAutoplex(true);
         }
         // Fallback for browsers that really suspend the AudioContext
         else if (this.streamPlayer.audioContext.state === 'suspended') {
-            const pausedForMs = this.pauseStartMs ? Math.max(0, performance.now() - this.pauseStartMs) : 0;
             await this.streamPlayer.audioContext.resume();
             await this.streamPlayer.resume();
             this.isAudioPaused = false;
-            if (pausedForMs > 0 && this.pendingPlaybackStartAt) {
-                this.pendingPlaybackStartAt += pausedForMs;
-                this.streamPlayer.shiftPlaybackWindow(pausedForMs);
+            if (this.pendingPlaybackStartAt) {
+                this.pendingPlaybackStartAt = performance.now() - this.pausedPlaybackOffsetMs;
             }
             this.pauseStartMs = null;
+            this.pausedPlaybackOffsetMs = 0;
             this.syncSlidePauseButton({ paused: false, enabled: true });
             this.syncTranscriptReelPlayback();
             this.startTranscriptProgress();
             await this.pauseAutoplex(false);
         }
+    }
+
+    getCurrentPlaybackOffsetMs() {
+        if (!this.pendingPlaybackStartAt) return 0;
+        const referenceNow = this.isAudioPaused && this.pauseStartMs
+            ? this.pauseStartMs
+            : performance.now();
+        const elapsed = Math.max(0, referenceNow - this.pendingPlaybackStartAt);
+        return this.totalAudioDurationMs > 0
+            ? Math.min(elapsed, this.totalAudioDurationMs)
+            : elapsed;
     }
 
     getCurrentSlideContext() {

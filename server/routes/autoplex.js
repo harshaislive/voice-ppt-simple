@@ -251,6 +251,14 @@ function shouldStreamNarrationText() {
     return !ttsService.prefersManagedNarration();
 }
 
+function shouldBypassMasterAssets(sessionMetadata = {}, participantName = '') {
+    if (sessionMetadata.bypassMaster === true) {
+        return true;
+    }
+
+    return Boolean(String(participantName || sessionMetadata.participantName || '').trim());
+}
+
 function syncSessionState(sessionId, updates) {
     if (!supabaseSession.isConfigured() || !sessionId || !updates) {
         return;
@@ -518,7 +526,7 @@ async function preGenerateAllSlides(db, sessionId, slides, sessionMetadata) {
         // If this deck has a master session, we can skip all LLM/TTS generation
         // and just "pre-warm" the caches from the master assets.
         const deckId = sessionMetadata.presentationSlug || sessionMetadata.deckId;
-        const bypassMaster = sessionMetadata.bypassMaster === true;
+        const bypassMaster = shouldBypassMasterAssets(sessionMetadata, sessionMetadata.participantName);
 
         if (deckId) {
             const cachedDeckAssets = slides.map((slide, i) => {
@@ -1267,7 +1275,7 @@ async function runPresentation(db, io, sessionId, runId) {
     presentationStartTimes.set(sessionId, Date.now());
     const participantName = getParticipantName(db, sessionId);
     const sessionMetadata = getSessionMetadata(db, sessionId);
-    const bypassMaster = sessionMetadata.bypassMaster === true;
+    const bypassMaster = shouldBypassMasterAssets(sessionMetadata, participantName);
 
     // Check for master assets for this deck
     let masterData = null;
@@ -1914,6 +1922,7 @@ module.exports.getPreGenProgress = getPreGenProgress;
 module.exports.waitForPlaybackCompletion = waitForPlaybackCompletion;
 module.exports.getPlaybackContract = getPlaybackContract;
 module.exports.resetPlaybackContracts = resetPlaybackContracts;
+module.exports.shouldBypassMasterAssets = shouldBypassMasterAssets;
 
 async function waitWhilePaused(db, io, sessionId) {
     let emitted = false;
