@@ -2779,7 +2779,7 @@ export class VoicePPTApp {
         const lines = input.split(/\n+/);
 
         lines.forEach((line, lineIndex) => {
-            const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
+            const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)|((?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[^\s]*)?)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
             let cursor = 0;
             let match;
 
@@ -2788,8 +2788,15 @@ export class VoicePPTApp {
                     fragment.appendChild(document.createTextNode(line.slice(cursor, match.index)));
                 }
 
-                const href = match[2] || match[3] || `mailto:${match[4]}`;
-                const label = match[1] || match[3] || match[4] || href;
+                const markdownUrl = match[2] || '';
+                const directUrl = match[3] || '';
+                const bareDomain = match[4] || '';
+                const email = match[5] || '';
+                const href = markdownUrl
+                    || directUrl
+                    || (bareDomain ? `https://${bareDomain}` : '')
+                    || (email ? `mailto:${email}` : '');
+                const label = match[1] || directUrl || bareDomain || email || href;
                 const link = document.createElement('a');
                 link.href = href;
                 link.target = '_blank';
