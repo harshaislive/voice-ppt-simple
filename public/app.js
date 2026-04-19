@@ -753,6 +753,8 @@ export class VoicePPTApp {
         this.pilotAudio.addEventListener('play', () => {
             this.isAudioPaused = false;
             this.syncPilotPlaybackClock();
+            this.syncTranscriptReelPlayback();
+            this.renderFullTranscription();
             this.startTranscriptProgress();
             this.syncSlidePauseButton({ paused: false, enabled: true });
             this.setStatus('Presenting', 'live', 'Narration live');
@@ -770,6 +772,10 @@ export class VoicePPTApp {
 
         this.pilotAudio.addEventListener('timeupdate', () => {
             this.syncPilotPlaybackClock();
+            if (this.transcriptChunks.length > 0) {
+                this.transcriptChunkMode = 'live';
+                this.syncTranscriptFrameWithPlayback();
+            }
             this.renderFullTranscription();
         });
 
@@ -844,6 +850,12 @@ export class VoicePPTApp {
             slide
         });
         this.hydratePilotTranscript(slide);
+        if (this.transcriptChunks.length > 0) {
+            this.transcriptChunkMode = 'live';
+            this.transcriptChunkIndex = 0;
+            this.activeTranscriptWordIndex = -1;
+            this.renderFullTranscription();
+        }
         this.pilotAudio.src = this.buildPilotAudioUrl(slide);
         this.isAudioPaused = !autoPlay;
         this.syncSlidePauseButton({ paused: !autoPlay, enabled: true });
