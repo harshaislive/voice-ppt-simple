@@ -287,11 +287,7 @@ export class VoicePPTApp {
     configurePilotStartScreen() {
         const metadata = this.pilotManifest?.metadata || {};
         const firstSlide = this.pilotManifest?.slides?.[0] || null;
-        const contextualSubtitle = String(
-            metadata.description
-            || firstSlide?.content
-            || 'A quiet introduction to the Beforest way of living.'
-        ).trim();
+        const contextualSubtitle = 'Protected Time, Protected Land';
         this.presentationCatalog = [{
             id: metadata.presentationSlug || 'pilot-package',
             presentationSlug: metadata.presentationSlug || 'pilot-package',
