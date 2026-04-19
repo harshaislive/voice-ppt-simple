@@ -150,6 +150,76 @@ async function loadQuestionAnswerContext(db, sessionId) {
     return context;
 }
 
+async function loadPilotQuestionAnswerContext({
+    presentationSlug = '',
+    projectSlug = '',
+    currentSlideIndex = 0,
+    currentSlide = null,
+    slides = []
+} = {}) {
+    const context = {
+        session: null,
+        metadata: {
+            presentationSlug: String(presentationSlug || '').trim(),
+            projectSlug: String(projectSlug || '').trim()
+        },
+        slides: Array.isArray(slides) ? slides : [],
+        currentSlide: currentSlide || null,
+        presentation: null,
+        knowledgeContext: ''
+    };
+
+    let presentation = null;
+    if (context.metadata.presentationSlug) {
+        try {
+            presentation = await cmsService.loadPresentation(context.metadata.presentationSlug);
+        } catch (error) {
+            console.warn('[Questions] Failed to load pilot presentation context:', error.message);
+        }
+    }
+
+    const normalizedSlides = Array.isArray(context.slides) && context.slides.length > 0
+        ? context.slides.map((slide, index) => ({
+            id: slide.id || `pilot-slide-${index + 1}`,
+            slide_index: Number.isFinite(Number(slide.slide_index)) ? Number(slide.slide_index) : index,
+            title: slide.title || '',
+            content: slide.content || '',
+            notes: slide.notes || ''
+        }))
+        : Array.isArray(presentation?.slides)
+            ? presentation.slides.map((slide, index) => ({
+                id: slide.id || `pilot-slide-${index + 1}`,
+                slide_index: index,
+                title: slide.title || '',
+                content: slide.content || '',
+                notes: slide.notes || ''
+            }))
+            : [];
+
+    const slideIndex = Number.isFinite(Number(currentSlideIndex)) ? Number(currentSlideIndex) : 0;
+    const resolvedCurrentSlide = currentSlide
+        ? {
+            id: currentSlide.id || `pilot-slide-${slideIndex + 1}`,
+            slide_index: slideIndex,
+            title: currentSlide.title || '',
+            content: currentSlide.content || '',
+            notes: currentSlide.notes || ''
+        }
+        : normalizedSlides.find((slide) => Number(slide.slide_index) === slideIndex) || normalizedSlides[slideIndex] || null;
+
+    context.presentation = presentation;
+    context.slides = normalizedSlides;
+    context.currentSlide = resolvedCurrentSlide;
+    context.knowledgeContext = buildQuestionKnowledgeContext({
+        sessionMetadata: context.metadata,
+        presentation,
+        currentSlide: resolvedCurrentSlide,
+        slides: normalizedSlides
+    });
+
+    return context;
+}
+
 async function loadSessionForQuestions(db, sessionId) {
     let session = db.get(`
         SELECT id, deck_id, control_token_hash, current_slide_index, status, created_at, updated_at, metadata
@@ -476,6 +546,72 @@ router.post('/', async (req, res) => {
     } catch (error) {
         logger.error({ event: 'qa_submit_failed', err: error.message });
         res.status(500).json({ error: 'Failed to submit question' });
+    }
+});
+
+router.post('/pilot', async (req, res) => {
+    const logger = getRequestLogger(req, { subsystem: 'qa' });
+    try {
+        const {
+            questionText,
+            submittedBy,
+            presentationSlug,
+            projectSlug,
+            currentSlideIndex,
+            currentSlide,
+            slides
+        } = req.body || {};
+
+        if (!String(questionText || '').trim()) {
+            return res.status(400).json({ error: 'Question text is required' });
+        }
+
+        const modelService = require('../services/model');
+        const answerContext = await loadPilotQuestionAnswerContext({
+            presentationSlug,
+            projectSlug,
+            currentSlideIndex,
+            currentSlide,
+            slides
+        });
+
+        const answer = await modelService.generateNarrationStream({
+            slideTitle: 'User Question',
+            slideContent: String(questionText || '').trim(),
+            slideNotes: answerContext.currentSlide
+                ? `Current slide: "${answerContext.currentSlide.title || ''}". Visible text: "${answerContext.currentSlide.content || ''}"${answerContext.currentSlide.notes ? `\nPresenter notes: ${answerContext.currentSlide.notes}` : ''}`
+                : 'Answer directly and use the presentation knowledge if available.',
+            pendingQuestions: [],
+            participantName: submittedBy || 'Guest',
+            slideIndex: Number(answerContext.currentSlide?.slide_index || currentSlideIndex || 0),
+            totalSlides: answerContext.slides?.length || 1,
+            style: 'conversational',
+            knowledgeContext: answerContext.knowledgeContext
+        }, () => {});
+
+        const meta = buildAnswerMeta(questionText, answer);
+        logger.info({
+            event: 'pilot_qa_answer_ready',
+            presentationSlug: String(presentationSlug || '').trim(),
+            projectSlug: String(projectSlug || '').trim(),
+            slideIndex: Number(answerContext.currentSlide?.slide_index || currentSlideIndex || 0)
+        });
+
+        res.json({
+            success: true,
+            questionId: uuidv4(),
+            answerText: answer,
+            answerTitle: meta.answerTitle,
+            answerSummary: meta.answerSummary,
+            answerDetails: meta.answerDetails,
+            answerAudioUrl: null,
+            answerAudioPath: null,
+            answerAudioDurationMs: null,
+            audioSource: 'none'
+        });
+    } catch (error) {
+        logger.error({ event: 'pilot_qa_failed', err: error.message });
+        res.status(500).json({ error: 'Failed to answer question' });
     }
 });
 

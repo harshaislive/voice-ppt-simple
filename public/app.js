@@ -329,15 +329,15 @@ export class VoicePPTApp {
     }
 
     configurePilotInteractionMode() {
-        this.setQuestionInputsEnabled(false);
+        this.setQuestionInputsEnabled(true);
         const interruptBtn = document.getElementById('interrupt-mic');
         const footerContinueBtn = document.getElementById('footer-continue-btn');
         const slideTurnMic = document.getElementById('slide-turn-mic');
         const chatWidget = document.getElementById('completion-chat-widget');
-        if (interruptBtn) interruptBtn.style.display = 'none';
+        if (interruptBtn) interruptBtn.style.display = '';
         if (footerContinueBtn) footerContinueBtn.style.display = 'none';
         if (slideTurnMic) slideTurnMic.style.display = 'none';
-        if (chatWidget) chatWidget.style.display = 'none';
+        if (chatWidget) chatWidget.style.display = '';
     }
 
     static SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1715,11 +1715,20 @@ export class VoicePPTApp {
         const input = options.source === 'slide-turn' ? document.getElementById('slide-question-input') : document.getElementById('question-input');
         const button = options.source === 'slide-turn' ? document.getElementById('slide-question-send') : document.getElementById('submit-question');
         const text = (typeof forcedText === 'string' ? forcedText : input.value).trim();
-        if (!text || !this.sessionId) return;
+        if (!text) return;
         this.pendingQuestionText = text;
         try {
             if (input) input.blur();
             if (button) button.disabled = true;
+            if (this.pilotMode) {
+                await this.submitPilotQuestion(text, options);
+                if (input) input.value = '';
+                this.pendingQuestionText = null;
+                this.ui.toggleQuestionDrawer(true, { focusInput: false });
+                return;
+            }
+
+            if (!this.sessionId) return;
             const res = await this.apiFetch('/api/questions', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1741,6 +1750,60 @@ export class VoicePPTApp {
         } finally {
             if (button) button.disabled = false;
         }
+    }
+
+    async submitPilotQuestion(text, options = {}) {
+        const questionId = `pilot-q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const submittedBy = options.submittedBy || 'You';
+        this.addQuestionToList(questionId, text, submittedBy, { source: 'pilot' });
+        this.setStatus('Thinking', 'paused', 'Preparing an answer');
+
+        const res = await fetch('/api/questions/pilot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                questionText: text,
+                submittedBy,
+                presentationSlug: this.pilotManifest?.metadata?.presentationSlug || '',
+                projectSlug: this.currentProjectSlug || this.pilotManifest?.metadata?.projectSlug || '',
+                currentSlideIndex: this.currentSlideIndex,
+                currentSlide: this.currentSlide ? {
+                    id: this.currentSlide.id,
+                    title: this.currentSlide.title,
+                    content: this.currentSlide.content,
+                    notes: this.currentSlide.notes
+                } : null,
+                slides: (this.slideDeck || []).map((slide, index) => ({
+                    id: slide.id || `pilot-slide-${index + 1}`,
+                    slide_index: Number.isFinite(Number(slide.slide_index)) ? Number(slide.slide_index) : index,
+                    title: slide.title || '',
+                    content: slide.content || '',
+                    notes: slide.notes || ''
+                }))
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Failed');
+        }
+
+        this.markQuestionAnswered(questionId, data.answerText || '', text, {
+            answerTitle: data.answerTitle,
+            answerSummary: data.answerSummary,
+            answerDetails: data.answerDetails,
+            answerAudioUrl: '',
+            suppressNotification: true
+        });
+        this.userQuestions.push({
+            id: questionId,
+            questionText: text,
+            answerText: data.answerText || '',
+            answerTitle: data.answerTitle || '',
+            answerSummary: data.answerSummary || '',
+            answerAudioUrl: '',
+            timestamp: Date.now()
+        });
+        this.setStatus('Q&A ready', 'paused', 'Answer added to the conversation');
     }
 
     renderScrubber() {
