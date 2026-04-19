@@ -833,18 +833,23 @@ export class VoicePPTApp {
             ]);
 
             this.setQuestionInputsEnabled(true);
-
-            // Wait for pre-generation to finish (may already be done).
-            await preGenPromise;
-            
-            this.ui.hideLoadingScreen();
-            await this.loadSessionQuestions();
-            
             this.applyStartupReadiness(Boolean(socketReady));
-            this.syncQuestionCount();
+
             if (socketReady) {
                 await this.triggerAutoPlex();
             }
+
+            // Don't block first-slide playback on full-deck pre-generation.
+            // Give the pregen loop a brief head start, then let playback begin
+            // while the rest of the deck continues preparing in the background.
+            await Promise.race([
+                preGenPromise,
+                new Promise((resolve) => setTimeout(resolve, 1500))
+            ]);
+
+            this.ui.hideLoadingScreen();
+            await this.loadSessionQuestions();
+            this.syncQuestionCount();
         } catch (err) { console.error(err); btn.disabled = false; btn.querySelector('span').textContent = 'Begin Experience'; }
     }
 
