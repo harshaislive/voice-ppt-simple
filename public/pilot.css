@@ -1,0 +1,193 @@
+:root {
+    --bg: #f3eee6;
+    --ink: #17130d;
+    --muted: #6f6557;
+    --accent: #24352b;
+    --accent-2: #9b5d32;
+    --card: rgba(255, 250, 242, 0.92);
+    --line: rgba(23, 19, 13, 0.12);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Sora", system-ui, sans-serif;
+    background:
+        radial-gradient(circle at top left, rgba(155, 93, 50, 0.14), transparent 36%),
+        linear-gradient(160deg, #efe5d8 0%, #f5f0e8 38%, #e6efe6 100%);
+    color: var(--ink);
+}
+
+.pilot-app {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(320px, 420px);
+    gap: 24px;
+    padding: 24px;
+}
+
+.pilot-stage,
+.pilot-card {
+    border: 1px solid var(--line);
+    background: var(--card);
+    backdrop-filter: blur(18px);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 18px 60px rgba(27, 23, 16, 0.1);
+}
+
+.pilot-stage {
+    display: grid;
+    grid-template-rows: minmax(320px, 52vh) auto;
+}
+
+.pilot-hero {
+    position: relative;
+}
+
+.pilot-image {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.pilot-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(17, 14, 10, 0.52), rgba(17, 14, 10, 0.05));
+}
+
+.pilot-meta {
+    position: absolute;
+    inset: 20px 20px auto 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+}
+
+.pilot-badge,
+.pilot-counter,
+.pilot-label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+}
+
+.pilot-badge,
+.pilot-counter {
+    color: #f8f2ea;
+}
+
+.pilot-copy {
+    padding: 28px;
+    display: grid;
+    gap: 18px;
+}
+
+.pilot-deck-title {
+    margin: 0;
+    color: var(--accent-2);
+    font-weight: 600;
+}
+
+.pilot-title {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 4.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+}
+
+.pilot-content {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    max-width: 70ch;
+}
+
+.pilot-transcript-shell {
+    display: grid;
+    gap: 14px;
+    padding-top: 8px;
+}
+
+.pilot-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(23, 19, 13, 0.08);
+    overflow: hidden;
+}
+
+.pilot-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+    transition: width 120ms linear;
+}
+
+.pilot-live-transcript {
+    margin: 0;
+    min-height: 92px;
+    font-size: 1.25rem;
+    line-height: 1.8;
+}
+
+.pilot-sidebar {
+    display: grid;
+    gap: 24px;
+}
+
+.pilot-card {
+    padding: 24px;
+}
+
+.pilot-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.pilot-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font: inherit;
+    background: rgba(23, 19, 13, 0.08);
+    color: var(--ink);
+}
+
+.pilot-btn-primary {
+    background: var(--accent);
+    color: #f7f0e7;
+}
+
+.pilot-full-transcript {
+    margin-top: 12px;
+    color: var(--muted);
+    line-height: 1.8;
+    font-size: 0.98rem;
+}
+
+.pilot-word {
+    transition: color 120ms ease, opacity 120ms ease;
+    opacity: 0.35;
+}
+
+.pilot-word.is-active,
+.pilot-word.is-spoken {
+    opacity: 1;
+    color: var(--ink);
+}
+
+@media (max-width: 1024px) {
+    .pilot-app {
+        grid-template-columns: 1fr;
+    }
+}

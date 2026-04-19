@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "db:init": "node server/db/init.js",
     "cms:seed": "node scripts/seed-supabase.js",
+    "build:pilot": "node scripts/build-pilot-presentation.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:smoke": "npm test -- --runInBand tests/runtime/runtime-config.test.js tests/runtime/session-control-auth.test.js tests/runtime/content-source-resolution.test.js tests/runtime/playback-contract.test.js tests/runtime/qa-grounding.test.js",
     "test:regression": "npm test -- --runInBand tests/runtime/runtime-config.test.js tests/runtime/session-control-auth.test.js tests/runtime/content-source-resolution.test.js tests/runtime/content-identity.test.js tests/runtime/content-project-package.test.js tests/runtime/session-diagnostics.test.js tests/runtime/playback-contract.test.js tests/runtime/playback-pause-resume.test.js tests/runtime/playback-advance.test.js tests/runtime/playback-restore.test.js tests/runtime/qa-grounding.test.js tests/runtime/qa-experience.test.js tests/runtime/qa-isolation.test.js tests/runtime/regression-main-journey.test.js tests/runtime/regression-restore-journey.test.js",

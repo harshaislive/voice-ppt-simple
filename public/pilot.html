@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pilot Presentation</title>
+    <link rel="stylesheet" href="/pilot.css">
+</head>
+<body>
+    <main class="pilot-app">
+        <section class="pilot-stage">
+            <div class="pilot-hero">
+                <div id="pilot-image" class="pilot-image"></div>
+                <div class="pilot-overlay"></div>
+                <div class="pilot-meta">
+                    <span id="pilot-title-badge" class="pilot-badge">Pilot</span>
+                    <span id="pilot-counter" class="pilot-counter">1 / 1</span>
+                </div>
+            </div>
+
+            <div class="pilot-copy">
+                <p id="pilot-deck-title" class="pilot-deck-title">Loading…</p>
+                <h1 id="slide-title" class="pilot-title"></h1>
+                <p id="slide-content" class="pilot-content"></p>
+
+                <div class="pilot-transcript-shell">
+                    <div class="pilot-progress">
+                        <div id="progress-fill" class="pilot-progress-fill"></div>
+                    </div>
+                    <p id="live-transcript" class="pilot-live-transcript"></p>
+                </div>
+            </div>
+        </section>
+
+        <aside class="pilot-sidebar">
+            <div class="pilot-card">
+                <p class="pilot-label">Narration</p>
+                <div class="pilot-controls">
+                    <button id="prev-btn" class="pilot-btn" type="button">Prev</button>
+                    <button id="play-btn" class="pilot-btn pilot-btn-primary" type="button">Play</button>
+                    <button id="next-btn" class="pilot-btn" type="button">Next</button>
+                </div>
+                <audio id="slide-audio" preload="auto"></audio>
+            </div>
+
+            <div class="pilot-card">
+                <p class="pilot-label">Slide Transcript</p>
+                <div id="full-transcript" class="pilot-full-transcript"></div>
+            </div>
+        </aside>
+    </main>
+
+    <script type="module" src="/pilot.js"></script>
+</body>
+</html>

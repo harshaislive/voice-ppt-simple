@@ -33,6 +33,7 @@ app.use(securityHeaders);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/pilot-package', express.static(path.join(__dirname, 'pilot-presentation')));
 app.use('/api', createRateLimiter({ windowMs: 60 * 1000, max: 180, label: 'API' }));
 app.use('/api/session/start', createRateLimiter({ windowMs: 60 * 1000, max: 10, label: 'Session start' }));
 app.use('/api/questions', createRateLimiter({ windowMs: 60 * 1000, max: 30, label: 'Question submission' }));
@@ -69,6 +70,10 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 // Health check
+app.get('/pilot', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'pilot.html'));
+});
+
 app.get('/api/health', (req, res) => {
     const db = req.app.get('db');
     const hasDb = !!(db && db.get);
