@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const modelService = require('../server/services/model');
 const ttsService = require('../server/services/tts');
+const cmsService = require('../server/services/cms');
 
 const ROOT = path.join(__dirname, '..');
 const DEFAULT_PROJECT = 'beforest';
@@ -16,8 +17,52 @@ function readTextIfExists(filePath) {
     return fs.readFileSync(filePath, 'utf8').trim();
 }
 
-function loadPresentation(projectSlug, presentationSlug) {
-    const projectDir = path.join(ROOT, 'content', 'projects', projectSlug);
+function buildKnowledgeContext(docs = {}) {
+    const sections = [];
+    if (docs.soul) sections.push(`SOUL:\n${docs.soul}`);
+    if (docs.agents) sections.push(`PROJECT RULES:\n${docs.agents}`);
+    if (docs.flow) sections.push(`PRESENTATION FLOW:\n${docs.flow}`);
+    if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${docs.product}`);
+    if (docs.design) sections.push(`DESIGN CONTEXT:\n${docs.design}`);
+    if (docs.cta) sections.push(`CALL TO ACTION:\n${docs.cta}`);
+    return sections.join('\n\n').slice(0, 18000);
+}
+
+async function resolveSupabaseTarget() {
+    const catalog = await cmsService.listPresentations();
+    const supabaseTargets = catalog.filter((presentation) => presentation.source === 'supabase');
+
+    if (supabaseTargets.length === 0) {
+        throw new Error('No Supabase-backed presentations found in the current catalog');
+    }
+
+    if (supabaseTargets.length > 1) {
+        throw new Error('Multiple Supabase-backed presentations found; set PILOT_PRESENTATION_SLUG explicitly');
+    }
+
+    return supabaseTargets[0];
+}
+
+async function loadPresentation(projectSlug, presentationSlug, source) {
+    if (source === 'supabase') {
+        const resolvedTarget = presentationSlug
+            ? { presentationSlug }
+            : await resolveSupabaseTarget();
+        const presentation = await cmsService.loadPresentation(resolvedTarget.presentationSlug, {
+            expectedSource: 'supabase'
+        });
+
+        return {
+            projectSlug: presentation.projectSlug || projectSlug || DEFAULT_PROJECT,
+            projectConfig: {},
+            projectDir: '',
+            presentation,
+            docs: presentation.knowledgeDocs || {}
+        };
+    }
+
+    const resolvedProjectSlug = projectSlug || DEFAULT_PROJECT;
+    const projectDir = path.join(ROOT, 'content', 'projects', resolvedProjectSlug);
     const presentationPath = path.join(projectDir, 'presentations', `${presentationSlug}.json`);
     if (!fs.existsSync(presentationPath)) {
         throw new Error(`Presentation not found: ${presentationPath}`);
@@ -35,23 +80,12 @@ function loadPresentation(projectSlug, presentationSlug) {
     };
 
     return {
-        projectSlug,
+        projectSlug: resolvedProjectSlug,
         projectConfig,
         projectDir,
         presentation,
         docs
     };
-}
-
-function buildKnowledgeContext(docs = {}) {
-    const sections = [];
-    if (docs.soul) sections.push(`SOUL:\n${docs.soul}`);
-    if (docs.agents) sections.push(`PROJECT RULES:\n${docs.agents}`);
-    if (docs.flow) sections.push(`PRESENTATION FLOW:\n${docs.flow}`);
-    if (docs.product) sections.push(`PRODUCT KNOWLEDGE:\n${docs.product}`);
-    if (docs.design) sections.push(`DESIGN CONTEXT:\n${docs.design}`);
-    if (docs.cta) sections.push(`CALL TO ACTION:\n${docs.cta}`);
-    return sections.join('\n\n').slice(0, 18000);
 }
 
 function getSlideStyle(index, totalSlides) {
@@ -102,14 +136,15 @@ async function buildSlideAsset({ slide, slideIndex, totalSlides, knowledgeContex
 }
 
 async function main() {
+    const source = String(process.env.PILOT_SOURCE || 'supabase').trim().toLowerCase();
     const projectSlug = process.env.PILOT_PROJECT_SLUG || DEFAULT_PROJECT;
-    const presentationSlug = process.env.PILOT_PRESENTATION_SLUG || DEFAULT_PRESENTATION;
+    const presentationSlug = process.env.PILOT_PRESENTATION_SLUG || (source === 'supabase' ? '' : DEFAULT_PRESENTATION);
     const outputDir = process.env.PILOT_OUTPUT_DIR
         ? path.resolve(process.env.PILOT_OUTPUT_DIR)
         : DEFAULT_OUTPUT_DIR;
     const voice = process.env.PILOT_VOICE || 'default';
 
-    const loaded = loadPresentation(projectSlug, presentationSlug);
+    const loaded = await loadPresentation(projectSlug, presentationSlug, source);
     const { presentation, docs } = loaded;
     const knowledgeContext = buildKnowledgeContext(docs);
     const slides = Array.isArray(presentation.slides) ? presentation.slides : [];
@@ -123,13 +158,14 @@ async function main() {
     const manifest = {
         metadata: {
             generatedAt: new Date().toISOString(),
-            projectSlug,
-            presentationSlug,
-            title: presentation.title || presentation.slug || presentation.id,
+            projectSlug: loaded.projectSlug || projectSlug,
+            presentationSlug: presentation.presentationSlug || presentation.slug || presentation.id || presentationSlug,
+            title: presentation.title || presentation.presentationSlug || presentation.slug || presentation.id,
             description: presentation.description || '',
             slideCount: slides.length,
             voice,
-            ttsProvider: ttsService.provider || 'unknown'
+            ttsProvider: ttsService.provider || 'unknown',
+            source
         },
         slides: []
     };
@@ -179,8 +215,9 @@ async function main() {
             '',
             'This folder is a self-contained presentation package for the simplified pilot flow.',
             '',
-            `- Project: \`${projectSlug}\``,
-            `- Presentation: \`${presentationSlug}\``,
+            `- Project: \`${loaded.projectSlug || projectSlug}\``,
+            `- Presentation: \`${manifest.metadata.presentationSlug}\``,
+            `- Source: \`${source}\``,
             `- Generated: \`${manifest.metadata.generatedAt}\``,
             `- Voice: \`${voice}\``,
             `- TTS Provider: \`${manifest.metadata.ttsProvider}\``,

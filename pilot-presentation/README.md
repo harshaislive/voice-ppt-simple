@@ -2,9 +2,10 @@
 
 This folder is a self-contained presentation package for the simplified pilot flow.
 
-- Project: `beforest`
+- Project: `76a124f9-0a4b-42cf-9984-ae68ebbb91ff`
 - Presentation: `10_percent_lifestyle`
-- Generated: `2026-04-19T07:24:01.376Z`
+- Source: `supabase`
+- Generated: `2026-04-19T07:28:08.854Z`
 - Voice: `default`
 - TTS Provider: `azure-sdk`
 
