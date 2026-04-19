@@ -1403,6 +1403,7 @@ h1, h2, h3, h4 {
     transform: translateX(0);
     transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: -40px 0 100px rgba(52, 46, 41, 0.08);
+    overflow: hidden;
 }
 
 .qa-scrim {
@@ -1497,13 +1498,14 @@ h1, h2, h3, h4 {
 
 .qa-content-area {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 0 40px;
     padding-bottom: 180px; /* Space for sticky footer and long answers */
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
+    scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: rgba(134, 49, 43, 0.7) rgba(52, 46, 41, 0.08);
 }
@@ -1778,10 +1780,15 @@ h1, h2, h3, h4 {
 
     .qa-content-area {
         padding: 0 24px;
+        padding-bottom: 168px;
     }
 
     .qa-footer {
         padding: 24px 24px 32px;
+    }
+
+    .qa-content-area::-webkit-scrollbar {
+        width: 8px;
     }
 }
 

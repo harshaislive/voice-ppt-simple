@@ -708,6 +708,15 @@ export class VoicePPTApp {
         this.syncSlidePauseButton({ paused: false, enabled: false });
     }
 
+    resetQuestionComposer(input) {
+        if (!input) return;
+        input.value = '';
+        if ('style' in input) {
+            input.style.height = '';
+            input.scrollTop = 0;
+        }
+    }
+
     mapPilotSlide(slide = {}, index = 0) {
         return {
             id: slide.id || `pilot-slide-${index + 1}`,
@@ -1780,7 +1789,7 @@ export class VoicePPTApp {
             if (button) button.disabled = true;
             if (this.pilotMode) {
                 await this.submitPilotQuestion(text, options);
-                if (input) input.value = '';
+                this.resetQuestionComposer(input);
                 this.pendingQuestionText = null;
                 this.ui.toggleQuestionDrawer(true, { focusInput: false });
                 return;
@@ -1797,7 +1806,7 @@ export class VoicePPTApp {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
-            input.value = '';
+            this.resetQuestionComposer(input);
             this.pendingQuestionText = null;
             this.setStatus('Question queued', 'paused', 'Answered after the current slide');
             this.userQuestions.push({ id: null, text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
