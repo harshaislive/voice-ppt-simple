@@ -3038,7 +3038,6 @@ export class VoicePPTApp {
                 <div class="cta-block-copy">
                     <div class="cta-block-kicker">First Step</div>
                     <div class="cta-block-label">Take the trial stay</div>
-                    <div class="cta-block-note">hospitality.beforest.co</div>
                 </div>
             </div>
             <div class="cta-block-arrow">
