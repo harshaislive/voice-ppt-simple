@@ -174,26 +174,79 @@ export class VoicePPTApp {
         };
         this.loadLoadingQuotes();
         this.setupSpeechRecognitionFallback();
-
-        // Testing Hook: skip to completion screen via URL (?state=end)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('state') && urlParams.get('state') === 'end') {
-            console.log('[Test] Skipping to completion screen');
-            this._skipToCompletion();
-        } else {
-            this.initializeApp();
-        }
+        this.initializeApp();
     }
 
     async initializeApp() {
         const pilotLoaded = await this.loadPilotManifest();
         if (pilotLoaded) {
+            const handledPilotRoute = await this.handleTestingRoute({ pilotLoaded: true });
+            if (handledPilotRoute) return;
             this.configurePilotStartScreen();
             return;
         }
 
+        const handledStandardRoute = await this.handleTestingRoute({ pilotLoaded: false });
+        if (handledStandardRoute) return;
+
         this.loadSessionConfig();
         this.loadPresentationCatalog();
+    }
+
+    getTestingRouteConfig() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const state = String(urlParams.get('state') || '').trim().toLowerCase();
+        const slideParam = String(urlParams.get('slide') || '').trim().toLowerCase();
+        const autoplayParam = String(urlParams.get('autoplay') || '').trim().toLowerCase();
+        const autoplay = !['0', 'false', 'no', 'off'].includes(autoplayParam);
+
+        return {
+            state,
+            slideParam,
+            autoplay
+        };
+    }
+
+    resolvePilotPreviewIndex(slideParam = '') {
+        if (!this.pilotManifest?.slides?.length) return -1;
+        if (!slideParam) return -1;
+        if (slideParam === 'last') return this.pilotManifest.slides.length - 1;
+
+        const numeric = Number.parseInt(slideParam, 10);
+        if (Number.isInteger(numeric) && numeric >= 1 && numeric <= this.pilotManifest.slides.length) {
+            return numeric - 1;
+        }
+
+        return -1;
+    }
+
+    async handleTestingRoute({ pilotLoaded = false } = {}) {
+        const route = this.getTestingRouteConfig();
+
+        if (pilotLoaded) {
+            if (route.state === 'end') {
+                console.log('[Test] Skipping to pilot completion screen');
+                await this.openPilotCompletionPreview();
+                return true;
+            }
+
+            const slideIndex = this.resolvePilotPreviewIndex(route.slideParam);
+            if (slideIndex >= 0) {
+                console.log(`[Test] Opening pilot slide ${slideIndex + 1}`);
+                await this.openPilotSlidePreview(slideIndex, { autoPlay: route.autoplay });
+                return true;
+            }
+
+            return false;
+        }
+
+        if (route.state === 'end') {
+            console.log('[Test] Skipping to completion screen');
+            await this._skipToCompletion();
+            return true;
+        }
+
+        return false;
     }
 
     async loadLoadingQuotes(projectSlug = '') {
@@ -255,6 +308,53 @@ export class VoicePPTApp {
         }
         document.getElementById('present-view')?.classList.remove('hidden');
         this.showCompletion({ totalSlides: this.slideDeck.length || 0, totalQuestionsAnswered: 0 });
+    }
+
+    bootstrapPilotRuntime() {
+        this.clearPersistedSession();
+        this.resetSessionRuntimeState();
+        this.configurePilotInteractionMode();
+        this.attachPilotAudioEvents();
+
+        this.sessionId = `pilot-${Date.now()}`;
+        this.controlToken = '';
+        this.participantName = '';
+        this.currentProjectSlug = this.pilotManifest?.metadata?.projectSlug || '';
+        this.totalSlides = Number(this.pilotManifest?.metadata?.slideCount || this.pilotManifest?.slides?.length || 0);
+        this.slideDeck = (this.pilotManifest?.slides || []).map((slide, index) => this.mapPilotSlide(slide, index));
+        this.sessionStatus = 'presenting';
+        this.pilotResponses = [];
+
+        const startScreen = document.getElementById('start-screen');
+        const presentView = document.getElementById('present-view');
+        if (startScreen) {
+            startScreen.classList.add('hidden');
+            startScreen.style.display = 'none';
+        }
+        if (presentView) presentView.classList.remove('hidden');
+        document.getElementById('deck-label').textContent = this.pilotManifest?.metadata?.title || 'Pilot Presentation';
+    }
+
+    async openPilotCompletionPreview() {
+        if (!this.pilotManifest?.slides?.length) {
+            throw new Error('Pilot package not loaded');
+        }
+
+        this.bootstrapPilotRuntime();
+        this.showCompletion({
+            totalSlides: this.slideDeck.length || 0,
+            totalQuestionsAnswered: 0
+        });
+    }
+
+    async openPilotSlidePreview(index, options = {}) {
+        if (!this.pilotManifest?.slides?.length) {
+            throw new Error('Pilot package not loaded');
+        }
+
+        const autoPlay = options.autoPlay === true;
+        this.bootstrapPilotRuntime();
+        await this.playPilotSlide(index, { autoPlay });
     }
 
     resetSessionRuntimeState() {
@@ -971,26 +1071,10 @@ export class VoicePPTApp {
             btn.querySelector('span').textContent = 'Starting...';
         }
 
-        this.clearPersistedSession();
-        this.resetSessionRuntimeState();
-        this.configurePilotInteractionMode();
-        this.attachPilotAudioEvents();
-
-        this.sessionId = `pilot-${Date.now()}`;
-        this.controlToken = '';
-        this.participantName = '';
-        this.currentProjectSlug = this.pilotManifest.metadata?.projectSlug || '';
-        this.totalSlides = Number(this.pilotManifest.metadata?.slideCount || this.pilotManifest.slides.length || 0);
-        this.slideDeck = this.pilotManifest.slides.map((slide, index) => this.mapPilotSlide(slide, index));
-        this.sessionStatus = 'presenting';
-        this.pilotResponses = [];
+        this.bootstrapPilotRuntime();
 
         await this.loadLoadingQuotes(this.currentProjectSlug);
         this.ui.showLoadingScreen(this.loadingQuotes);
-
-        document.getElementById('start-screen').classList.add('hidden');
-        document.getElementById('present-view').classList.remove('hidden');
-        document.getElementById('deck-label').textContent = this.pilotManifest.metadata?.title || 'Pilot Presentation';
 
         this.updateSlide({
             slideIndex: 0,
