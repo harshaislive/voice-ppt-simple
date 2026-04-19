@@ -1802,9 +1802,9 @@ export class VoicePPTApp {
         try {
             if (input) input.blur();
             if (button) button.disabled = true;
+            this.resetQuestionComposer(input);
             if (this.pilotMode) {
                 await this.submitPilotQuestion(text, options);
-                this.resetQuestionComposer(input);
                 this.pendingQuestionText = null;
                 this.ui.toggleQuestionDrawer(true, { focusInput: false });
                 return;
@@ -1821,13 +1821,15 @@ export class VoicePPTApp {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
-            this.resetQuestionComposer(input);
             this.pendingQuestionText = null;
             this.setStatus('Question queued', 'paused', 'Answered after the current slide');
             this.userQuestions.push({ id: null, text, slideIndex: this.currentSlideIndex, timestamp: Date.now() });
             this.ui.toggleQuestionDrawer(true, { focusInput: false });
         } catch (err) {
             console.error(err);
+            if (input && !input.value) {
+                input.value = text;
+            }
             this.setStatus('Question failed', 'paused', 'Retry');
         } finally {
             if (button) button.disabled = false;
