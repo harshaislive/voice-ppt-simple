@@ -3303,31 +3303,30 @@ h1, h2, h3, h4 {
 .completion-overlay {
     position: fixed;
     inset: 0;
-    background: linear-gradient(180deg, #f5eee5 0%, #ece4d8 100%);
+    background: #1b1612;
     z-index: 5000;
     display: flex;
     overflow: hidden;
-    padding: 20px;
+    padding: 0;
 }
 
 .completion-stage {
-    width: min(100%, 1080px);
-    margin: auto;
-    display: grid;
-    grid-template-columns: 1.18fr 1fr;
+    width: 100%;
+    margin: 0;
+    display: block;
     gap: 0;
-    height: calc(100vh - 40px);
-    border-radius: 30px;
+    height: 100vh;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 32px 100px rgba(24, 19, 15, 0.16);
-    background: #fdfbf7;
+    box-shadow: none;
+    background: #1b1612;
 }
 
 .completion-hero-stage {
-    position: relative;
-    min-height: 100%;
+    position: absolute;
+    inset: 0;
     background-size: cover;
-    background-position: center;
+    background-position: center center;
     background-color: #1b1612;
 }
 
@@ -3336,26 +3335,32 @@ h1, h2, h3, h4 {
     position: absolute;
     inset: 0;
     background:
-        linear-gradient(180deg, rgba(10, 12, 10, 0.08), rgba(10, 12, 10, 0.22) 48%, rgba(10, 12, 10, 0.56) 100%),
+        linear-gradient(180deg, rgba(10, 12, 10, 0.08), rgba(10, 12, 10, 0.12) 34%, rgba(10, 12, 10, 0.64) 100%),
+        linear-gradient(90deg, rgba(10, 12, 10, 0.08), rgba(10, 12, 10, 0.18) 56%, rgba(10, 12, 10, 0.62) 100%),
         radial-gradient(circle at top right, rgba(255, 192, 131, 0.14), transparent 24%);
 }
 
 .completion-content-panel {
-    padding: 42px 38px 34px;
+    position: absolute;
+    right: 48px;
+    bottom: 42px;
+    width: min(100%, 520px);
+    padding: 0;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-end;
     text-align: left;
-    background: #fdfbf7;
-    overflow-y: auto;
-    border-left: 1px solid rgba(52, 46, 41, 0.08);
+    background: transparent;
+    overflow: visible;
+    border-left: none;
+    z-index: 1;
 }
 
 .completion-header {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 620px;
+    max-width: 100%;
 }
 
 .completion-eyebrow {
@@ -3363,7 +3368,7 @@ h1, h2, h3, h4 {
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.22em;
-    color: rgba(52, 46, 41, 0.5);
+    color: rgba(253, 251, 247, 0.68);
 }
 
 .completion-title {
@@ -3371,17 +3376,18 @@ h1, h2, h3, h4 {
     line-height: 0.92;
     margin-bottom: 0;
     max-width: 8.5ch;
+    color: #fdfbf7;
 }
 
 .completion-summary {
     font-size: 1rem;
     line-height: 1.64;
-    opacity: 0.76;
+    color: rgba(253, 251, 247, 0.82);
     max-width: 40ch;
 }
 
 .completion-cta {
-    max-width: 620px;
+    max-width: 100%;
     margin-top: 24px;
 }
 
@@ -3402,7 +3408,7 @@ h1, h2, h3, h4 {
     text-decoration: none;
     color: #fff;
     background: linear-gradient(180deg, rgba(158, 52, 48, 0.98), rgba(134, 49, 43, 0.98));
-    box-shadow: 0 22px 46px rgba(134, 49, 43, 0.22);
+    box-shadow: 0 22px 46px rgba(134, 49, 43, 0.28);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -3457,18 +3463,19 @@ h1, h2, h3, h4 {
     font-family: var(--font-sans);
     font-size: 0.94rem;
     line-height: 1.6;
-    opacity: 0.68;
-    max-width: 620px;
+    color: rgba(253, 251, 247, 0.72);
+    max-width: 100%;
 }
 
 .btn-restart-minimal {
     margin-top: 0;
-    background: transparent;
-    border: 1px solid rgba(52, 46, 41, 0.16);
+    background: rgba(253, 251, 247, 0.1);
+    color: #fdfbf7;
+    border: 1px solid rgba(253, 251, 247, 0.16);
     border-radius: 999px;
     padding: 12px 18px;
     font-size: 0.68rem;
-    opacity: 0.72;
+    opacity: 1;
     width: fit-content;
 }
 
@@ -3476,6 +3483,7 @@ h1, h2, h3, h4 {
 @media (max-width: 960px) {
     .completion-overlay {
         padding: 0;
+        background: linear-gradient(180deg, #f5eee5 0%, #ece4d8 100%);
     }
 
     .completion-stage {
@@ -3484,16 +3492,43 @@ h1, h2, h3, h4 {
         width: 100%;
         height: 100vh;
         border-radius: 0;
+        background: #fdfbf7;
     }
 
     .completion-hero-stage {
+        position: relative;
+        inset: auto;
         flex-basis: 44%;
         min-height: 260px;
     }
 
     .completion-content-panel {
+        position: relative;
+        right: auto;
+        bottom: auto;
+        width: 100%;
         padding: 26px 20px 22px;
+        background: #fdfbf7;
         border-left: none;
+    }
+
+    .completion-eyebrow {
+        color: rgba(52, 46, 41, 0.5);
+    }
+
+    .completion-title {
+        color: var(--text);
+    }
+
+    .completion-summary,
+    .completion-footer-note {
+        color: rgba(52, 46, 41, 0.76);
+    }
+
+    .btn-restart-minimal {
+        background: transparent;
+        color: var(--text);
+        border-color: rgba(52, 46, 41, 0.16);
     }
 }
 
